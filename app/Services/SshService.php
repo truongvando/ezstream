@@ -1,0 +1,197 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\VpsServer;
+use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Facades\Log;
+use phpseclib3\Net\SSH2;
+use phpseclib3\Net\SFTP;
+use RuntimeException;
+use Throwable;
+
+class SshService
+{
+    protected ?SSH2 $ssh = null;
+
+    /**
+     * Connect to the VPS server.
+     *
+     * @param VpsServer $vps
+     * @return bool
+     */
+    public function connect(VpsServer $vps): bool
+    {
+        try {
+            Log::info("Attempting SSH connection", [
+                'vps_name' => $vps->name,
+                'ip' => $vps->ip_address,
+                'port' => $vps->ssh_port,
+                'user' => $vps->ssh_user
+            ]);
+
+            $this->ssh = new SSH2($vps->ip_address, $vps->ssh_port);
+            
+            // Add connection timeout
+            $this->ssh->setTimeout(30); // 30 seconds timeout
+            
+            // Password is already decrypted by the model's encrypted cast
+            $password = $vps->ssh_password;
+            
+            Log::info("SSH connection established, attempting login", [
+                'vps_name' => $vps->name,
+                'password_length' => strlen($password)
+            ]);
+
+            if (!$this->ssh->login($vps->ssh_user, $password)) {
+                $lastError = $this->ssh->getLastError();
+                $this->ssh = null;
+                throw new RuntimeException("SSH login failed for VPS: {$vps->name}. Error: " . ($lastError ?: 'Unknown error.'));
+            }
+            
+            Log::info("SSH login successful", ['vps_name' => $vps->name]);
+            return true;
+        } catch (Throwable $e) {
+            Log::error("SSH connection exception for VPS: {$vps->name}. Error: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Execute a command on the connected server.
+     *
+     * @param string $command
+     * @return string|null
+     */
+    public function execute(string $command): ?string
+    {
+        if (!$this->ssh || !$this->ssh->isConnected()) {
+            Log::error('SSH is not connected. Cannot execute command.');
+            return null;
+        }
+
+        try {
+            $output = $this->ssh->exec($command);
+            return $output;
+        } catch (\Exception $e) {
+            Log::error("SSH command execution failed. Error: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Get the exit code of the last command.
+     *
+     * @return int|null
+     */
+    public function getExitCode(): ?int
+    {
+        if (!$this->ssh || !$this->ssh->isConnected()) {
+            return null;
+        }
+        return $this->ssh->getExitStatus();
+    }
+
+    /**
+     * Disconnect from the server.
+     */
+    public function disconnect(): void
+    {
+        if ($this->ssh && $this->ssh->isConnected()) {
+            $this->ssh->disconnect();
+        }
+        $this->ssh = null;
+    }
+
+    /**
+     * Execute a command to get the PID of a background process.
+     * The command should output the PID as the last line.
+     *
+     * @param string $command
+     * @return int|null
+     */
+    public function executeInBackgroundAndGetPid(string $command): ?int
+    {
+        // This is a common way to run a command in the background and get its PID
+        $commandWithPid = "nohup {$command} > /dev/null 2>&1 & echo $!";
+        
+        $output = $this->execute($commandWithPid);
+
+        if ($output === null) {
+            return null;
+        }
+
+        $pid = (int) trim($output);
+        return $pid > 0 ? $pid : null;
+    }
+
+    /**
+     * Kill a process by its PID.
+     *
+     * @param int $pid
+     * @return bool
+     */
+    public function killProcess(int $pid): bool
+    {
+        $output = $this->execute("kill -9 {$pid}");
+        // Killing a process doesn't usually return output on success.
+        // We can check if the process still exists, but for simplicity, we assume it works.
+        // A more robust check would be `ps -p $pid`. If it returns nothing, the process is gone.
+        return $this->execute("ps -p {$pid}") === '';
+    }
+
+    /**
+     * Read the content of a remote file.
+     *
+     * @param string $remotePath
+     * @return string|null
+     */
+    public function readFile(string $remotePath): ?string
+    {
+        if (!$this->ssh || !$this->ssh->isConnected()) {
+            Log::error('SSH is not connected. Cannot read file.');
+            return "Error: SSH not connected.";
+        }
+        
+        // Use 'tail' to get the last 100 lines to avoid huge output
+        return $this->execute("tail -n 100 " . escapeshellarg($remotePath));
+    }
+
+    /**
+     * Upload a file to the VPS via SFTP.
+     *
+     * @param string $localPath The path to the local file on the Laravel server.
+     * @param string $remotePath The destination path on the remote VPS.
+     * @return bool
+     */
+    public function uploadFile(string $localPath, string $remotePath): bool
+    {
+        if (!$this->ssh || !$this->ssh->isConnected()) {
+            Log::error('SSH is not connected. Cannot upload file.');
+            return false;
+        }
+
+        try {
+            $sftp = new SFTP($this->ssh->getHost(), $this->ssh->getPort());
+            
+            // Re-use the existing authenticated SSH connection
+            $sftp->login($this->ssh->getUser(), $this->ssh->getPassword());
+
+            // Ensure the remote directory exists
+            $remoteDir = dirname($remotePath);
+            $sftp->mkdir($remoteDir, -1, true); // The -1 and true make it recursive
+
+            if (!$sftp->put($remotePath, $localPath, SFTP::SOURCE_LOCAL_FILE)) {
+                Log::error("SFTP upload failed for file: {$localPath} to {$remotePath}");
+                return false;
+            }
+
+            Log::info("SFTP upload successful: {$localPath} to {$remotePath}");
+            return true;
+
+        } catch (\Exception $e) {
+            Log::error("SFTP operation failed. Error: " . $e->getMessage());
+            return false;
+        }
+    }
+} 
