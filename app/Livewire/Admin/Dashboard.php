@@ -8,14 +8,13 @@ use App\Models\StreamConfiguration;
 use App\Models\ServicePackage;
 use App\Models\Subscription;
 use App\Models\Transaction;
+use App\Services\SshService;
 use Livewire\Component;
 
 class Dashboard extends Component
 {
     public function render()
     {
-        //emporarily disable all complex queries to isolate the issue.
-        
         $stats = [
             'total_users' => User::count(),
             'active_streams' => StreamConfiguration::where('status', 'ACTIVE')->count(),
@@ -28,17 +27,25 @@ class Dashboard extends Component
             ->take(5)
             ->get();
             
-        $vpsStatuses = VpsServer::where('status', 'ACTIVE')->get()->map(function ($vps) {
-            // In a real app, you'd get this from a monitoring service
-            return [
-                'id' => $vps->id,
-                'name' => $vps->name,
-                'ip_address' => $vps->ip_address,
-                'cpu_usage' => rand(10, 80),
-                'ram_usage' => rand(20, 90),
-                'disk_usage' => rand(5, 95),
-            ];
-        });
+        $vpsStatuses = VpsServer::where('status', 'ACTIVE')
+            ->with('latestStat')
+            ->get()
+            ->map(function ($vps) {
+                $latestStat = $vps->latestStat;
+                
+                $isOnline = $latestStat && $latestStat->created_at->gt(now()->subMinutes(5));
+
+                return [
+                    'id' => $vps->id,
+                    'name' => $vps->name,
+                    'ip_address' => $vps->ip_address,
+                    'cpu_usage_percent' => $isOnline ? $latestStat->cpu_usage_percent : 0,
+                    'ram_usage_percent' => $isOnline ? $latestStat->ram_usage_percent : 0,
+                    'disk_usage_percent' => $isOnline ? $latestStat->disk_usage_percent : 0,
+                    'status' => $isOnline ? 'online' : 'offline',
+                    'last_updated' => $latestStat ? $latestStat->created_at->diffForHumans() : 'N/A',
+                ];
+            });
 
         $recentTransactions = Transaction::with('user')
             ->latest()
@@ -46,13 +53,14 @@ class Dashboard extends Component
             ->get();
         
 
-        // Just render the view with dummy data.
+        // Use real data
         return view('livewire.admin.dashboard', [
-            'stats' => ['total_users' => 0, 'active_streams' => 0, 'active_vps_servers' => 0, 'total_revenue' => 0],
-            'recentStreams' => [],
-            'vpsStatuses' => [],
-            'recentTransactions' => [],
+            'stats' => $stats,
+            'recentStreams' => $recentStreams,
+            'vpsStatuses' => $vpsStatuses,
+            'recentTransactions' => $recentTransactions,
         ])
-            ->layout('layouts.admin');
+            ->layout('layouts.sidebar')
+            ->slot('header', '<h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Admin Dashboard</h1>');
     }
 }

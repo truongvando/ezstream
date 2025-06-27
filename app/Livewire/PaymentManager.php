@@ -50,6 +50,7 @@ class PaymentManager extends Component
     public function render()
     {
         return view('livewire.payment-manager')
-            ->layout('layouts.app');
+            ->layout('layouts.sidebar')
+            ->slot('header', '<h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Thanh toán</h1>');
     }
 }

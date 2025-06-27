@@ -28,34 +28,23 @@ class SyncVpsStatsJob implements ShouldQueue
      */
     public function handle(SshService $sshService): void
     {
-        if (!$sshService->connect($this->vps)) {
-            Log::error("SyncVpsStatsJob: Could not connect to VPS #{$this->vps->id} ({$this->vps->name})");
-            return;
+        try {
+            // Use the centralized methods from SshService for consistency
+            $cpuUsage = $sshService->getCpuUsage($this->vps);
+            $ramUsagePercent = $sshService->getRamUsage($this->vps);
+            $diskUsagePercent = $sshService->getDiskUsage($this->vps);
+
+            // Save the stats
+            $this->vps->stats()->create([
+                'cpu_usage_percent' => $cpuUsage,
+                'ram_usage_percent' => $ramUsagePercent,
+                'disk_usage_percent' => $diskUsagePercent,
+            ]);
+            
+            Log::info("Successfully synced stats for VPS #{$this->vps->id}");
+
+        } catch (\Exception $e) {
+            Log::error("SyncVpsStatsJob: Failed to sync stats for VPS #{$this->vps->id} ({$this->vps->name}). Error: " . $e->getMessage());
         }
-
-        // --- Get CPU Load ---
-        $cpuLoadOutput = $sshService->execute("uptime | grep -o 'load average: .*' | cut -d' ' -f3 | sed 's/,//'");
-        $cpuLoad = (float) trim($cpuLoadOutput);
-
-        // --- Get RAM Usage ---
-        $ramOutput = $sshService->execute("free -m | grep Mem | awk '{print $2, $3}'");
-        list($ramTotal, $ramUsed) = sscanf($ramOutput, "%d %d");
-
-        // --- Get Disk Usage ---
-        $diskOutput = $sshService->execute("df -BG / | tail -n 1 | awk '{print $2, $3}'");
-        list($diskTotal, $diskUsed) = sscanf($diskOutput, "%dG %dG");
-
-        $sshService->disconnect();
-
-        // Save the stats
-        $this->vps->stats()->create([
-            'cpu_load' => $cpuLoad,
-            'ram_total_mb' => $ramTotal,
-            'ram_used_mb' => $ramUsed,
-            'disk_total_gb' => $diskTotal,
-            'disk_used_gb' => $diskUsed,
-        ]);
-        
-        Log::info("Successfully synced stats for VPS #{$this->vps->id}");
     }
 }

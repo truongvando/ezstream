@@ -159,31 +159,34 @@
                         @error('user_file_id') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                     </div>
                     
-                    <!-- Platform Selection -->
-                    <div x-data="{ platform: @entangle('platform') }">
-                        <x-input-label for="platform" value="Nền tảng Livestream" />
-                        <select wire:model="platform" id="platform" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm">
-                            @foreach($platforms as $key => $name)
-                                <option value="{{ $key }}">{{ $name }}</option>
-                            @endforeach
-                        </select>
-
-                        <!-- Platform Specific Notes -->
-                        <div x-show="platform === 'youtube'" class="mt-2 text-sm text-gray-500 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md">💡 <b>Mẹo YouTube:</b> Lấy RTMP URL và Khóa luồng từ trang <a href='https://www.youtube.com/live_dashboard' target='_blank' class='text-blue-500 hover:underline'>YouTube Live Control Room</a>.</div>
-                        <div x-show="platform === 'facebook'" class="mt-2 text-sm text-gray-500 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md">💡 <b>Mẹo Facebook:</b> Sử dụng tùy chọn "Persistent Stream Key" (Khóa luồng không đổi) để không phải cập nhật lại khóa cho mỗi lần stream.</div>
-                    </div>
-                    
-                    <!-- Stream Key & Custom RTMP URL -->
-                    <div class="grid grid-cols-1 gap-6" x-data="{ platform: @entangle('platform') }">
-                        <div x-show="platform === 'custom'">
-                            <x-input-label for="rtmp_url" value="RTMP URL Tùy Chỉnh" />
-                            <x-text-input wire:model.defer="rtmp_url" id="rtmp_url" type="text" class="mt-1 block w-full" placeholder="rtmp://..." />
-                            @error('rtmp_url') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                        </div>
+                    <!-- AlpineJS Scope for Platform selection -->
+                    <div x-data="{ platform: @entangle('platform').live }">
+                        <!-- Platform Selection -->
                         <div>
-                            <x-input-label for="stream_key" value="Khóa Luồng (Stream Key)" />
-                            <x-text-input wire:model.defer="stream_key" id="stream_key" type="password" class="mt-1 block w-full" />
-                            @error('stream_key') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                            <x-input-label for="platform" value="Nền tảng Livestream" />
+                            <select wire:model.live="platform" id="platform" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm">
+                                @foreach($platforms as $key => $name)
+                                    <option value="{{ $key }}">{{ $name }}</option>
+                                @endforeach
+                            </select>
+
+                            <!-- Platform Specific Notes -->
+                            <div x-show="platform === 'youtube'" class="mt-2 text-sm text-gray-500 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md">💡 <b>Mẹo YouTube:</b> Lấy RTMP URL và Khóa luồng từ trang <a href='https://www.youtube.com/live_dashboard' target='_blank' class='text-blue-500 hover:underline'>YouTube Live Control Room</a>.</div>
+                            <div x-show="platform === 'facebook'" class="mt-2 text-sm text-gray-500 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md">💡 <b>Mẹo Facebook:</b> Sử dụng tùy chọn "Persistent Stream Key" (Khóa luồng không đổi) để không phải cập nhật lại khóa cho mỗi lần stream.</div>
+                        </div>
+                        
+                        <!-- Stream Key & Custom RTMP URL -->
+                        <div class="grid grid-cols-1 gap-6 mt-4">
+                            <div x-show="platform === 'custom'">
+                                <x-input-label for="rtmp_url" value="RTMP URL Tùy Chỉnh" />
+                                <x-text-input wire:model.defer="rtmp_url" id="rtmp_url" type="text" class="mt-1 block w-full" placeholder="rtmp://..." />
+                                @error('rtmp_url') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                            </div>
+                            <div>
+                                <x-input-label for="stream_key" value="Khóa Luồng (Stream Key)" />
+                                <x-text-input wire:model.defer="stream_key" id="stream_key" type="password" class="mt-1 block w-full" />
+                                @error('stream_key') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                            </div>
                         </div>
                     </div>
 

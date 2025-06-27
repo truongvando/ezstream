@@ -72,6 +72,7 @@ class Dashboard extends Component
         return view('livewire.dashboard', [
             'storageUsedFormatted' => $this->storageUsedFormatted,
             'storageLimitFormatted' => Number::fileSize($this->storageLimit, precision: 2),
-        ])->layout('layouts.app');
+        ])->layout('layouts.sidebar')
+          ->slot('header', '<h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Dashboard</h1>');
     }
 }

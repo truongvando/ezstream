@@ -59,6 +59,7 @@ class UserSubscriptions extends Component
 
         return view('livewire.user-subscriptions', [
             'subscriptions' => $subscriptions
-        ])->layout('layouts.app');
+        ])->layout('layouts.sidebar')
+          ->slot('header', '<h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Gói đăng ký</h1>');
     }
 } 

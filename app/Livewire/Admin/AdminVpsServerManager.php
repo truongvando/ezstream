@@ -14,7 +14,8 @@ class AdminVpsServerManager extends Component
     {
         return view('livewire.admin.vps-server-manager', [
             'servers' => VpsServer::with('latestStat')->paginate(10)
-        ])->layout('layouts.admin');
+        ])->layout('layouts.sidebar')
+          ->slot('header', '<h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Quản lý VPS Servers</h1>');
     }
 
     public function delete(VpsServer $server)

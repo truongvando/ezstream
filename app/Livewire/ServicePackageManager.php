@@ -40,7 +40,8 @@ class ServicePackageManager extends Component
     {
         return view('livewire.service-package-manager', [
             'packages' => ServicePackage::paginate(10)
-        ])->layout('layouts.admin');
+        ])->layout('layouts.sidebar')
+          ->slot('header', '<h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Gói dịch vụ</h1>');
     }
 
     public function openModal()

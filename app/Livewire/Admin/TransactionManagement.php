@@ -104,7 +104,9 @@ class TransactionManagement extends Component
 
         return view('livewire.admin.transaction-management', [
             'transactions' => $transactions,
+            'stats' => $stats,
             'statuses' => ['PENDING', 'COMPLETED', 'FAILED', 'REFUNDED'],
-        ])->layout('layouts.admin');
+        ])->layout('layouts.sidebar')
+          ->slot('header', '<h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Quản lý Giao dịch</h1>');
     }
 }

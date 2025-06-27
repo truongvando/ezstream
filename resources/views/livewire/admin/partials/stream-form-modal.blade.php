@@ -54,32 +54,35 @@
                 @endif
             </div>
             
-            <!-- Platform Selection -->
-            <div>
-                <x-input-label value="Nền tảng phát trực tiếp" />
-                <div class="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3" x-data="{ platform: @entangle('platform') }">
-                    @foreach($this->getPlatforms() as $key => $platformName)
-                        <label class="flex items-center p-3 rounded-lg border dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-200" :class="platform === '{{ $key }}' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-gray-700'">
-                            <input type="radio" wire:model="platform" value="{{ $key }}" class="form-radio h-4 w-4 text-blue-600">
-                            <span class="ml-3 text-sm font-medium text-gray-900 dark:text-gray-200">{{ $platformName }}</span>
-                        </label>
-                    @endforeach
-                </div>
-                @error('platform') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-            </div>
-
-            <!-- RTMP Settings -->
-            <div class="grid grid-cols-1 gap-6" x-data="{ platform: @entangle('platform') }">
-                <div x-show="platform === 'custom'">
-                    <x-input-label for="rtmp_url" value="RTMP URL Tùy Chỉnh" />
-                    <x-text-input wire:model.defer="rtmp_url" id="rtmp_url" type="text" class="mt-1 block w-full" placeholder="rtmp://custom-server.com/live" />
-                    @error('rtmp_url') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
-                </div>
-                
+            <!-- AlpineJS Scope for Platform selection -->
+            <div x-data="{ platform: @entangle('platform').live }">
+                <!-- Platform Selection -->
                 <div>
-                    <x-input-label for="stream_key" value="Khóa Luồng (Stream Key)" />
-                    <x-text-input wire:model.defer="stream_key" id="stream_key" type="password" class="mt-1 block w-full" placeholder="Nhập stream key từ platform" />
-                    @error('stream_key') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                    <x-input-label value="Nền tảng phát trực tiếp" />
+                    <div class="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        @foreach($this->getPlatforms() as $key => $platformName)
+                            <label class="flex items-center p-3 rounded-lg border dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-200" :class="platform === '{{ $key }}' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-300 dark:border-gray-700'">
+                                <input type="radio" wire:model.live="platform" value="{{ $key }}" class="form-radio h-4 w-4 text-blue-600">
+                                <span class="ml-3 text-sm font-medium text-gray-900 dark:text-gray-200">{{ $platformName }}</span>
+                            </label>
+                        @endforeach
+                    </div>
+                    @error('platform') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                </div>
+
+                <!-- RTMP Settings -->
+                <div class="grid grid-cols-1 gap-6 mt-6">
+                    <div x-show="platform === 'custom'">
+                        <x-input-label for="rtmp_url" value="RTMP URL Tùy Chỉnh" />
+                        <x-text-input wire:model.defer="rtmp_url" id="rtmp_url" type="text" class="mt-1 block w-full" placeholder="rtmp://custom-server.com/live" />
+                        @error('rtmp_url') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                    </div>
+                    
+                    <div>
+                        <x-input-label for="stream_key" value="Khóa Luồng (Stream Key)" />
+                        <x-text-input wire:model.defer="stream_key" id="stream_key" type="password" class="mt-1 block w-full" placeholder="Nhập stream key từ platform" />
+                        @error('stream_key') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                    </div>
                 </div>
             </div>
 

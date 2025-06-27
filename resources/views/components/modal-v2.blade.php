@@ -11,6 +11,9 @@ $maxWidthClasses = [
 
 // Check if we have a wire:model attribute
 $wireModel = $attributes->get('wire:model');
+if ($wireModel === null) {
+    $wireModel = $attributes->get('wire:model.live');
+}
 $hasWireModel = !empty($wireModel);
 @endphp
 

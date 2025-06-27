@@ -147,7 +147,7 @@ class AdminStreamManager extends Component
 
     public function edit(StreamConfiguration $stream)
     {
-        if ($stream->user_id !== Auth::id()) {
+        if (!auth()->user()->isAdmin() && $stream->user_id !== Auth::id()) {
             abort(403);
         }
         $this->resetValidation();
@@ -163,12 +163,12 @@ class AdminStreamManager extends Component
         $this->scheduled_at = $stream->scheduled_at ? $stream->scheduled_at->format('Y-m-d\TH:i') : null;
         $this->scheduled_end = $stream->scheduled_end ? $stream->scheduled_end->format('Y-m-d\TH:i') : null;
 
-        $this->dispatch('open-modal', name: 'edit-stream-modal');
+        $this->showEditModal = true;
     }
 
     public function update()
     {
-        if ($this->editingStream->user_id !== Auth::id()) {
+        if (!auth()->user()->isAdmin() && $this->editingStream->user_id !== Auth::id()) {
             abort(403);
         }
         $this->validate();
@@ -188,26 +188,26 @@ class AdminStreamManager extends Component
             'user_file_id' => $userFile->id,
         ]);
 
-        $this->dispatch('close-modal', name: 'edit-stream-modal');
+        $this->showEditModal = false;
         session()->flash('success', 'Đã cập nhật cấu hình stream thành công.');
     }
 
     public function confirmDelete(StreamConfiguration $stream)
     {
-        if ($stream->user_id !== Auth::id()) {
+        if (!auth()->user()->isAdmin() && $stream->user_id !== Auth::id()) {
             abort(403);
         }
         $this->deletingStream = $stream;
-        $this->dispatch('open-modal', name: 'delete-stream-modal');
+        $this->showDeleteModal = true;
     }
 
     public function delete()
     {
-        if ($this->deletingStream->user_id !== Auth::id()) {
+        if (!auth()->user()->isAdmin() && $this->deletingStream->user_id !== Auth::id()) {
             abort(403);
         }
         $this->deletingStream->delete();
-        $this->dispatch('close-modal', name: 'delete-stream-modal');
+        $this->showDeleteModal = false;
         session()->flash('success', 'Stream configuration deleted successfully.');
     }
 
@@ -460,6 +460,7 @@ class AdminStreamManager extends Component
             'vpsServers' => $vpsServers,
             'statuses' => $statuses,
             'userFiles' => $userFiles
-        ])->layout('layouts.admin');
+        ])->layout('layouts.sidebar')
+          ->slot('header', '<h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Quản lý Streams</h1>');
     }
 }

@@ -24,11 +24,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     
     // File Upload routes
     Route::post('/file/upload', [FileUploadController::class, 'upload'])->name('file.upload');
-    Route::post('/file/chunked/init', [FileUploadController::class, 'initChunkedUpload'])->name('file.chunked.init');
-    Route::post('/file/chunked/upload', [FileUploadController::class, 'uploadChunk'])->name('file.chunked.upload');
-    Route::post('/file/chunked/finalize', [FileUploadController::class, 'finalizeChunkedUpload'])->name('file.chunked.finalize');
-    Route::post('/file/direct/init', [FileUploadController::class, 'getDirectUploadUrl'])->name('file.direct.init');
-    Route::post('/file/direct/finalize', [FileUploadController::class, 'finalizeDirectUpload'])->name('file.direct.finalize');
+    Route::post('/file/stream-proxy', [FileUploadController::class, 'streamProxyUpload'])->name('file.stream-proxy');
+    Route::post('/file/delete', [FileUploadController::class, 'deleteFile'])->name('file.delete');
     
     // Profile routes
     Route::get('/profile', [\App\Http\Controllers\ProfileController::class, 'edit'])->name('profile.edit');
@@ -273,6 +270,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         
         return redirect('/admin/streams')->with('success', 'Stream created and starting on VPS: ' . $vps->name);
     })->middleware(['auth', 'verified']);
+
+
 });
 
 require __DIR__.'/auth.php';

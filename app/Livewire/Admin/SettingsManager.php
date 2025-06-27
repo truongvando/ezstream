@@ -38,6 +38,7 @@ class SettingsManager extends Component
     public function render()
     {
         return view('livewire.admin.settings-manager')
-            ->layout('layouts.admin');
+            ->layout('layouts.sidebar')
+        ->slot('header', '<h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Cài đặt hệ thống</h1>');
     }
 }

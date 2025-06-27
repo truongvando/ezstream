@@ -116,6 +116,7 @@ class UserManagement extends Component
         $users = $query->paginate(10);
 
         return view('livewire.admin.user-management', compact('users'))
-            ->layout('layouts.admin');
+            ->layout('layouts.sidebar')
+        ->slot('header', '<h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Quản lý Users</h1>');
     }
 }

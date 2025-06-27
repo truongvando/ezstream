@@ -97,15 +97,20 @@ class FileManager extends Component
             $file = $user->files()->find($fileId);
             
             if (!$file) {
-                $this->dispatch('show-error', message: 'File không tồn tại.');
+                session()->flash('message', 'File không tồn tại.');
                 return;
             }
+            
+            $fileName = $file->original_name;
             
             // Delete from Google Drive if exists
             if ($file->google_drive_file_id) {
                 try {
                     $googleDriveService = app(GoogleDriveService::class);
-                    $googleDriveService->deleteFile($file->google_drive_file_id);
+                    $result = $googleDriveService->deleteFile($file->google_drive_file_id);
+                    if (!$result['success']) {
+                        \Log::warning('Failed to delete file from Google Drive: ' . ($result['error'] ?? 'Unknown error'));
+                    }
                 } catch (\Exception $e) {
                     \Log::warning('Failed to delete file from Google Drive: ' . $e->getMessage());
                 }
@@ -117,17 +122,20 @@ class FileManager extends Component
             }
             
             // Delete database record
-            $fileName = $file->original_name;
             $file->delete();
             
             // Recalculate storage
             $this->calculateStorage();
             
-            $this->dispatch('show-success', message: "File '{$fileName}' đã được xóa thành công!");
+            // Flash success message
+            session()->flash('message', "File '{$fileName}' đã được xóa thành công!");
+            
+            // Force refresh component
+            $this->render();
             
         } catch (\Exception $e) {
             \Log::error('Delete file error: ' . $e->getMessage());
-            $this->dispatch('show-error', message: 'Lỗi khi xóa file: ' . $e->getMessage());
+            session()->flash('error', 'Lỗi khi xóa file: ' . $e->getMessage());
         }
     }
 
@@ -246,8 +254,10 @@ class FileManager extends Component
     {
         $files = Auth::user()->files()->latest()->get();
 
+        // Use unified sidebar layout
         return view('livewire.file-manager', [
             'files' => $files
-        ])->layout('layouts.app');
+        ])->layout('layouts.sidebar')
+          ->slot('header', '<h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Quản lý File</h1>');
     }
 }

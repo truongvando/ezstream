@@ -194,4 +194,112 @@ class SshService
             return false;
         }
     }
+
+    /**
+     * Get CPU usage percentage
+     */
+    public function getCpuUsage(VpsServer $vps): float
+    {
+        if (!$this->connect($vps)) {
+            throw new RuntimeException("Cannot connect to VPS: {$vps->name}");
+        }
+
+        try {
+            // Get CPU usage using top command
+            $output = $this->execute("top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'%' -f1");
+            $cpuUsage = floatval(trim($output));
+            
+            $this->disconnect();
+            return min(100, max(0, $cpuUsage));
+        } catch (\Exception $e) {
+            $this->disconnect();
+            throw $e;
+        }
+    }
+
+    /**
+     * Get RAM usage percentage
+     */
+    public function getRamUsage(VpsServer $vps): float
+    {
+        if (!$this->connect($vps)) {
+            throw new RuntimeException("Cannot connect to VPS: {$vps->name}");
+        }
+
+        try {
+            // Get memory usage based on "available" memory for better accuracy, similar to htop.
+            // Formula: (total - available) / total * 100
+            $output = $this->execute("free | grep Mem | awk '{printf \"%.2f\", ($2 - $7) / $2 * 100.0}'");
+            $ramUsage = floatval(trim($output));
+            
+            $this->disconnect();
+            return min(100, max(0, $ramUsage));
+        } catch (\Exception $e) {
+            $this->disconnect();
+            throw $e;
+        }
+    }
+
+    /**
+     * Get disk usage percentage
+     */
+    public function getDiskUsage(VpsServer $vps): float
+    {
+        if (!$this->connect($vps)) {
+            throw new RuntimeException("Cannot connect to VPS: {$vps->name}");
+        }
+
+        try {
+            // Get disk usage for root partition
+            $output = $this->execute("df -h / | awk 'NR==2{print $5}' | cut -d'%' -f1");
+            $diskUsage = floatval(trim($output));
+            
+            $this->disconnect();
+            return min(100, max(0, $diskUsage));
+        } catch (\Exception $e) {
+            $this->disconnect();
+            throw $e;
+        }
+    }
+
+    /**
+     * Get available disk space in GB
+     */
+    public function getAvailableDiskSpace(VpsServer $vps): float
+    {
+        if (!$this->connect($vps)) {
+            throw new RuntimeException("Cannot connect to VPS: {$vps->name}");
+        }
+
+        try {
+            // Get available disk space for root partition in GB
+            $output = $this->execute("df -BG / | awk 'NR==2{print $4}' | cut -d'G' -f1");
+            $availableSpace = floatval(trim($output));
+            
+            $this->disconnect();
+            return $availableSpace;
+        } catch (\Exception $e) {
+            $this->disconnect();
+            throw $e;
+        }
+    }
+
+    /**
+     * Get system uptime
+     */
+    public function getUptime(VpsServer $vps): string
+    {
+        if (!$this->connect($vps)) {
+            throw new RuntimeException("Cannot connect to VPS: {$vps->name}");
+        }
+
+        try {
+            $output = $this->execute("uptime -p");
+            $this->disconnect();
+            return trim($output) ?: 'Unknown';
+        } catch (\Exception $e) {
+            $this->disconnect();
+            throw $e;
+        }
+    }
 } 

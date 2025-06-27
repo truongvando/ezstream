@@ -39,4 +39,9 @@ class StreamConfiguration extends Model
     {
         return $this->belongsTo(VpsServer::class);
     }
+
+    public function userFile()
+    {
+        return $this->belongsTo(UserFile::class);
+    }
 }

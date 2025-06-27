@@ -44,7 +44,7 @@
     
     <!-- Back to Home -->
     <div class="absolute top-6 left-6 z-10">
-        <a href="{{ route('welcome') }}" class="flex items-center text-white/80 hover:text-white transition-colors">
+        <a href="/" class="flex items-center text-white/80 hover:text-white transition-colors">
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
             </svg>

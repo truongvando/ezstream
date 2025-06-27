@@ -1,70 +1,58 @@
 <div>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Quản Lý Gói Dịch Vụ') }}
-        </h2>
-    </x-slot>
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Quản Lý Gói Dịch Vụ</h1>
+            <p class="text-gray-600 dark:text-gray-400 mt-1">Tạo, sửa và quản lý các gói dịch vụ cho người dùng.</p>
+        </div>
+        <button wire:click="openModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium inline-flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+            Thêm Gói Mới
+        </button>
+    </div>
 
-    <div class="py-12">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-xl sm:rounded-lg">
-                <div class="p-6 lg:p-8 bg-white dark:bg-gray-800 dark:bg-gradient-to-bl dark:from-gray-700/50 dark:via-transparent border-b border-gray-200 dark:border-gray-700">
-                    <div class="flex justify-between items-center">
-                        <h1 class="text-2xl font-medium text-gray-900 dark:text-white">
-                            Danh Sách Gói Dịch Vụ
-                        </h1>
-                        <button wire:click="openModal()" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
-                            Thêm Gói Mới
-                        </button>
-                    </div>
-
-                    <div class="mt-6 text-gray-500 dark:text-gray-400 leading-relaxed">
-                        <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                <thead class="bg-gray-50 dark:bg-gray-700">
-                                    <tr>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Tên Gói</th>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Giá (VND/tháng)</th>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Số Luồng</th>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Dung Lượng (GB)</th>
-                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Trạng Thái</th>
-                                        <th scope="col" class="relative px-6 py-3"><span class="sr-only">Hành động</span></th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                                    @foreach($packages as $package)
-                                    <tr>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ $package->name }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{{ number_format($package->price, 0, ',', '.') }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{{ $package->max_streams }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{{ $package->storage_limit ? round($package->storage_limit / (1024*1024*1024)) : 'N/A' }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <span @class([
-                                                'px-2 inline-flex text-xs leading-5 font-semibold rounded-full',
-                                                'bg-green-100 text-green-800' => $package->is_active,
-                                                'bg-red-100 text-red-800' => !$package->is_active,
-                                            ])>
-                                                {{ $package->is_active ? 'Kích hoạt' : 'Vô hiệu hóa' }}
-                                            </span>
-                                        </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <button wire:click="edit({{ $package->id }})" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-200">Sửa</button>
-                                            <button wire:click="delete({{ $package->id }})" wire:confirm="Bạn có chắc chắn muốn xóa gói này?" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200 ml-4">Xóa</button>
-                                            <button wire:click="toggleStatus({{ $package->id }})" class="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 ml-4">
-                                                {{ $package->is_active ? 'Hủy kích hoạt' : 'Kích hoạt' }}
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="mt-4">
-                            {{ $packages->links() }}
-                        </div>
-                    </div>
-                </div>
-            </div>
+    <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-xl sm:rounded-lg">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead class="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Tên Gói</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Giá (VND/tháng)</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Số Luồng</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Dung Lượng (GB)</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Trạng Thái</th>
+                        <th scope="col" class="relative px-6 py-3"><span class="sr-only">Hành động</span></th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    @foreach($packages as $package)
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ $package->name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{{ number_format($package->price, 0, ',', '.') }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{{ $package->max_streams }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{{ $package->storage_limit ? round($package->storage_limit / (1024*1024*1024)) : 'N/A' }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span @class([
+                                'px-2 inline-flex text-xs leading-5 font-semibold rounded-full',
+                                'bg-green-100 text-green-800 dark:bg-green-800/30 dark:text-green-300' => $package->is_active,
+                                'bg-red-100 text-red-800 dark:bg-red-800/30 dark:text-red-300' => !$package->is_active,
+                            ])>
+                                {{ $package->is_active ? 'Kích hoạt' : 'Vô hiệu hóa' }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button wire:click="edit({{ $package->id }})" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-200">Sửa</button>
+                            <button wire:click="delete({{ $package->id }})" wire:confirm="Bạn có chắc chắn muốn xóa gói này?" class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200 ml-4">Xóa</button>
+                            <button wire:click="toggleStatus({{ $package->id }})" class="text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200 ml-4">
+                                {{ $package->is_active ? 'Hủy kích hoạt' : 'Kích hoạt' }}
+                            </button>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+        <div class="p-4">
+            {{ $packages->links() }}
         </div>
     </div>
 
@@ -72,7 +60,7 @@
     @if($showModal)
     <div class="fixed z-10 inset-0 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
         <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" wire:click="closeModal()"></div>
             <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
             <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
                 <form wire:submit.prevent="save">

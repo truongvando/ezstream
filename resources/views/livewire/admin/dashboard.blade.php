@@ -1,11 +1,4 @@
-<div>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Admin Dashboard') }}
-        </h2>
-    </x-slot>
-
-    <div class="py-12">
+<div class="space-y-6">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
             <!-- Stat Widgets -->
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -158,37 +151,52 @@
                         @forelse($vpsStatuses as $vps)
                             <div class="border-b border-gray-200 dark:border-gray-700 pb-4 last:border-b-0">
                                 <div class="flex justify-between items-center mb-2">
-                                    <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $vps['name'] }}</span>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-sm font-medium text-gray-900 dark:text-white">{{ $vps['name'] }}</span>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium
+                                            {{ $vps['status'] === 'online' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' }}">
+                                            {{ $vps['status'] === 'online' ? '🟢 Online' : '🔴 Offline' }}
+                                        </span>
+                                    </div>
                                     <span class="text-xs text-gray-500 dark:text-gray-400">{{ $vps['ip_address'] }}</span>
                                 </div>
+                                
+                                @if($vps['status'] === 'offline' && isset($vps['error']))
+                                    <div class="mb-2 p-2 bg-red-50 dark:bg-red-900/20 rounded text-xs text-red-600 dark:text-red-400">
+                                        Lỗi: {{ $vps['error'] }}
+                                    </div>
+                                @endif
                                 <div class="space-y-2">
                                     <div>
                                         <div class="flex justify-between mb-1">
                                             <span class="text-xs text-gray-600 dark:text-gray-400">CPU</span>
-                                            <span class="text-xs text-gray-600 dark:text-gray-400">{{$vps['cpu_usage']}}%</span>
+                                            <span class="text-xs text-gray-600 dark:text-gray-400">{{ number_format($vps['cpu_usage_percent'], 2) }}%</span>
                                         </div>
                                         <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                                            <div class="bg-blue-500 h-2 rounded-full" style="width:{{$vps['cpu_usage']}}%"></div>
+                                            <div class="bg-blue-500 h-2 rounded-full" style="width:{{ $vps['cpu_usage_percent'] }}%"></div>
                                         </div>
                                     </div>
                                     <div>
                                         <div class="flex justify-between mb-1">
                                             <span class="text-xs text-gray-600 dark:text-gray-400">RAM</span>
-                                            <span class="text-xs text-gray-600 dark:text-gray-400">{{$vps['ram_usage']}}%</span>
+                                            <span class="text-xs text-gray-600 dark:text-gray-400">{{ number_format($vps['ram_usage_percent'], 2) }}%</span>
                                         </div>
                                         <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                                            <div class="bg-green-500 h-2 rounded-full" style="width:{{$vps['ram_usage']}}%"></div>
+                                            <div class="bg-green-500 h-2 rounded-full" style="width:{{ $vps['ram_usage_percent'] }}%"></div>
                                         </div>
                                     </div>
                                     <div>
                                         <div class="flex justify-between mb-1">
                                             <span class="text-xs text-gray-600 dark:text-gray-400">Disk</span>
-                                            <span class="text-xs text-gray-600 dark:text-gray-400">{{$vps['disk_usage']}}%</span>
+                                            <span class="text-xs text-gray-600 dark:text-gray-400">{{ number_format($vps['disk_usage_percent'], 2) }}%</span>
                                         </div>
                                         <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                                            <div class="bg-red-500 h-2 rounded-full" style="width:{{$vps['disk_usage']}}%"></div>
+                                            <div class="bg-purple-500 h-2 rounded-full" style="width:{{ $vps['disk_usage_percent'] }}%"></div>
                                         </div>
                                     </div>
+                                </div>
+                                <div class="text-right text-xs text-gray-400 dark:text-gray-500 mt-2">
+                                    Cập nhật: {{ $vps['last_updated'] }}
                                 </div>
                             </div>
                         @empty
@@ -217,5 +225,4 @@
                 </div>
             </div>
         </div>
-    </div>
 </div>

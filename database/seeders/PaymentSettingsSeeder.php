@@ -34,10 +34,7 @@ class PaymentSettingsSeeder extends Seeder
         foreach ($settings as $setting) {
             Setting::updateOrCreate(
                 ['key' => $setting['key']],
-                [
-                    'value' => $setting['value'],
-                    'description' => $setting['description']
-                ]
+                ['value' => $setting['value']]
             );
         }
     }

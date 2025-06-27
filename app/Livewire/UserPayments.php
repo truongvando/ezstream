@@ -19,6 +19,7 @@ class UserPayments extends Component
 
         return view('livewire.user-payments', [
             'transactions' => $transactions
-        ])->layout('layouts.app');
+        ])->layout('layouts.sidebar')
+          ->slot('header', '<h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Thanh toán</h1>');
     }
 } 

@@ -121,15 +121,15 @@ class VpsNetworkManager
     private function getVpsStatus($vps)
     {
         try {
-            // Get real-time disk usage via SSH
-            $diskUsage = $this->sshService->getDiskUsage($vps);
+            // Get real-time stats via SSH
+            $diskUsagePercent = $this->sshService->getDiskUsage($vps);
+            $availableSpaceGB = $this->sshService->getAvailableDiskSpace($vps);
             $cpuUsage = $this->sshService->getCpuUsage($vps);
-            $memoryUsage = $this->sshService->getMemoryUsage($vps);
-            $networkSpeed = $this->sshService->getNetworkSpeed($vps);
+            $memoryUsage = $this->sshService->getRamUsage($vps);
             
-            $diskUsagePercent = $diskUsage['usage_percent'];
-            $availableSpaceGB = $diskUsage['available_gb'];
-            
+            // TODO: Implement a real network speed test. For now, assume 1Gbps.
+            $networkSpeed = 1000; // Mbp
+
             return [
                 'vps_id' => $vps->id,
                 'vps_name' => $vps->name,

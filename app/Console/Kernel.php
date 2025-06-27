@@ -15,6 +15,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
+        $schedule->command('vps:sync-stats')->everyMinute();
+
         $schedule->call(function () {
             VpsServer::where('status', 'ACTIVE')->each(function ($vps) {
                 SyncVpsStatsJob::dispatch($vps);
