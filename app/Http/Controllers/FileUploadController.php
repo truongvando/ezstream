@@ -19,17 +19,18 @@ class FileUploadController extends Controller
     }
 
     /**
-     * Handle file upload for authenticated user.
+     * Handle standard file upload.
+     * The file is temporarily stored on the server, then streamed to Google Drive.
      */
-    public function upload(Request $request)
+    public function uploadVideo(Request $request)
     {
         // Set reasonable time limit for large uploads
         set_time_limit(600); // 10 minutes
         
-        Log::info('FileManager upload started', ['user_id' => auth()->id()]);
+        Log::info('File upload started', ['user_id' => auth()->id()]);
         
         $request->validate([
-            'file' => 'required|file|mimes:mp4,mov,avi,mkv' // Video files only
+            'file' => 'required|file|mimes:mp4,mov,avi,mkv|max:2097152', // Max 2GB in kilobytes
         ]);
 
         try {
@@ -51,10 +52,10 @@ class FileUploadController extends Controller
                     ->where('expires_at', '>', now())
                     ->first();
                     
-                if (!$activeSubscription) {
+                if (!$activeSubscription || !$activeSubscription->servicePackage) {
                     return response()->json([
                         'status' => 'error',
-                        'message' => 'Bạn cần có gói dịch vụ để upload file.'
+                        'message' => 'Bạn cần có gói dịch vụ đang hoạt động để upload file.'
                     ], 403);
                 }
                 
@@ -72,14 +73,14 @@ class FileUploadController extends Controller
             
             Log::info('Upload details', [
                 'file_name' => $fileName,
-                'file_size' => $uploadedFile->getSize(),
+                'file_size' => $fileSize,
                 'temp_path' => $tempPath,
             ]);
 
-            // Upload to Google Drive
+            // Upload to Google Drive from the temporary path
             $result = $this->googleDriveService->uploadFile($tempPath, $fileName, $uploadedFile->getMimeType());
             
-            Log::info('Google Drive upload result', ['success' => $result['success']]);
+            Log::info('Google Drive upload result', ['success' => $result['success'] ?? false]);
 
             if ($result['success']) {
                 // Create database record
@@ -88,7 +89,7 @@ class FileUploadController extends Controller
                     'path' => null,
                     'original_name' => $fileName,
                     'mime_type' => $uploadedFile->getMimeType(),
-                    'size' => $uploadedFile->getSize(),
+                    'size' => $fileSize,
                     'status' => 'AVAILABLE',
                     'google_drive_file_id' => $result['file_id']
                 ]);
@@ -101,7 +102,7 @@ class FileUploadController extends Controller
                     'data' => [
                         'file_id' => $userFile->id,
                         'file_name' => $fileName,
-                        'file_size' => $uploadedFile->getSize(),
+                        'file_size' => $fileSize,
                         'google_drive_id' => $result['file_id']
                     ]
                 ]);

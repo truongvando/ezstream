@@ -34,13 +34,13 @@ window.initStreamingUpload = function() {
             alert("Vui lòng chọn file");
             return;
         }
-        await handleStreamingProxyUpload();
+        await handleStandardUpload();
     });
 
-    async function handleStreamingProxyUpload() {
+    async function handleStandardUpload() {
         try {
             uploadBtn.disabled = true;
-            updateProgress("Đang khởi tạo upload stream...", 0);
+            updateProgress("Đang chuẩn bị file...", 0);
 
             // Validate file type
             const allowedTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska'];
@@ -48,30 +48,34 @@ window.initStreamingUpload = function() {
                 throw new Error('Chỉ hỗ trợ file video (mp4, mov, avi, mkv)');
             }
 
-            // Check file size (max 2GB)
+            // Check file size (max 2GB) - Server side will also check
             if (selectedFile.size > 2 * 1024 * 1024 * 1024) {
                 throw new Error('File không được vượt quá 2GB');
             }
+            
+            const formData = new FormData();
+            formData.append('file', selectedFile);
 
-            // Stream upload với progress tracking
+            // Use XMLHttpRequest for progress tracking
             const xhr = new XMLHttpRequest();
             
             // Track upload progress
             xhr.upload.addEventListener("progress", (e) => {
                 if (e.lengthComputable) {
-                    const percent = Math.round((e.loaded / e.total) * 95); // 0-95%
+                    const percent = Math.round((e.loaded / e.total) * 95); // 0-95% for upload, 5% for processing
                     const mb = Math.round(e.loaded / 1024 / 1024);
                     const totalMB = Math.round(e.total / 1024 / 1024);
-                    updateProgress(`Đang stream: ${mb}MB / ${totalMB}MB`, percent);
+                    updateProgress(`Đang tải lên server: ${mb}MB / ${totalMB}MB`, percent);
                 }
             });
 
             xhr.addEventListener("load", () => {
+                updateProgress("Đang xử lý và đồng bộ hóa...", 98);
                 if (xhr.status === 200) {
                     try {
                         const response = JSON.parse(xhr.responseText);
                         if (response.status === 'success') {
-                            updateProgress("Upload thành công!", 100);
+                            updateProgress("✅ Upload hoàn tất!", 100);
                             
                             // Auto refresh file list
                             setTimeout(() => {
@@ -79,36 +83,34 @@ window.initStreamingUpload = function() {
                                 resetForm();
                             }, 1500);
                         } else {
-                            throw new Error(response.message || 'Upload failed');
+                            throw new Error(response.message || 'Upload failed on server processing.');
                         }
                     } catch (e) {
-                        throw new Error('Invalid server response');
+                        throw new Error('Invalid server response.');
                     }
                 } else {
-                    throw new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`);
+                    let errorMessage = `Upload failed: ${xhr.status} ${xhr.statusText}`;
+                    try {
+                        const errorResponse = JSON.parse(xhr.responseText);
+                        errorMessage = errorResponse.message || errorMessage;
+                    } catch (e) {}
+                    throw new Error(errorMessage);
                 }
             });
 
             xhr.addEventListener("error", () => {
-                throw new Error("Network error during upload");
+                throw new Error("Lỗi mạng trong quá trình upload.");
             });
 
-            // Set headers with file info (không dùng FormData để tránh multipart)
-            xhr.open("POST", "/file/stream-proxy", true);
+            // Use a new route for standard upload
+            xhr.open("POST", "/file/upload", true); 
             xhr.setRequestHeader("X-CSRF-TOKEN", getCsrfToken());
-            xhr.setRequestHeader("X-File-Name", selectedFile.name);
-            xhr.setRequestHeader("X-File-Size", selectedFile.size.toString());
-            xhr.setRequestHeader("X-File-Type", selectedFile.type);
-            xhr.setRequestHeader("Content-Type", selectedFile.type);
-
-            updateProgress("Đang stream lên Google Drive...", 5);
             
-            // Send file as raw binary stream
-            xhr.send(selectedFile);
+            xhr.send(formData);
             
         } catch (error) {
-            console.error("Streaming proxy upload error:", error);
-            updateProgress("Lỗi: " + error.message, 0);
+            console.error("Standard upload error:", error);
+            updateProgress("❌ Lỗi: " + error.message, 0);
             uploadBtn.disabled = false;
         }
     }

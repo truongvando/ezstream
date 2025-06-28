@@ -10,11 +10,15 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-use App\Services\TelegramNotificationService;
 
 class StopStreamJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    /**
+     * The number of seconds the job can run before timing out.
+     */
+    public $timeout = 60;
 
     /**
      * Create a new job instance.
@@ -25,56 +29,166 @@ class StopStreamJob implements ShouldQueue
     }
 
     /**
-     * Execute the job.
+     * Execute the job - Send stop job package to VPS agent
      */
     public function handle(SshService $sshService): void
     {
-        $vps = $this->stream->vpsServer;
-        $pid = $this->stream->ffmpeg_pid;
+        Log::info("Stopping stream: {$this->stream->title}", ['stream_id' => $this->stream->id]);
 
-        if (!$vps || !$pid) {
-            $this->stream->update(['status' => 'INACTIVE', 'ffmpeg_pid' => null, 'output_log' => 'VPS or PID not found, marking as INACTIVE.']);
-            Log::warning("Could not stop stream {$this->stream->id}: VPS or PID missing.");
-            return;
-        }
+        try {
+            $vps = $this->stream->vpsServer;
+            if (!$vps || $vps->status !== 'ACTIVE') {
+                throw new \Exception('VPS server is not available');
+            }
 
-        if (!$sshService->connect($vps)) {
-            $this->stream->update(['status' => 'ERROR', 'output_log' => 'Failed to connect to VPS to stop stream.']);
-            return;
-        }
+            // Connect to VPS
+            if (!$sshService->connect($vps)) {
+                throw new \Exception('Failed to connect to VPS via SSH');
+            }
 
-        $killed = $sshService->killProcess($pid);
+            $streamId = $this->stream->id;
+            
+            // Create stop job package (consistent with start workflow)
+            $stopJobPackage = [
+                'action' => 'STOP',
+                'stream_id' => $streamId,
+                'timestamp' => time(),
+                'webhook_url' => $this->getWebhookUrl(),
+                'webhook_secret' => $this->generateWebhookSecret($streamId),
+            ];
 
-        if ($killed) {
-            $this->stream->update([
-                'status' => 'INACTIVE',
-                'ffmpeg_pid' => null,
-                'last_stopped_at' => now(),
+            // Upload stop job package to VPS
+            $jobFileName = "stop_job_{$streamId}_" . uniqid() . ".json";
+            $localJobFile = storage_path("app/temp/{$jobFileName}");
+            
+            // Create temp directory if not exists
+            if (!file_exists(dirname($localJobFile))) {
+                mkdir(dirname($localJobFile), 0755, true);
+            }
+            
+            file_put_contents($localJobFile, json_encode($stopJobPackage, JSON_PRETTY_PRINT));
+            
+            // Upload to VPS
+            $remoteJobPath = "/tmp/{$jobFileName}";
+            if (!$sshService->uploadFile($localJobFile, $remoteJobPath)) {
+                throw new \Exception('Failed to upload stop job package to VPS');
+            }
+            
+            // Execute stop via streaming agent
+            $agentCommand = "bash /opt/streaming_agent/main.sh {$remoteJobPath}";
+            $sshService->executeInBackgroundAndGetPid($agentCommand);
+            
+            Log::info("Stop job package sent to VPS agent", [
+                'stream_id' => $streamId,
+                'job_file' => $remoteJobPath
             ]);
-            Log::info("Stream stopped successfully: {$this->stream->title}");
-        } else {
+            
+            // Update status to STOPPING (webhook will update to STOPPED)
+            $this->stream->update([
+                'status' => 'STOPPING',
+                'output_log' => 'Stop job sent to VPS agent, waiting for confirmation...',
+            ]);
+            
+            // Cleanup local temp file
+            unlink($localJobFile);
+            
+            $sshService->disconnect();
+
+        } catch (\Exception $e) {
+            // Fallback to direct SSH kill if job package fails
+            Log::warning("Stop job package failed, falling back to direct SSH kill", [
+                'stream_id' => $this->stream->id,
+                'error' => $e->getMessage()
+            ]);
+            
+            $this->fallbackDirectStop($sshService);
+        }
+    }
+    
+    /**
+     * Fallback method: Direct SSH kill (old method)
+     */
+    private function fallbackDirectStop(SshService $sshService): void
+    {
+        try {
+            $vps = $this->stream->vpsServer;
+            if (!$sshService->connect($vps)) {
+                throw new \Exception('Failed to connect for fallback stop');
+            }
+            
+            $streamId = $this->stream->id;
+            $rtmpUrl = $this->stream->rtmp_url;
+            $streamKey = $this->stream->stream_key;
+            
+            // Multiple kill strategies
+            $sshService->execute("pkill -f 'stream_{$streamId}' 2>/dev/null");
+            if ($rtmpUrl && $streamKey) {
+                $sshService->execute("pkill -f '{$rtmpUrl}.*{$streamKey}' 2>/dev/null");
+            }
+            if ($this->stream->ffmpeg_pid) {
+                $sshService->execute("kill -TERM {$this->stream->ffmpeg_pid} 2>/dev/null || kill -9 {$this->stream->ffmpeg_pid} 2>/dev/null");
+            }
+            
+            // Wait and verify
+            sleep(2);
+            $remaining = $sshService->execute("pgrep -f 'stream_{$streamId}\\|{$rtmpUrl}' 2>/dev/null || echo 'NONE'");
+            
+            if (trim($remaining) === 'NONE') {
+                $this->stream->update([
+                    'status' => 'STOPPED',
+                    'output_log' => 'Stream stopped via direct SSH (fallback)',
+                    'last_stopped_at' => now(),
+                    'ffmpeg_pid' => null,
+                ]);
+            } else {
+                $this->stream->update([
+                    'status' => 'ERROR',
+                    'output_log' => 'Failed to stop stream completely',
+                    'last_stopped_at' => now(),
+                ]);
+            }
+            
+            $sshService->disconnect();
+            
+        } catch (\Exception $e) {
             $this->stream->update([
                 'status' => 'ERROR',
-                'output_log' => "Failed to kill process with PID: {$pid}. Manual intervention may be required.",
+                'output_log' => 'Stop error: ' . $e->getMessage(),
+                'last_stopped_at' => now(),
             ]);
-            Log::error("Failed to stop stream: {$this->stream->title} (PID: {$pid})");
-            $this->notifyUserOfError("Failed to stop your stream. The process on the server could not be terminated.");
+            
+            Log::error("Stream stop error: {$e->getMessage()}", [
+                'stream_id' => $this->stream->id,
+                'trace' => $e->getTraceAsString()
+            ]);
         }
+    }
+    
+    /**
+     * Get webhook URL with ngrok support
+     */
+    private function getWebhookUrl(): string
+    {
+        // Priority: 1. NGROK_URL env, 2. WEBHOOK_BASE_URL env, 3. APP_URL
+        $baseUrl = env('NGROK_URL') ?: env('WEBHOOK_BASE_URL') ?: env('APP_URL');
         
-        $sshService->disconnect();
+        // Remove trailing slash and add webhook endpoint
+        $baseUrl = rtrim($baseUrl, '/');
+        
+        return $baseUrl . '/api/stream-webhook';
     }
 
     /**
-     * Notify the user about an error with their stream.
-     * @param string $errorMessage
+     * Generate webhook secret for stop job
      */
-    protected function notifyUserOfError(string $errorMessage): void
+    private function generateWebhookSecret(int $streamId): string
     {
-        $user = $this->stream->user;
-        if ($user && $user->telegram_bot_token && $user->telegram_chat_id) {
-            $telegramService = new TelegramNotificationService();
-            $message = "❌ *Stream Error: {$this->stream->title}*\n\n{$errorMessage}\n\nPlease check your stream configuration or contact support.";
-            $telegramService->sendMessage($user->telegram_bot_token, $user->telegram_chat_id, $message);
-        }
+        $timestamp = time();
+        $secret = hash('sha256', "stop_stream_{$streamId}_{$timestamp}_" . config('app.key'));
+        
+        // Cache the secret for webhook verification (2 hours)
+        cache()->put("webhook_secret_{$streamId}_{$timestamp}", $secret, 7200);
+        
+        return $secret;
     }
 }

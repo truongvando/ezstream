@@ -28,9 +28,9 @@ class VpsAllocationService
             return null;
         }
 
-        // Find the server with the lowest CPU load among the eligible ones.
-        // If CPU loads are equal, it will pick the first one.
-        $bestVps = $eligibleVps->sortBy('latestStat.cpu_load')->first();
+        // Find the server with the lowest CPU usage among the eligible ones.
+        // If CPU usage are equal, it will pick the first one.
+        $bestVps = $eligibleVps->sortBy('latestStat.cpu_usage_percent')->first();
 
         return $bestVps;
     }
@@ -69,10 +69,12 @@ class VpsAllocationService
                 return true; 
             }
 
-            $ramUsagePercent = ($vps->latestStat->ram_used_mb / $vps->latestStat->ram_total_mb) * 100;
-            $diskUsagePercent = ($vps->latestStat->disk_used_gb / $vps->latestStat->disk_total_gb) * 100;
+            // Use the correct field names from VpsStat model
+            $cpuUsagePercent = $vps->latestStat->cpu_usage_percent;
+            $ramUsagePercent = $vps->latestStat->ram_usage_percent;
+            $diskUsagePercent = $vps->latestStat->disk_usage_percent;
             
-            if ($vps->latestStat->cpu_load >= self::CPU_LOAD_THRESHOLD) {
+            if ($cpuUsagePercent >= self::CPU_LOAD_THRESHOLD) {
                 return false;
             }
 

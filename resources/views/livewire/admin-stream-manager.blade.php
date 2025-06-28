@@ -2,63 +2,6 @@
     <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
         <div class="p-6 text-gray-900 dark:text-gray-100">
 
-        <!-- Local Streaming Toggle for Admin -->
-        @if(auth()->user()->isAdmin())
-        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-2 {{ $enableLocalStreaming ? 'border-green-300 dark:border-green-600' : 'border-gray-300 dark:border-gray-600' }} p-6 rounded-lg mb-6 shadow-lg">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-4">
-                    <div class="p-3 {{ $enableLocalStreaming ? 'bg-green-100 dark:bg-green-900' : 'bg-gray-100 dark:bg-gray-700' }} rounded-full">
-                        <svg class="w-6 h-6 {{ $enableLocalStreaming ? 'text-green-600 dark:text-green-400' : 'text-gray-600 dark:text-gray-400' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 class="text-xl font-bold text-blue-800 dark:text-blue-200">🎬 LOCAL STREAMING MODE</h3>
-                        <p class="text-sm text-blue-600 dark:text-blue-300">Stream trực tiếp từ server hosting thay vì qua VPS</p>
-                        <div class="mt-1">
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium {{ $enableLocalStreaming ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200' }}">
-                                {{ $enableLocalStreaming ? '✅ ĐANG BẬT - Stream từ server này' : '❌ ĐANG TẮT - Stream qua VPS' }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-                <div class="flex flex-col items-end space-y-2">
-                    <button wire:click="toggleLocalStreaming" 
-                            class="px-6 py-3 {{ $enableLocalStreaming ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700' }} text-white font-semibold rounded-lg transition-all transform hover:scale-105 shadow-lg">
-                        {{ $enableLocalStreaming ? '🔴 TẮT LOCAL MODE' : '🟢 BẬT LOCAL MODE' }}
-                    </button>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 text-right">
-                        {{ $enableLocalStreaming ? 'Click để chuyển về VPS' : 'Click để stream từ server' }}
-                    </p>
-                </div>
-            </div>
-            
-            @if($enableLocalStreaming)
-            <div class="mt-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
-                <div class="flex items-center space-x-2">
-                    <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    <p class="text-sm text-green-700 dark:text-green-300 font-medium">
-                        💡 Local Mode đã BẬT - Khi tạo stream mới sẽ tự động stream từ server này!
-                    </p>
-                </div>
-            </div>
-            @else
-            <div class="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
-                <div class="flex items-center space-x-2">
-                    <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
-                    </svg>
-                    <p class="text-sm text-blue-700 dark:text-blue-300">
-                        🔵 VPS Mode - Stream sẽ được xử lý qua VPS servers
-                    </p>
-                </div>
-            </div>
-            @endif
-        </div>
-        @endif
-
         <!-- Create Button -->
         @if(auth()->user()->isAdmin())
         <div class="mb-4 flex justify-end">
@@ -112,11 +55,7 @@
                                 <div class="text-sm text-gray-500 dark:text-gray-400">{{ Str::limit($stream->description, 40) }}</div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
-                                @if($stream->output_log === 'Local streaming from server')
-                                    <span class="text-purple-600 dark:text-purple-400 font-semibold">🎬 Local Server</span>
-                                @else
-                                    {{ $stream->vpsServer ? $stream->vpsServer->name : 'N/A' }}
-                                @endif
+                                {{ $stream->vpsServer ? $stream->vpsServer->name : 'Auto-assign' }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
@@ -144,6 +83,9 @@
                                         </button>
                                     @elseif($stream->status === 'STOPPING')
                                         <button class="text-gray-400" disabled>Stopping...</button>
+                                        <button class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200 text-xs" wire:click="forceStopStream({{ $stream->id }})" title="Force stop if stuck">
+                                            Force Stop
+                                        </button>
                                     @endif
                                     <button class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-200" wire:click="edit({{ $stream->id }})">Edit</button>
                                     <button class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200" wire:click="confirmDelete({{ $stream->id }})">Delete</button>

@@ -16,6 +16,7 @@ class StreamConfiguration extends Model
         'description',
         'video_source_path',
         'rtmp_url',
+        'rtmp_backup_url',
         'stream_key',
         'ffmpeg_options',
         'status',
@@ -23,11 +24,20 @@ class StreamConfiguration extends Model
         'output_log_path',
         'last_started_at',
         'last_stopped_at',
+        'last_status_update',
+        'stream_preset',
+        'loop',
+        'scheduled_at',
+        'playlist_order',
+        'user_file_id',
     ];
 
     protected $casts = [
         'last_started_at' => 'datetime',
         'last_stopped_at' => 'datetime',
+        'last_status_update' => 'datetime',
+        'scheduled_at' => 'datetime',
+        'loop' => 'boolean',
     ];
 
     public function user()

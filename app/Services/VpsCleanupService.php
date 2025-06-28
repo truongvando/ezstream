@@ -153,6 +153,12 @@ class VpsCleanupService
             $shouldDelete = false;
             $reason = '';
             
+            // First, check if the file is locked by an active stream
+            $userFile = UserFile::where('original_name', basename($file['path']))->first();
+            if ($userFile && $userFile->is_locked) {
+                continue; // Skip this file entirely if it's locked
+            }
+
             // Quy tắc 1: File quá cũ (>7 ngày)
             if ($file['age_hours'] > ($this->cleanupRules['max_file_age_days'] * 24)) {
                 $shouldDelete = true;

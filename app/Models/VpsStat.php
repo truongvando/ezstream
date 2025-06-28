@@ -10,15 +10,20 @@ class VpsStat extends Model
 {
     use HasFactory;
 
-    public $timestamps = false; // We only use created_at
+    const UPDATED_AT = null; // Only use created_at, not updated_at
 
     protected $fillable = [
         'vps_server_id',
-        'cpu_load',
-        'ram_total_mb',
-        'ram_used_mb',
-        'disk_total_gb',
-        'disk_used_gb',
+        'cpu_usage_percent',
+        'ram_usage_percent', 
+        'disk_usage_percent',
+    ];
+
+    protected $casts = [
+        'created_at' => 'datetime',
+        'cpu_usage_percent' => 'float',
+        'ram_usage_percent' => 'float',
+        'disk_usage_percent' => 'float',
     ];
 
     public function vpsServer(): BelongsTo

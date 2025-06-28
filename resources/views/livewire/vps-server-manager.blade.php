@@ -1,16 +1,16 @@
 <div>
-    <x-slot name="header">
-        <div class="flex justify-between items-center">
-            <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-                {{ __('Quản Lý VPS Servers') }}
-            </h2>
-            <button wire:click="openModal" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium">
-                Thêm VPS Server
-            </button>
+    <!-- Header với nút Thêm -->
+    <div class="flex justify-between items-center mb-6">
+        <div>
+            <p class="text-gray-600 dark:text-gray-400 mt-1">Thêm và quản lý các VPS servers cho hệ thống streaming</p>
         </div>
-    </x-slot>
-
-    <div class="p-6">
+        <button wire:click="openModal" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium inline-flex items-center">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+            </svg>
+            Thêm VPS Server
+        </button>
+    </div>
 
     @if (session()->has('message'))
         <div class="mb-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
@@ -45,27 +45,23 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                                 @if($server->latestStat)
-                                    @php
-                                        $ramUsage = $server->latestStat->ram_total_mb > 0 ? ($server->latestStat->ram_used_mb / $server->latestStat->ram_total_mb) * 100 : 0;
-                                        $diskUsage = $server->latestStat->disk_total_gb > 0 ? ($server->latestStat->disk_used_gb / $server->latestStat->disk_total_gb) * 100 : 0;
-                                    @endphp
                                     <div class="flex items-center mb-1">
                                         <span class="w-10 font-bold">CPU:</span>
-                                        <span class="font-mono">{{ number_format($server->latestStat->cpu_load, 2) }}</span>
+                                        <span class="font-mono">{{ number_format($server->latestStat->cpu_usage_percent, 1) }}%</span>
                                     </div>
                                     <div class="flex items-center mb-1">
                                         <span class="w-10">RAM:</span>
                                         <div class="w-full bg-gray-200 rounded-full h-4 dark:bg-gray-700">
-                                            <div class="bg-blue-600 h-4 rounded-full" style="width: {{ $ramUsage }}%"></div>
+                                            <div class="bg-blue-600 h-4 rounded-full" style="width: {{ $server->latestStat->ram_usage_percent }}%"></div>
                                         </div>
-                                        <span class="ml-2 text-xs font-medium">{{ number_format($ramUsage, 0) }}%</span>
+                                        <span class="ml-2 text-xs font-medium">{{ number_format($server->latestStat->ram_usage_percent, 0) }}%</span>
                                     </div>
                                     <div class="flex items-center">
                                         <span class="w-10">Disk:</span>
                                         <div class="w-full bg-gray-200 rounded-full h-4 dark:bg-gray-700">
-                                            <div class="bg-indigo-600 h-4 rounded-full" style="width: {{ $diskUsage }}%"></div>
+                                            <div class="bg-indigo-600 h-4 rounded-full" style="width: {{ $server->latestStat->disk_usage_percent }}%"></div>
                                         </div>
-                                        <span class="ml-2 text-xs font-medium">{{ number_format($diskUsage, 0) }}%</span>
+                                        <span class="ml-2 text-xs font-medium">{{ number_format($server->latestStat->disk_usage_percent, 0) }}%</span>
                                     </div>
                                 @else
                                     <span class="text-gray-400">No data</span>
@@ -102,6 +98,13 @@
                                 </button>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <button wire:click="viewLogs({{ $server->id }})" 
+                                        class="text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded p-1 mr-3 transition-all duration-150" 
+                                        title="Xem logs chi tiết">
+                                    <svg class="w-4 h-4 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                </button>
                                 <button wire:click="edit({{ $server->id }})" class="text-indigo-600 hover:text-indigo-900 mr-3">
                                     Sửa
                                 </button>
@@ -114,7 +117,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="6" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 text-center">
+                            <td colspan="8" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 text-center">
                                 Chưa có VPS server nào được thêm.
                             </td>
                         </tr>
@@ -192,6 +195,68 @@
                             </x-primary-button>
                         </div>
                     </form>
+                </div>
+            </div>
+        </div>
+    @endif
+
+    <!-- Modal Xem Logs -->
+    @if($showLogsModal)
+        <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50" 
+             x-data="{ loaded: false }" 
+             x-init="setTimeout(() => { loaded = true; $wire.refreshLogs(); }, 100)">
+            <div class="relative top-10 mx-auto p-5 border w-4/5 max-w-4xl shadow-lg rounded-md bg-white dark:bg-gray-800">
+                <div class="mt-3">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-medium text-gray-900 dark:text-white">
+                            Logs chi tiết - {{ $selectedServerName }}
+                        </h3>
+                        <button wire:click="closeLogsModal" 
+                                class="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded p-1 transition-colors"
+                                title="Đóng">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    <div class="mb-4 flex space-x-2">
+                        <button wire:click="refreshLogs" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm">
+                            <svg class="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                            Refresh
+                        </button>
+                        <select wire:model.live="selectedLogType" class="border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm">
+                            <option value="provision">Provision Logs</option>
+                            <option value="system">System Logs</option>
+                            <option value="streaming">Streaming Logs</option>
+                        </select>
+                    </div>
+                    
+                    <div class="bg-black text-green-400 p-4 rounded-lg font-mono text-sm max-h-96 overflow-y-auto relative">
+                        @if($logsContent === 'Đang tải logs...')
+                            <div class="flex items-center justify-center h-32">
+                                <div class="flex items-center space-x-2">
+                                    <svg class="animate-spin h-5 w-5 text-green-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <span>Đang tải logs...</span>
+                                </div>
+                            </div>
+                        @elseif($logsContent)
+                            <pre class="whitespace-pre-wrap">{{ $logsContent }}</pre>
+                        @else
+                            <p class="text-gray-500">Chưa có logs</p>
+                        @endif
+                    </div>
+                    
+                    @if($logsError)
+                        <div class="mt-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+                            {{ $logsError }}
+                        </div>
+                    @endif
                 </div>
             </div>
         </div>

@@ -147,16 +147,41 @@
                         </div>
                     </div>
 
-                    <!-- Video Source -->
+                    <!-- Video Source - Multi-select -->
                     <div>
-                        <x-input-label for="user_file_id" value="Chọn Video Nguồn" />
-                        <select wire:model.defer="user_file_id" id="user_file_id" class="mt-1 block w-full border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-600 focus:ring-indigo-500 dark:focus:ring-indigo-600 rounded-md shadow-sm">
-                            <option value="">-- Chọn một video --</option>
-                            @foreach($userFiles as $file)
-                                <option value="{{ $file->id }}">{{ $file->original_name }} ({{ \Illuminate\Support\Number::fileSize($file->size) }})</option>
-                            @endforeach
-                        </select>
-                        @error('user_file_id') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                        <x-input-label value="Chọn Video Nguồn (Có thể chọn nhiều)" />
+                        <div class="mt-2 max-h-60 overflow-y-auto border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-900">
+                            @if($userFiles->count() > 0)
+                                @foreach($userFiles as $file)
+                                    <label class="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                                        <input type="checkbox" wire:model.defer="user_file_ids" value="{{ $file->id }}" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                                        <div class="ml-3 flex-1">
+                                            <div class="text-sm font-medium text-gray-900 dark:text-gray-200">
+                                                {{ Str::limit($file->original_name, 40) }}
+                                            </div>
+                                            <div class="text-xs text-gray-500 dark:text-gray-400">
+                                                {{ \Illuminate\Support\Number::fileSize($file->size) }} • 
+                                                @if($file->disk === 'google_drive')
+                                                    <span class="text-blue-600">☁️ Google Drive</span>
+                                                @else
+                                                    <span class="text-green-600">💾 Local</span>
+                                                @endif
+                                            </div>
+                                        </div>
+                                    </label>
+                                @endforeach
+                            @else
+                                <div class="p-4 text-center text-gray-500 dark:text-gray-400">
+                                    <p>Chưa có video nào. Hãy upload video từ trang Quản lý File.</p>
+                                </div>
+                            @endif
+                        </div>
+                        @error('user_file_ids') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                        @error('user_file_ids.*') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
+                        
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            💡 Chọn nhiều video để tạo playlist. Các video sẽ được phát theo thứ tự bạn chọn bên dưới.
+                        </p>
                     </div>
                     
                     <!-- AlpineJS Scope for Platform selection -->
@@ -171,8 +196,10 @@
                             </select>
 
                             <!-- Platform Specific Notes -->
-                            <div x-show="platform === 'youtube'" class="mt-2 text-sm text-gray-500 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md">💡 <b>Mẹo YouTube:</b> Lấy RTMP URL và Khóa luồng từ trang <a href='https://www.youtube.com/live_dashboard' target='_blank' class='text-blue-500 hover:underline'>YouTube Live Control Room</a>.</div>
-                            <div x-show="platform === 'facebook'" class="mt-2 text-sm text-gray-500 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md">💡 <b>Mẹo Facebook:</b> Sử dụng tùy chọn "Persistent Stream Key" (Khóa luồng không đổi) để không phải cập nhật lại khóa cho mỗi lần stream.</div>
+                            <div x-show="platform === 'youtube'" class="mt-2 text-sm text-gray-500 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md">💡 <b>Mẹo YouTube:</b> Lấy RTMP URL và Khóa luồng từ trang <a href='https://www.youtube.com/live_dashboard' target='_blank' class='text-blue-500 hover:underline'>YouTube Live Control Room</a>. <br/>🔄 <b>Auto Backup:</b> Hệ thống sẽ tự động sử dụng server b.rtmp.youtube.com làm dự phòng.</div>
+                            <div x-show="platform === 'facebook'" class="mt-2 text-sm text-gray-500 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md">💡 <b>Mẹo Facebook:</b> Sử dụng tùy chọn "Persistent Stream Key" (Khóa luồng không đổi) để không phải cập nhật lại khóa cho mỗi lần stream. <br/>🔄 <b>Auto Backup:</b> Hệ thống có tính năng tự phục hồi khi gặp lỗi.</div>
+                            <div x-show="platform === 'twitch'" class="mt-2 text-sm text-gray-500 dark:text-gray-400 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-md">🎮 <b>Twitch:</b> Lấy stream key từ trang Creator Dashboard. <br/>🔄 <b>Auto Backup:</b> Hệ thống sẽ tự động chuyển sang server khu vực khác khi cần.</div>
+                            <div x-show="platform === 'custom'" class="mt-2 text-sm text-yellow-600 dark:text-yellow-400 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-md">⚠️ <b>Custom RTMP:</b> Không có server dự phòng tự động. Đảm bảo server của bạn ổn định.</div>
                         </div>
                         
                         <!-- Stream Key & Custom RTMP URL -->
@@ -188,6 +215,8 @@
                                 @error('stream_key') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                             </div>
                         </div>
+                        
+
                     </div>
 
                     <hr class="dark:border-gray-700">
@@ -217,11 +246,32 @@
                                 </div>
                             </div>
 
+                            <!-- Playlist Order -->
+                            <div>
+                                <x-input-label value="Thứ Tự Phát Video" />
+                                <div class="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+                                    <label class="flex items-center p-3 rounded-lg border dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                                        <input type="radio" wire:model.defer="playlist_order" value="sequential" class="form-radio h-4 w-4 text-indigo-600">
+                                        <div class="ml-3">
+                                            <span class="block text-sm font-medium text-gray-900 dark:text-gray-200">📋 Tuần tự</span>
+                                            <span class="block text-sm text-gray-500 dark:text-gray-400">Phát theo thứ tự bạn chọn</span>
+                                        </div>
+                                    </label>
+                                    <label class="flex items-center p-3 rounded-lg border dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+                                        <input type="radio" wire:model.defer="playlist_order" value="random" class="form-radio h-4 w-4 text-indigo-600">
+                                        <div class="ml-3">
+                                            <span class="block text-sm font-medium text-gray-900 dark:text-gray-200">🔀 Ngẫu nhiên</span>
+                                            <span class="block text-sm text-gray-500 dark:text-gray-400">Xáo trộn thứ tự video</span>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
                             <!-- Loop -->
                             <div class="flex items-center">
                                 <input id="loop" wire:model.defer="loop" type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
                                 <label for="loop" class="ml-2 block text-sm text-gray-900 dark:text-gray-300">
-                                    Lặp lại video này (phát lại khi kết thúc)
+                                    Lặp lại playlist (phát lại từ đầu khi kết thúc)
                                 </label>
                             </div>
 

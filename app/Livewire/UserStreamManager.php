@@ -23,26 +23,30 @@ class UserStreamManager extends Component
     public $deletingStream;
     
     // Form fields
-    public $title, $description, $user_file_id, $platform;
+    public $title, $description, $user_file_ids = [], $platform;
     public $rtmp_url, $stream_key;
     
     // New feature fields
     public $stream_preset = 'direct'; // 'direct' or 'optimized'
     public $loop = false;
     public $scheduled_at;
+    public $playlist_order = 'sequential'; // 'sequential' or 'random'
 
     protected function rules()
     {
         return [
             'title' => 'required|string|max:255',
             'description' => 'nullable|string',
-            'user_file_id' => 'required|exists:user_files,id',
+            'user_file_ids' => 'required|array|min:1',
+            'user_file_ids.*' => 'exists:user_files,id',
             'platform' => 'required|string',
             'stream_key' => 'required|string',
             'rtmp_url' => 'required_if:platform,custom|nullable|url',
+
             'stream_preset' => 'required|in:direct,optimized',
             'loop' => 'boolean',
             'scheduled_at' => 'nullable|date',
+            'playlist_order' => 'required|in:sequential,random',
         ];
     }
     
@@ -62,7 +66,9 @@ class UserStreamManager extends Component
             }
         }
         
-        $this->reset(['title', 'description', 'user_file_id', 'platform', 'rtmp_url', 'stream_key']);
+        $this->reset(['title', 'description', 'user_file_ids', 'platform', 'rtmp_url', 'stream_key', 'playlist_order']);
+        $this->user_file_ids = [];
+        $this->playlist_order = 'sequential';
         $this->showCreateModal = true;
         Log::info('showCreateModal set to true: ' . ($this->showCreateModal ? 'true' : 'false'));
     }
@@ -84,6 +90,20 @@ class UserStreamManager extends Component
         ];
 
         return $platforms[$platform] ?? '';
+    }
+
+    protected function getPlatformBackupUrl($platform)
+    {
+        $backupPlatforms = [
+            'youtube' => 'rtmp://b.rtmp.youtube.com/live2',
+            'facebook' => 'rtmp://live-api-s.facebook.com/rtmp', // Facebook usually same server
+            'twitch' => 'rtmp://live-jfk.twitch.tv/app', // Different region
+            'instagram' => 'rtmp://live-upload.instagram.com/rtmp', // Same for Instagram
+            'tiktok' => 'rtmp://push.tiktokcdn-sg.com/live', // Singapore server
+            'custom' => '' // No backup for custom
+        ];
+
+        return $backupPlatforms[$platform] ?? '';
     }
 
     protected function detectPlatformFromUrl($url)
@@ -120,21 +140,37 @@ class UserStreamManager extends Component
             return;
         }
         
-        $userFile = UserFile::find($this->user_file_id);
         $rtmpUrl = $this->platform === 'custom' ? $this->rtmp_url : $this->getPlatformUrl($this->platform);
+
+        // Prepare file list for JSON storage
+        $selectedFiles = UserFile::whereIn('id', $this->user_file_ids)->get();
+        $fileList = $selectedFiles->map(function ($file) {
+            return [
+                'file_id' => $file->id,
+                'filename' => $file->original_name,
+                'path' => $file->disk === 'google_drive' ? $file->google_drive_file_id : $file->path,
+                'disk' => $file->disk,
+                'size' => $file->size,
+            ];
+        })->toArray();
+
+        // Auto-generate backup URL based on platform
+        $backupRtmpUrl = $this->platform !== 'custom' ? $this->getPlatformBackupUrl($this->platform) : '';
 
         Auth::user()->streamConfigurations()->create([
             'title' => $this->title,
             'description' => $this->description,
             'vps_server_id' => $optimalVps->id,
-            'video_source_path' => $userFile->disk === 'google_drive' ? $userFile->google_drive_file_id : $userFile->path,
+            'video_source_path' => json_encode($fileList), // Store file list as JSON
             'rtmp_url' => $rtmpUrl,
+            'rtmp_backup_url' => $backupRtmpUrl, // Auto-generated backup
             'stream_key' => $this->stream_key,
             'stream_preset' => $this->stream_preset,
             'loop' => $this->loop,
             'scheduled_at' => $this->scheduled_at,
+            'playlist_order' => $this->playlist_order,
             'ffmpeg_options' => '', // Deprecated in favor of presets
-            'user_file_id' => $userFile->id, // Để biết source là Google Drive hay local
+            'user_file_id' => $selectedFiles->first()->id, // Primary file for backward compatibility
         ]);
 
         $this->showCreateModal = false;
@@ -151,22 +187,34 @@ class UserStreamManager extends Component
         $this->title = $stream->title;
         $this->description = $stream->description;
         
-        // Find the UserFile that corresponds to the video source path
-        $userFile = UserFile::where('path', $stream->video_source_path)
-                            ->where('user_id', Auth::id())
-                            ->first();
-
-        $this->user_file_id = $userFile ? $userFile->id : null;
+        // Parse file list from JSON or handle legacy single file
+        try {
+            $fileList = json_decode($stream->video_source_path, true);
+            if (is_array($fileList)) {
+                $this->user_file_ids = collect($fileList)->pluck('file_id')->toArray();
+            } else {
+                // Legacy single file support
+                $userFile = UserFile::where('path', $stream->video_source_path)
+                                    ->where('user_id', Auth::id())
+                                    ->first();
+                $this->user_file_ids = $userFile ? [$userFile->id] : [];
+            }
+        } catch (\Exception $e) {
+            // Fallback for legacy data
+            $this->user_file_ids = $stream->user_file_id ? [$stream->user_file_id] : [];
+        }
         
         // Detect platform from RTMP URL
         $this->platform = $this->detectPlatformFromUrl($stream->rtmp_url);
         $this->rtmp_url = $stream->rtmp_url;
+
         $this->stream_key = $stream->stream_key;
         
         // Load new feature fields
         $this->stream_preset = $stream->stream_preset ?? 'direct';
         $this->loop = $stream->loop ?? false;
         $this->scheduled_at = $stream->scheduled_at ? $stream->scheduled_at->format('Y-m-d\TH:i') : null;
+        $this->playlist_order = $stream->playlist_order ?? 'sequential';
 
         $this->showEditModal = true;
     }
@@ -178,20 +226,36 @@ class UserStreamManager extends Component
         }
         $this->validate();
         
-        $userFile = UserFile::find($this->user_file_id);
         $rtmpUrl = $this->platform === 'custom' ? $this->rtmp_url : $this->getPlatformUrl($this->platform);
+
+        // Prepare file list for JSON storage
+        $selectedFiles = UserFile::whereIn('id', $this->user_file_ids)->get();
+        $fileList = $selectedFiles->map(function ($file) {
+            return [
+                'file_id' => $file->id,
+                'filename' => $file->original_name,
+                'path' => $file->disk === 'google_drive' ? $file->google_drive_file_id : $file->path,
+                'disk' => $file->disk,
+                'size' => $file->size,
+            ];
+        })->toArray();
+
+        // Auto-generate backup URL based on platform
+        $backupRtmpUrl = $this->platform !== 'custom' ? $this->getPlatformBackupUrl($this->platform) : '';
 
         $this->editingStream->update([
             'title' => $this->title,
             'description' => $this->description,
-            'video_source_path' => $userFile->disk === 'google_drive' ? $userFile->google_drive_file_id : $userFile->path,
+            'video_source_path' => json_encode($fileList),
             'rtmp_url' => $rtmpUrl,
+            'rtmp_backup_url' => $backupRtmpUrl, // Auto-generated backup
             'stream_key' => $this->stream_key,
             'stream_preset' => $this->stream_preset,
             'loop' => $this->loop,
             'scheduled_at' => $this->scheduled_at,
+            'playlist_order' => $this->playlist_order,
             'ffmpeg_options' => '', // Deprecated
-            'user_file_id' => $userFile->id,
+            'user_file_id' => $selectedFiles->first()->id,
         ]);
 
         $this->showEditModal = false;

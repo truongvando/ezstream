@@ -15,6 +15,7 @@ class VpsServer extends Model
 
     protected $fillable = [
         'name',
+        'provider',
         'ip_address',
         'ssh_user',
         'ssh_password',
@@ -25,6 +26,10 @@ class VpsServer extends Model
         'status_message',
         'provision_token',
         'provisioned_at',
+        'cpu_cores',
+        'ram_gb',
+        'disk_gb',
+        'bandwidth_gb',
     ];
 
     /**

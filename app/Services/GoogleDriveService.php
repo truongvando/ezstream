@@ -30,27 +30,36 @@ class GoogleDriveService
         try {
             $this->client = new Client();
             
-            // Try OAuth first (user account with storage), fallback to Service Account
             $refreshToken = config('services.google_drive.refresh_token');
             
             if ($refreshToken) {
-                // Use OAuth User Account (has storage quota)
-                Log::info('Using OAuth User Account for Google Drive');
+                Log::info('Attempting to authenticate with OAuth Refresh Token.');
                 
                 $this->client->setClientId(config('services.google_drive.client_id'));
                 $this->client->setClientSecret(config('services.google_drive.client_secret'));
                 $this->client->setAccessType('offline');
                 $this->client->addScope(Drive::DRIVE);
                 $this->client->setApplicationName('VPS Live Server Control');
-                
-                // Set API key if available
-                $apiKey = config('services.google.api_key');
-                if ($apiKey) {
-                    $this->client->setDeveloperKey($apiKey);
+
+                // Force fetching and setting the access token
+                $accessToken = $this->client->fetchAccessTokenWithRefreshToken($refreshToken);
+
+                if (isset($accessToken['error'])) {
+                    throw new Exception('Failed to fetch access token: ' . $accessToken['error_description']);
                 }
-                
-                // Set refresh token
-                $this->client->refreshToken($refreshToken);
+
+                $this->client->setAccessToken($accessToken);
+
+                // Handle expired tokens by refreshing them automatically
+                if ($this->client->isAccessTokenExpired()) {
+                    Log::info('Google Drive access token expired. Refreshing...');
+                    $newAccessToken = $this->client->fetchAccessTokenWithRefreshToken($this->client->getRefreshToken());
+                    if (isset($newAccessToken['error'])) {
+                        throw new Exception('Failed to refresh access token: ' . $newAccessToken['error_description']);
+                    }
+                    $this->client->setAccessToken($newAccessToken);
+                    Log::info('Google Drive access token refreshed successfully.');
+                }
                 
             } else {
                 // Fallback to Service Account
@@ -101,7 +110,7 @@ class GoogleDriveService
             // Use resumable upload for files larger than 5MB
             if ($fileSize > 5 * 1024 * 1024) {
                 Log::info("Starting resumable upload for large file.", ['file_size' => $fileSize]);
-                return $this->uploadLargeFileResumable($filePath, $fileMetadata, $mimeType, $fileSize);
+                return $this->uploadResumable($filePath, $fileMetadata, $mimeType, $fileSize);
             }
 
             // Use multipart for smaller files
@@ -139,9 +148,15 @@ class GoogleDriveService
     }
 
     /**
-     * Upload large file using resumable upload
+     * Upload large file using resumable upload from a file path or a stream resource.
+     *
+     * @param string|resource $source The file path or the stream resource.
+     * @param DriveFile $fileMetadata
+     * @param string $mimeType
+     * @param int $fileSize
+     * @return array
      */
-    private function uploadLargeFileResumable($filePath, $fileMetadata, $mimeType, $fileSize)
+    private function uploadResumable($source, $fileMetadata, $mimeType, $fileSize)
     {
         try {
             $chunkSizeBytes = 8 * 1024 * 1024; // 8MB chunks
@@ -158,19 +173,31 @@ class GoogleDriveService
             );
             $media->setFileSize($fileSize);
 
+            // Determine if source is a path or a stream
+            $handle = is_string($source) ? fopen($source, "rb") : $source;
+            
+            if ($handle === false) {
+                throw new Exception('Failed to open the source for reading.');
+            }
+
             // Upload in chunks
             $status = false;
-            $handle = fopen($filePath, "rb");
             while (!$status && !feof($handle)) {
                 $chunk = fread($handle, $chunkSizeBytes);
                 $status = $media->nextChunk($chunk);
             }
-            fclose($handle);
+            
+            // If the source was a file path, close the handle.
+            // If it was a stream, the caller is responsible for closing it.
+            if (is_string($source)) {
+                fclose($handle);
+            }
+
             $this->client->setDefer(false);
 
             if ($status) {
                 $file = $status;
-                Log::info("Large file uploaded to Google Drive", [
+                Log::info("Resumable file upload successful", [
                     'file_id' => $file->getId(),
                     'file_name' => $file->getName(),
                 ]);
@@ -187,7 +214,7 @@ class GoogleDriveService
             }
         } catch (Exception $e) {
             $this->client->setDefer(false); // Make sure to reset client state on error
-            Log::error('Failed to upload large file: ' . $e->getMessage());
+            Log::error('Resumable upload failed: ' . $e->getMessage());
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -601,115 +628,18 @@ class GoogleDriveService
      */
     public function streamUploadFile($inputStream, $fileName, $mimeType, $fileSize)
     {
-        try {
-            Log::info("Starting stream upload to Google Drive", [
-                'file_name' => $fileName,
-                'file_size' => $fileSize,
-                'mime_type' => $mimeType
-            ]);
+        Log::info("Starting stream upload to Google Drive via resumable method", [
+            'file_name' => $fileName,
+            'file_size' => $fileSize,
+            'mime_type' => $mimeType
+        ]);
 
-            // Step 1: Create resumable upload session
-            $accessToken = $this->getAccessToken();
-            if (!$accessToken) {
-                throw new Exception('Could not get Google Drive API access token.');
-            }
+        $fileMetadata = new DriveFile([
+            'name' => $fileName,
+            'parents' => [$this->folderId]
+        ]);
 
-            $metadata = [
-                'name' => $fileName,
-                'parents' => [$this->folderId]
-            ];
-
-            // Initialize resumable upload session
-            $initResponse = Http::withToken($accessToken)
-                ->withHeaders([
-                    'Content-Type' => 'application/json; charset=UTF-8',
-                    'X-Upload-Content-Type' => $mimeType,
-                    'X-Upload-Content-Length' => $fileSize
-                ])
-                ->timeout(30) // Add 30s timeout for session initialization
-                ->post('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', $metadata);
-
-            if (!$initResponse->successful()) {
-                throw new Exception('Failed to initialize resumable upload: ' . $initResponse->body());
-            }
-
-            $uploadUrl = $initResponse->header('Location');
-            if (!$uploadUrl) {
-                throw new Exception('No upload URL returned from Google Drive');
-            }
-
-            Log::info("Resumable upload session created", ['upload_url' => substr($uploadUrl, 0, 50) . '...']);
-
-            // Step 2: Stream upload in chunks
-            $chunkSize = 8 * 1024 * 1024; // 8MB chunks
-            $uploaded = 0;
-
-            while (!feof($inputStream) && $uploaded < $fileSize) {
-                $remainingBytes = $fileSize - $uploaded;
-                $currentChunkSize = min($chunkSize, $remainingBytes);
-                
-                // Read chunk from input stream
-                $chunk = fread($inputStream, $currentChunkSize);
-                if ($chunk === false || strlen($chunk) === 0) {
-                    break;
-                }
-
-                $actualChunkSize = strlen($chunk);
-                
-                // Upload chunk
-                $rangeEnd = $uploaded + $actualChunkSize - 1;
-                $contentRange = "bytes {$uploaded}-{$rangeEnd}/{$fileSize}";
-
-                Log::info("Uploading chunk", [
-                    'content_range' => $contentRange,
-                    'chunk_size' => $actualChunkSize
-                ]);
-
-                $chunkResponse = Http::withBody($chunk, $mimeType)
-                    ->withHeaders([
-                        'Content-Range' => $contentRange,
-                    ])
-                    ->timeout(120) // 120s timeout for chunk upload
-                    ->put($uploadUrl);
-
-                // Check response
-                if ($chunkResponse->status() === 308) {
-                    // Continue uploading - partial success
-                    $uploaded += $actualChunkSize;
-                    Log::info("Chunk uploaded successfully", ['uploaded' => $uploaded, 'total' => $fileSize]);
-                } elseif ($chunkResponse->successful()) {
-                    // Upload complete
-                    $uploaded += $actualChunkSize;
-                    $fileData = $chunkResponse->json();
-                    
-                    Log::info("Stream upload completed successfully", [
-                        'file_id' => $fileData['id'],
-                        'file_name' => $fileData['name'],
-                        'total_uploaded' => $uploaded
-                    ]);
-
-                    return [
-                        'success' => true,
-                        'file_id' => $fileData['id'],
-                        'file_name' => $fileData['name'],
-                        'file_size' => $uploaded,
-                        'web_view_link' => $fileData['webViewLink'] ?? null,
-                        'download_link' => $fileData['webContentLink'] ?? null
-                    ];
-                } else {
-                    throw new Exception('Chunk upload failed: ' . $chunkResponse->body());
-                }
-            }
-
-            // If we reach here without completing, something went wrong
-            throw new Exception('Upload completed but no final response received');
-
-        } catch (Exception $e) {
-            Log::error('Stream upload failed: ' . $e->getMessage());
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
-            ];
-        }
+        // Use the unified resumable upload method with the input stream
+        return $this->uploadResumable($inputStream, $fileMetadata, $mimeType, $fileSize);
     }
 } 

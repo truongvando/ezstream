@@ -36,6 +36,12 @@ class Kernel extends ConsoleKernel
         $schedule->command('vps:cleanup --force')
                  ->cron('0 */4 * * *')
                  ->withoutOverlapping();
+
+        // Kiểm tra trạng thái streams và dọn dẹp zombie processes
+        $schedule->command('streams:verify-status')
+                 ->everyFiveMinutes()
+                 ->withoutOverlapping()
+                 ->runInBackground();
     }
 
     /**

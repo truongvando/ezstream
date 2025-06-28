@@ -172,10 +172,8 @@ class SshService
         }
 
         try {
-            $sftp = new SFTP($this->ssh->getHost(), $this->ssh->getPort());
-            
-            // Re-use the existing authenticated SSH connection
-            $sftp->login($this->ssh->getUser(), $this->ssh->getPassword());
+            // Use SFTP subsystem of the existing SSH connection
+            $sftp = new SFTP($this->ssh);
 
             // Ensure the remote directory exists
             $remoteDir = dirname($remotePath);
@@ -227,9 +225,9 @@ class SshService
         }
 
         try {
-            // Get memory usage based on "available" memory for better accuracy, similar to htop.
-            // Formula: (total - available) / total * 100
-            $output = $this->execute("free | grep Mem | awk '{printf \"%.2f\", ($2 - $7) / $2 * 100.0}'");
+            // Get memory usage exactly like htop calculation
+            // htop formula: (MemTotal - MemFree - Buffers - Cached) / MemTotal * 100
+            $output = $this->execute("awk '/MemTotal/ {total=$2} /MemFree/ {free=$2} /^Buffers/ {buffers=$2} /^Cached/ {cached=$2} END {printf \"%.2f\", (total-free-buffers-cached)/total*100}' /proc/meminfo");
             $ramUsage = floatval(trim($output));
             
             $this->disconnect();

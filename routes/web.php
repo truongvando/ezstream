@@ -1,31 +1,31 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use App\Livewire\Admin\AdminVpsServerManager;
 use App\Livewire\Admin\Dashboard as AdminDashboard;
 use App\Livewire\Admin\SettingsManager as AdminSettingsManager;
 use App\Livewire\Admin\TransactionManagement as AdminTransactionManagement;
 use App\Livewire\Admin\UserManagement as AdminUserManagement;
 use App\Livewire\Admin\AdminStreamManager;
+use App\Livewire\Admin\VpsMonitoring;
 use App\Livewire\ServicePackageManager;
 use App\Models\VpsServer;
 use App\Http\Controllers\VpsProvisionController;
 use App\Jobs\ProvisionVpsJob;
 use App\Http\Controllers\TestGoogleDriveController;
 use App\Http\Controllers\FileUploadController;
+use App\Livewire\FileManager;
 
 Route::get('/', function () {
     return view('welcome');
-});
+})->name('welcome');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     // User Dashboard
     Route::get('/dashboard', \App\Livewire\Dashboard::class)->name('dashboard');
     
     // File Upload routes
-    Route::post('/file/upload', [FileUploadController::class, 'upload'])->name('file.upload');
-    Route::post('/file/stream-proxy', [FileUploadController::class, 'streamProxyUpload'])->name('file.stream-proxy');
-    Route::post('/file/delete', [FileUploadController::class, 'deleteFile'])->name('file.delete');
+    Route::get('/file-manager', FileManager::class)->name('file.manager');
+    Route::post('/file/upload', [FileUploadController::class, 'uploadVideo'])->name('file.upload');
     
     // Profile routes
     Route::get('/profile', [\App\Http\Controllers\ProfileController::class, 'edit'])->name('profile.edit');
@@ -34,7 +34,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     
     // Test Google Drive (for admin only)
     Route::middleware('role:admin')->group(function () {
-        Route::get('/test-google-drive', [\App\Http\Controllers\TestGoogleDriveController::class, 'index'])->name('test-google-drive');
+        Route::get('/test-google-drive', [TestGoogleDriveController::class, 'index'])->name('test.google-drive');
         Route::post('/test-google-drive/test-connection', [\App\Http\Controllers\TestGoogleDriveController::class, 'testConnection']);
         Route::post('/test-google-drive/upload-test', [\App\Http\Controllers\TestGoogleDriveController::class, 'uploadTest']);
         Route::post('/test-google-drive/upload-file', [\App\Http\Controllers\TestGoogleDriveController::class, 'uploadFile']);
@@ -51,7 +51,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/dashboard', AdminDashboard::class)->name('dashboard');
         Route::get('/streams', AdminStreamManager::class)->name('streams');
         Route::get('/users', AdminUserManagement::class)->name('users');
-        Route::get('/vps-servers', AdminVpsServerManager::class)->name('vps-servers');
+        Route::get('/vps-servers', \App\Livewire\VpsServerManager::class)->name('vps-servers');
+        Route::get('/vps-monitoring', VpsMonitoring::class)->name('vps-monitoring');
         Route::get('/files', \App\Livewire\FileManager::class)->name('files');
         Route::get('/service-packages', ServicePackageManager::class)->name('service-packages');
         Route::get('/transactions', AdminTransactionManagement::class)->name('transactions');
@@ -271,7 +272,34 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return redirect('/admin/streams')->with('success', 'Stream created and starting on VPS: ' . $vps->name);
     })->middleware(['auth', 'verified']);
 
+    // Webhook Testing Routes (for development)
+    Route::middleware(['auth', 'role:admin'])->prefix('webhook-test')->group(function () {
+        Route::get('/', [\App\Http\Controllers\WebhookTestController::class, 'testInterface'])->name('webhook.test');
+        Route::post('/simulate', [\App\Http\Controllers\WebhookTestController::class, 'simulateWebhook'])->name('webhook.simulate');
+        Route::get('/quick/{streamId}/{status}', [\App\Http\Controllers\WebhookTestController::class, 'quickTest'])->name('webhook.quick');
+    });
 
+});
+
+// API Routes for VPS Communication (accessible via /api prefix)
+Route::prefix('api')->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\VerifyCsrfToken::class])->group(function () {
+    // VPS Communication APIs
+    Route::prefix('vps')->group(function () {
+        // Secure file download for VPS
+        Route::get('/secure-download/{token}', [\App\Http\Controllers\Api\SecureDownloadController::class, 'download'])
+            ->middleware('throttle:30,1');
+        
+        // Stream webhook for VPS status updates
+        Route::post('/stream-webhook', [\App\Http\Controllers\Api\StreamWebhookController::class, 'handle'])
+            ->middleware('throttle:60,1');
+        
+        // VPS Stats Webhook Routes
+        Route::post('/vps-stats', [\App\Http\Controllers\Api\VpsStatsWebhookController::class, 'receiveStats'])
+            ->middleware('throttle:120,1');
+        
+        Route::get('/{vps}/auth-token', [\App\Http\Controllers\Api\VpsStatsWebhookController::class, 'getAuthToken'])
+            ->middleware('auth');
+    });
 });
 
 require __DIR__.'/auth.php';

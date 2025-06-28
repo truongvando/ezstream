@@ -43,6 +43,11 @@
                 }
             })();
         </script>
+
+        <!-- Performance monitoring -->
+        <script>
+            window.pageLoadStart = performance.now();
+        </script>
     </head>
     <body class="font-sans antialiased bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
         <div class="min-h-screen">
@@ -401,6 +406,43 @@
                         mobileMenu.classList.toggle('hidden');
                     });
                 }
+            });
+        </script>
+
+        <!-- Performance monitoring script -->
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const loadTime = performance.now() - window.pageLoadStart;
+                if (loadTime > 1000) {
+                    console.warn(`⚠️ Slow page load: ${Math.round(loadTime)}ms`);
+                    
+                    // Show performance tip
+                    if (loadTime > 3000) {
+                        const tip = document.createElement('div');
+                        tip.style.cssText = 'position:fixed;top:10px;right:10px;background:#fee;border:1px solid #fcc;padding:8px;font-size:12px;z-index:9999;border-radius:4px;';
+                        tip.innerHTML = `⚠️ Page load: ${Math.round(loadTime)}ms<br><small>Set APP_DEBUG=false for speed</small>`;
+                        document.body.appendChild(tip);
+                        setTimeout(() => tip.remove(), 5000);
+                    }
+                } else {
+                    console.log(`✅ Fast page load: ${Math.round(loadTime)}ms`);
+                }
+            });
+            
+            // Monitor Livewire actions
+            document.addEventListener('livewire:load', function () {
+                Livewire.hook('message.sent', () => {
+                    window.livewireStart = performance.now();
+                });
+                
+                Livewire.hook('message.processed', () => {
+                    if (window.livewireStart) {
+                        const actionTime = performance.now() - window.livewireStart;
+                        if (actionTime > 500) {
+                            console.warn(`⚠️ Slow Livewire action: ${Math.round(actionTime)}ms`);
+                        }
+                    }
+                });
             });
         </script>
     </body>

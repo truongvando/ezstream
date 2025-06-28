@@ -16,9 +16,9 @@ php_value max_input_vars 10000
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 
-    # Handle X-XSRF-Token Header
-    RewriteCond %{HTTP:x-xsrf-token} .
-    RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
+    # Handle Custom Headers for API
+    RewriteCond %{HTTP:X-VPS-Auth-Token} .
+    RewriteRule .* - [E=HTTP_X_VPS_AUTH_TOKEN:%{HTTP:X-VPS-Auth-Token}]
 
     # Redirect Trailing Slashes If Not A Folder...
     RewriteCond %{REQUEST_FILENAME} !-d

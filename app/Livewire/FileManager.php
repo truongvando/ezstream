@@ -20,6 +20,11 @@ class FileManager extends Component
     public $uploadMessage = '';
     public $uploadStatus = ''; // success, error, uploading
 
+    // Delete Modal
+    public $showDeleteModal = false;
+    public $deletingFileId = null;
+    public $deletingFileName = '';
+
     /**
      * Listeners for Livewire events
      */
@@ -88,6 +93,19 @@ class FileManager extends Component
     }
     
     /**
+     * Show delete confirmation modal
+     */
+    public function confirmDelete($fileId)
+    {
+        $file = UserFile::find($fileId);
+        if ($file) {
+            $this->deletingFileId = $file->id;
+            $this->deletingFileName = $file->original_name;
+            $this->showDeleteModal = true;
+        }
+    }
+
+    /**
      * Delete a file
      */
     public function deleteFile($fileId)
@@ -126,6 +144,9 @@ class FileManager extends Component
             
             // Recalculate storage
             $this->calculateStorage();
+            
+            // Close modal
+            $this->showDeleteModal = false;
             
             // Flash success message
             session()->flash('message', "File '{$fileName}' đã được xóa thành công!");
