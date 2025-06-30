@@ -55,17 +55,20 @@ class StartStreamJob implements ShouldQueue
                 throw new \Exception('Failed to connect to VPS via SSH');
             }
 
-            // 4. Upload job package to VPS with unique identifier
+            // 4. Upload job package to VPS Job Queue (TỐI ƯU HÓA)
             $jobFileName = "job_{$this->stream->id}_" . time() . "_" . uniqid() . ".json";
-            $jobFilePath = "/tmp/{$jobFileName}";
+            $jobFilePath = "/opt/job-queue/incoming/{$jobFileName}";
             
             if (!$this->uploadJobPackage($sshService, $jobPackage, $jobFilePath)) {
-                throw new \Exception('Failed to upload job package to VPS');
+                throw new \Exception('Failed to upload job package to VPS job queue');
             }
 
-            // 5. Execute streaming agent on VPS
-            $agentCommand = "bash /opt/streaming_agent/main.sh {$jobFilePath}";
-            $output = $sshService->execute($agentCommand . " > /dev/null 2>&1 &");
+            // 5. Job Queue Daemon sẽ tự động xử lý job - KHÔNG cần execute trực tiếp
+            Log::info("Job package queued for processing by daemon", [
+                'stream_id' => $this->stream->id,
+                'vps_id' => $vps->id,
+                'job_file' => $jobFilePath
+            ]);
             
             $sshService->disconnect();
 
@@ -74,12 +77,6 @@ class StartStreamJob implements ShouldQueue
                 'status' => 'STREAMING',
                 'last_started_at' => now(),
                 'output_log_path' => "/tmp/stream_{$this->stream->id}/stream.log",
-            ]);
-
-            Log::info("Stream job package sent to VPS successfully", [
-                'stream_id' => $this->stream->id,
-                'vps_id' => $vps->id,
-                'job_file' => $jobFilePath
             ]);
 
         } catch (\Exception $e) {
@@ -101,16 +98,25 @@ class StartStreamJob implements ShouldQueue
     protected function createJobPackage(): array
     {
         // Parse file list from video_source_path
-        $fileList = json_decode($this->stream->video_source_path, true);
+        if (is_array($this->stream->video_source_path)) {
+            $fileList = $this->stream->video_source_path;
+        } elseif (is_string($this->stream->video_source_path)) {
+            $fileList = json_decode($this->stream->video_source_path, true);
+        } else {
+            $fileList = null;
+        }
+        
         if (!is_array($fileList)) {
             throw new \Exception('Invalid file list in stream configuration');
         }
+
+        // ✅ SIMPLIFIED: Chỉ dùng download mode ổn định
+        Log::info("Using stable download streaming mode", ['stream_id' => $this->stream->id]);
 
         // Generate secure download URLs for each file
         $filesToDownload = [];
         foreach ($fileList as $file) {
             $downloadToken = Str::random(32);
-            // Store token temporarily for security (you might want to cache this)
             cache()->put("download_token_{$downloadToken}", $file['file_id'], now()->addHours(2));
             
             $filesToDownload[] = [
@@ -132,6 +138,11 @@ class StartStreamJob implements ShouldQueue
             'webhook_secret' => $this->generateWebhookSecret(),
             'files_to_download' => $filesToDownload,
         ];
+
+        Log::info("Job package created for download streaming", [
+            'stream_id' => $this->stream->id, 
+            'files_count' => count($filesToDownload)
+        ]);
 
         return $jobPackage;
     }

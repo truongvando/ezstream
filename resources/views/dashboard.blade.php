@@ -45,7 +45,7 @@
                                     Vui lòng hoàn tất thanh toán để kích hoạt dịch vụ.
                                 </p>
                             </div>
-                            <a href="{{ route('billing.manager') }}" class="bg-white text-orange-600 px-6 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors duration-200">
+                            <a href="{{ route('services') }}" class="bg-white text-orange-600 px-6 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors duration-200">
                                 Thanh toán ngay →
                             </a>
                         </div>
@@ -133,17 +133,23 @@
                                     @php
                                         $activeSubscription = auth()->user()->subscriptions()->where('status', 'ACTIVE')->with('servicePackage')->first();
                                     @endphp
-                                    <p class="text-lg font-bold text-gray-900 dark:text-gray-100">
-                                        {{ $activeSubscription ? $activeSubscription->servicePackage->name : 'Chưa có gói' }}
-                                    </p>
-                                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                        {{ $activeSubscription ? '💎 Đang hoạt động' : '⚠️ Chưa đăng ký' }}
-                                    </p>
+                                                                <p class="text-lg font-bold text-gray-900 dark:text-gray-100">
+                                {{ auth()->user()->getSubscriptionDisplayName() }}
+                            </p>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                @if(auth()->user()->isAdmin())
+                                    👑 Quản trị viên
+                                @elseif(auth()->user()->getTotalAllowedStreams() > 0)
+                                    💎 Đang hoạt động ({{ auth()->user()->getTotalAllowedStreams() }} streams)
+                                @else
+                                    ⚠️ Chưa đăng ký
+                                @endif
+                            </p>
                                 </div>
                             </div>
                         </div>
                         <div class="bg-blue-50 dark:bg-blue-900/20 px-6 py-3">
-                            <a href="{{ route('billing.manager') }}" class="text-blue-600 dark:text-blue-400 text-sm font-semibold hover:text-blue-800 dark:hover:text-blue-300">
+                            <a href="{{ route('services') }}" class="text-blue-600 dark:text-blue-400 text-sm font-semibold hover:text-blue-800 dark:hover:text-blue-300">
                                 {{ $activeSubscription ? 'Quản lý gói' : 'Chọn gói' }} →
                             </a>
                         </div>
@@ -200,10 +206,10 @@
                             </a>
 
                             @if(!$activeSubscription)
-                            <a href="{{ route('billing.manager') }}" class="group bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl p-6 transition-all duration-300 hover:shadow-lg hover:scale-105">
+                            <a href="{{ route('services') }}" class="group bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl p-6 transition-all duration-300 hover:shadow-lg hover:scale-105">
                                 <div class="flex items-center space-x-4">
                                     <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                                     </svg>
                                     <div>
                                         <h4 class="font-semibold">Chọn Gói Dịch Vụ</h4>

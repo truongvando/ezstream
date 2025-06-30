@@ -23,7 +23,19 @@ class Kernel extends ConsoleKernel
             });
         })->everyFiveMinutes();
 
-        $schedule->job(new CheckBankTransactionsJob)->everyTwoMinutes();
+        // ✅ Bank check mỗi phút (Laravel minimum interval)
+        $schedule->call(function () {
+            CheckBankTransactionsJob::dispatch();
+        })->everyMinute(); // Laravel không support < 1 minute
+        
+        // ✅ Check expiring subscriptions - gửi email thông báo
+        $schedule->command('subscriptions:check-expiring --days=3')
+                 ->dailyAt('09:00') // 9h sáng hàng ngày
+                 ->withoutOverlapping();
+                 
+        $schedule->command('subscriptions:check-expiring --days=1')
+                 ->dailyAt('09:00') // Nhắc lại khi còn 1 ngày
+                 ->withoutOverlapping();
         
         // Dọn dẹp VPS tự động lúc 2h sáng hàng ngày
         $schedule->command('vps:cleanup')

@@ -14,17 +14,143 @@ use App\Jobs\ProvisionVpsJob;
 use App\Http\Controllers\TestGoogleDriveController;
 use App\Http\Controllers\FileUploadController;
 use App\Livewire\FileManager;
+use App\Http\Controllers\DashboardController;
+use App\Livewire\ServiceManager;
 
 Route::get('/', function () {
-    return view('welcome');
+    // Lấy dữ liệu thực từ hệ thống
+    $stats = [
+        'total_vps' => \App\Models\VpsServer::where('status', 'ACTIVE')->count(),
+        'active_streams' => \App\Models\StreamConfiguration::where('status', 'STREAMING')->count(),
+        'total_users' => \App\Models\User::count(),
+        'service_packages' => \App\Models\ServicePackage::orderBy('price')->get(),
+        'uptime_percentage' => 99.9, // Có thể tính từ VPS stats
+    ];
+    
+    return view('welcome', compact('stats'));
 })->name('welcome');
 
-Route::middleware(['auth', 'verified'])->group(function () {
+// Test route
+Route::get('/test-layout', function () {
+    return view('layouts.sidebar', ['slot' => '<h1>Test Layout</h1>']);
+})->name('test.layout');
+
+// Debug route
+Route::get('/debug-auth', function () {
+    $user = auth()->user();
+    return response()->json([
+        'authenticated' => auth()->check(),
+        'user_id' => auth()->id(),
+        'email_verified' => $user ? $user->hasVerifiedEmail() : false,
+        'user_email' => $user ? $user->email : null,
+        'user_role' => $user ? ($user->isAdmin() ? 'admin' : 'user') : null,
+    ]);
+})->name('debug.auth');
+
+// Test dashboard without Livewire
+Route::get('/test-dashboard', function () {
+    return view('layouts.sidebar', [
+        'slot' => '<div class="p-6"><h1 class="text-2xl font-bold">Test Dashboard</h1><p>This is a test page without Livewire.</p></div>'
+    ]);
+})->middleware('auth')->name('test.dashboard');
+
+// Auto login for testing
+Route::get('/auto-login', function () {
+    $user = \App\Models\User::first();
+    if ($user) {
+        auth()->login($user);
+        return redirect('/dashboard')->with('message', 'Auto logged in as: ' . $user->email);
+    }
+    return redirect('/register')->with('error', 'No user found. Please register first.');
+})->name('auto.login');
+
+// Debug dashboard component
+Route::get('/debug-dashboard', function () {
+    if (!auth()->check()) {
+        return response()->json(['error' => 'Not authenticated']);
+    }
+    
+    $user = auth()->user();
+    
+    try {
+        // Test các query trong Dashboard component
+        $streamCount = \App\Models\StreamConfiguration::where('user_id', $user->id)->count();
+        $totalStorageUsed = \App\Models\UserFile::where('user_id', $user->id)->sum('size');
+        $activeSubscription = $user->subscriptions()->where('status', 'ACTIVE')->with('servicePackage')->first();
+        
+        return response()->json([
+            'user_id' => $user->id,
+            'user_email' => $user->email,
+            'stream_count' => $streamCount,
+            'total_storage_used' => $totalStorageUsed,
+            'active_subscription' => $activeSubscription ? $activeSubscription->toArray() : null,
+            'status' => 'Dashboard queries work fine'
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine()
+        ]);
+    }
+})->middleware('auth')->name('debug.dashboard');
+
+// Test render dashboard với error handling
+Route::get('/test-render-dashboard', function () {
+    if (!auth()->check()) {
+        return 'Not authenticated. <a href="/auto-login">Auto Login</a>';
+    }
+    
+    try {
+        // Tạo instance Dashboard component và render
+        $dashboard = new \App\Livewire\Dashboard();
+        $dashboard->mount();
+        
+        return 'Dashboard component mounted successfully. <a href="/dashboard">Go to Dashboard</a>';
+    } catch (\Exception $e) {
+        return 'Error mounting Dashboard: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine();
+    }
+})->middleware('auth')->name('test.render.dashboard');
+
+// Language switching
+Route::get('/language/{locale}', function ($locale) {
+    if (in_array($locale, ['en', 'vi'])) {
+        session(['locale' => $locale]);
+        app()->setLocale($locale);
+    }
+    return redirect()->back();
+})->middleware('locale')->name('language.switch');
+
+Route::middleware(['auth', 'locale'])->group(function () {
     // User Dashboard
-    Route::get('/dashboard', \App\Livewire\Dashboard::class)->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    
+    // Service Manager - Trang gói dịch vụ tổng hợp
+    Route::get('/services', ServiceManager::class)->name('services');
+    
+    // Alias routes để tương thích với code cũ
+    Route::get('/billing', ServiceManager::class)->name('billing.manager');
+    Route::get('/packages', ServiceManager::class)->name('package.selection');
+    Route::get('/subscriptions', ServiceManager::class)->name('user.subscriptions');
+    Route::get('/payments', ServiceManager::class)->name('user.payments');
+    
+    // Payment Manager (giữ lại cho thanh toán riêng biệt nếu cần)
+    Route::get('/payment/{subscription}', \App\Livewire\PaymentManager::class)->name('payment.manager');
+    
+    // User Stream Manager
+    Route::get('/streams', \App\Livewire\UserStreamManager::class)->name('user.stream.manager');
+    
+    // Alias routes for consistency
+    Route::get('/user/streams', \App\Livewire\UserStreamManager::class)->name('user.streams');
+    Route::get('/user/files', FileManager::class)->name('user.files');
+    Route::get('/packages-selection', ServiceManager::class)->name('packages');
+    
+    // Additional user routes from sidebar
+    Route::get('/user/packages', ServiceManager::class)->name('user.packages');
+    Route::get('/user/billing', ServiceManager::class)->name('user.billing');
     
     // File Upload routes
-    Route::get('/file-manager', FileManager::class)->name('file.manager');
+    Route::get('/file-manager', FileManager::class)->name('file-manager');
     Route::post('/file/upload', [FileUploadController::class, 'uploadVideo'])->name('file.upload');
     
     // Profile routes
@@ -142,14 +268,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
             
             $ssh->disconnect();
             
-            return view('test-streaming', [
-                'vps' => $vps,
-                'nginxStatus' => $nginxStatus,
-                'videosDir' => $videosDir,
-                'ffmpegProcesses' => $ffmpegProcesses,
-                'testVideoExists' => trim($testVideoExists),
-                'streamCommand' => $streamCommand,
-                'streamUrl' => "rtmp://{$vps->ip_address}/live/test"
+            // View đã bị xóa, trả về response JSON thay thế
+            return response()->json([
+                'message' => 'Test Streaming Info',
+                'note' => 'View đã được cleanup',
+                'vps' => $vps->only(['id', 'name', 'ip_address']),
+                'nginx_status' => $nginxStatus,
+                'videos_dir' => $videosDir,
+                'ffmpeg_processes' => $ffmpegProcesses,
+                'test_video_exists' => trim($testVideoExists),
+                'stream_command' => $streamCommand,
+                'stream_url' => "rtmp://{$vps->ip_address}/live/test",
+                'instructions' => 'Sử dụng POST /start-test-stream/{vps} để start stream'
             ]);
             
         } catch (\Exception $e) {
@@ -279,6 +409,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/quick/{streamId}/{status}', [\App\Http\Controllers\WebhookTestController::class, 'quickTest'])->name('webhook.quick');
     });
 
+    // Upload route
+    Route::post('/upload/stream', [FileUploadController::class, 'streamProxyUpload'])->name('upload.stream');
+    
+    // Google Drive Import routes
+    Route::prefix('google-drive')->name('google-drive.')->group(function () {
+        Route::post('/validate-url', [\App\Http\Controllers\GoogleDriveController::class, 'validateUrl'])->name('validate-url');
+        Route::post('/init-download', [\App\Http\Controllers\GoogleDriveController::class, 'initDownload'])->name('init-download');
+        Route::get('/check-progress/{fileId}', [\App\Http\Controllers\GoogleDriveController::class, 'checkProgress'])->name('check-progress');
+    });
 });
 
 // API Routes for VPS Communication (accessible via /api prefix)

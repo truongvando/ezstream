@@ -118,6 +118,14 @@ class ProvisionVpsJob implements ShouldQueue
             Log::channel('provisioning')->info("📊 [VPS #{$this->vps->id}] Deploying VPS Stats Agent");
             $this->deployStatsAgent($sshService);
 
+            // 5. Deploy Job Queue Daemon - TỐI ƯU HÓA MỚI
+            Log::channel('provisioning')->info("🔄 [VPS #{$this->vps->id}] Deploying Job Queue Daemon");
+            $this->deployJobQueueDaemon($sshService);
+
+            // 6. Deploy Process Monitor for 24/7 stability
+            Log::channel('provisioning')->info("👁️ [VPS #{$this->vps->id}] Deploying process monitor");
+            $this->deployProcessMonitor($sshService);
+
             // 5. Update status to ACTIVE
             $this->vps->update([
                 'status' => 'ACTIVE',
@@ -151,6 +159,10 @@ class ProvisionVpsJob implements ShouldQueue
             // Install bc package (required for calculations)
             Log::channel('provisioning')->info("📦 [VPS #{$this->vps->id}] Installing bc package for calculations");
             $sshService->execute('sudo apt-get install -y bc');
+
+            // ✅ Install sysstat for disk I/O monitoring
+            Log::channel('provisioning')->info("📊 [VPS #{$this->vps->id}] Installing sysstat for I/O monitoring");
+            $sshService->execute('sudo apt-get install -y sysstat');
 
             // Generate auth token and webhook URL
             $authToken = hash('sha256', "vps_stats_{$this->vps->id}_" . config('app.key'));
@@ -260,12 +272,47 @@ send_stats() {
     local disk_usage=\$(get_disk_usage)
     local timestamp=\$(date +%s)
     
+    # Kiểm tra số lượng stream đang chạy
+    local active_streams=\$(pgrep -f 'ffmpeg.*flv' | wc -l)
+    
+    # Kiểm tra load average
+    local load_avg=\$(cat /proc/loadavg | awk '{print \$1}')
+    
+    # ✅ THÊM CAPACITY CALCULATION
+    local total_ram_mb=\$(free -m | grep Mem | awk '{print \$2}')
+    local used_ram_mb=\$(free -m | grep Mem | awk '{print \$3}')
+    local available_ram_mb=\$((total_ram_mb - used_ram_mb))
+    local estimated_capacity=\$((available_ram_mb / 100))  # 100MB per stream
+    
+    # Giới hạn capacity dựa trên disk space
+    local available_disk_gb=\$(df -BG / | tail -1 | awk '{print \$4}' | sed 's/G//')
+    local disk_capacity=\$((available_disk_gb * 2))  # 500MB per stream estimate
+    
+    # Lấy capacity thấp nhất
+    local max_capacity=\$estimated_capacity
+    if [ \$disk_capacity -lt \$max_capacity ]; then
+        max_capacity=\$disk_capacity
+    fi
+    
+    # Available capacity = max - current active
+    local available_capacity=\$((max_capacity - active_streams))
+    if [ \$available_capacity -lt 0 ]; then
+        available_capacity=0
+    fi
+    
     if [[ -z \"\$cpu_usage\" || -z \"\$ram_usage\" || -z \"\$disk_usage\" ]]; then
         log \"ERROR: Failed to collect stats\"
         return 1
     fi
     
-    local json_payload=\"{\\\"vps_id\\\": \$VPS_ID, \\\"cpu_usage\\\": \$cpu_usage, \\\"ram_usage\\\": \$ram_usage, \\\"disk_usage\\\": \$disk_usage, \\\"timestamp\\\": \$timestamp}\"
+    # Cảnh báo nếu tài nguyên cao
+    local alert_level=\"normal\"
+    if (( \$(echo \"\$cpu_usage > 80\" | bc -l) )) || (( \$(echo \"\$ram_usage > 85\" | bc -l) )) || (( disk_usage > 90 )); then
+        alert_level=\"warning\"
+        log \"WARNING: High resource usage - CPU: \${cpu_usage}%, RAM: \${ram_usage}%, Disk: \${disk_usage}%\"
+    fi
+    
+    local json_payload=\"{\\\"vps_id\\\": \$VPS_ID, \\\"cpu_usage\\\": \$cpu_usage, \\\"ram_usage\\\": \$ram_usage, \\\"disk_usage\\\": \$disk_usage, \\\"active_streams\\\": \$active_streams, \\\"load_avg\\\": \$load_avg, \\\"alert_level\\\": \\\"\$alert_level\\\", \\\"available_capacity\\\": \$available_capacity, \\\"max_capacity\\\": \$max_capacity, \\\"available_ram_mb\\\": \$available_ram_mb, \\\"available_disk_gb\\\": \$available_disk_gb, \\\"timestamp\\\": \$timestamp}\"
     
     local response=\$(curl -s -w \"%{http_code}\" \\
         -X POST \"\$WEBHOOK_URL\" \\
@@ -278,7 +325,7 @@ send_stats() {
     local http_code=\"\${response: -3}\"
     
     if [[ \"\$http_code\" == \"200\" ]]; then
-        log \"SUCCESS: Stats sent (CPU: \${cpu_usage}%, RAM: \${ram_usage}%, Disk: \${disk_usage}%)\"
+        log \"SUCCESS: Stats sent (CPU: \${cpu_usage}%, RAM: \${ram_usage}%, Disk: \${disk_usage}%, Streams: \$active_streams, Capacity: \$available_capacity/\$max_capacity)\"
         return 0
     else
         log \"ERROR: HTTP \$http_code - \$response\"
@@ -311,6 +358,218 @@ Restart=always
 RestartSec=10
 StandardOutput=append:/var/log/vps-stats-agent.log
 StandardError=append:/var/log/vps-stats-agent.log
+
+[Install]
+WantedBy=multi-user.target";
+    }
+
+    /**
+     * Deploy process monitor for 24/7 stability (không xung đột với VpsCleanupService)
+     */
+    private function deployProcessMonitor(SshService $sshService): void
+    {
+        try {
+            Log::channel('provisioning')->info("👁️ [VPS #{$this->vps->id}] Creating process monitor");
+
+            // Chỉ deploy process monitor - KHÔNG dọn dẹp file (để VpsCleanupService lo)
+            $processMonitorScript = $this->getProcessMonitorScript();
+            $sshService->execute("sudo tee /opt/process-monitor.sh > /dev/null << 'EOF'
+{$processMonitorScript}
+EOF");
+            $sshService->execute('sudo chmod +x /opt/process-monitor.sh');
+
+            // Setup cron job - CHỈ process monitor
+            $sshService->execute('sudo crontab -l > /tmp/current_cron 2>/dev/null || true');
+            $sshService->execute('echo "*/5 * * * * /opt/process-monitor.sh >> /var/log/process-monitor.log 2>&1" >> /tmp/current_cron');
+            $sshService->execute('sudo crontab /tmp/current_cron');
+            $sshService->execute('rm /tmp/current_cron');
+
+            Log::channel('provisioning')->info("✅ [VPS #{$this->vps->id}] Process monitor deployed successfully");
+
+        } catch (\Exception $e) {
+            Log::channel('provisioning')->warning("⚠️ [VPS #{$this->vps->id}] Process monitor deployment failed: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * Get process monitor script content
+     */
+    private function getProcessMonitorScript(): string
+    {
+        return "#!/bin/bash
+# Process monitor script - runs every 5 minutes
+# Monitors FFmpeg processes and system health
+
+log() {
+    echo \"[\$(date '+%Y-%m-%d %H:%M:%S')] \$1\"
+}
+
+# 1. Kiểm tra FFmpeg processes bị treo
+stuck_processes=\$(ps aux | grep ffmpeg | grep -v grep | awk '\$10 > 3600 && \$9 == \"S\" {print \$2}')
+if [ -n \"\$stuck_processes\" ]; then
+    log \"Found stuck FFmpeg processes: \$stuck_processes\"
+    echo \"\$stuck_processes\" | xargs -r kill -9
+    log \"Killed stuck processes\"
+fi
+
+# 2. Kiểm tra memory usage của FFmpeg
+high_memory_ffmpeg=\$(ps aux | grep ffmpeg | grep -v grep | awk '\$4 > 10 {print \$2, \$4}')
+if [ -n \"\$high_memory_ffmpeg\" ]; then
+    log \"High memory FFmpeg processes detected: \$high_memory_ffmpeg\"
+fi
+
+# 3. Kiểm tra load average
+load_avg=\$(cat /proc/loadavg | awk '{print \$1}')
+if (( \$(echo \"\$load_avg > 5.0\" | bc -l) )); then
+    log \"WARNING: High load average: \$load_avg\"
+fi
+
+# 4. Kiểm tra disk space
+disk_usage=\$(df / | tail -1 | awk '{print \$5}' | sed 's/%//')
+if [ \$disk_usage -gt 90 ]; then
+    log \"CRITICAL: Disk usage at \${disk_usage}%\"
+    # Emergency cleanup
+    find /tmp -name \"*.mp4\" -mtime +0 -delete 2>/dev/null || true
+fi";
+    }
+
+    /**
+     * Deploy job queue daemon for robust job processing
+     */
+    private function deployJobQueueDaemon(SshService $sshService): void
+    {
+        try {
+            Log::channel('provisioning')->info("🔄 [VPS #{$this->vps->id}] Creating job queue daemon");
+
+            // Tạo job queue directory
+            $sshService->execute('sudo mkdir -p /opt/job-queue/{incoming,processing,completed,failed}');
+            $sshService->execute('sudo chmod 755 /opt/job-queue /opt/job-queue/*');
+
+            // Deploy job queue daemon script
+            $daemonScript = $this->getJobQueueDaemonScript();
+            $sshService->execute("sudo tee /opt/job-queue-daemon.sh > /dev/null << 'EOF'
+{$daemonScript}
+EOF");
+            $sshService->execute('sudo chmod +x /opt/job-queue-daemon.sh');
+
+            // Deploy systemd service for job queue daemon
+            $serviceContent = $this->getJobQueueServiceContent();
+            $sshService->execute("sudo tee /etc/systemd/system/job-queue-daemon.service > /dev/null << 'EOF'
+{$serviceContent}
+EOF");
+
+            // Start job queue daemon service
+            $sshService->execute('sudo systemctl daemon-reload');
+            $sshService->execute('sudo systemctl enable job-queue-daemon');
+            $sshService->execute('sudo systemctl start job-queue-daemon');
+
+            // Verify service is running
+            sleep(3);
+            $serviceStatus = $sshService->execute('sudo systemctl is-active job-queue-daemon');
+            if (trim($serviceStatus) === 'active') {
+                Log::channel('provisioning')->info("✅ [VPS #{$this->vps->id}] Job queue daemon started successfully");
+            } else {
+                Log::channel('provisioning')->warning("⚠️ [VPS #{$this->vps->id}] Job queue daemon status: " . trim($serviceStatus));
+            }
+
+        } catch (\Exception $e) {
+            Log::channel('provisioning')->warning("⚠️ [VPS #{$this->vps->id}] Job queue daemon deployment failed: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * Get job queue daemon script content
+     */
+    private function getJobQueueDaemonScript(): string
+    {
+        return "#!/bin/bash
+# Job Queue Daemon v3.0 - Simple & Reliable Job Processing
+VPS_ID=\"{$this->vps->id}\"
+JOB_QUEUE_DIR=\"/opt/job-queue\"
+INCOMING_DIR=\"\$JOB_QUEUE_DIR/incoming\"
+PROCESSING_DIR=\"\$JOB_QUEUE_DIR/processing\"
+COMPLETED_DIR=\"\$JOB_QUEUE_DIR/completed\"
+FAILED_DIR=\"\$JOB_QUEUE_DIR/failed\"
+LOG_FILE=\"/var/log/job-queue-daemon.log\"
+STREAMING_AGENT=\"/opt/streaming_agent/main.sh\"
+
+log() {
+    echo \"[\$(date '+%Y-%m-%d %H:%M:%S')] \$1\" | tee -a \"\$LOG_FILE\"
+}
+
+process_job() {
+    local job_file=\"\$1\"
+    local job_name=\$(basename \"\$job_file\")
+    local processing_file=\"\$PROCESSING_DIR/\$job_name\"
+    
+    log \"Processing job: \$job_name\"
+    
+    # Move to processing directory with lock
+    if ! mv \"\$job_file\" \"\$processing_file\" 2>/dev/null; then
+        log \"ERROR: Failed to move job to processing: \$job_name\"
+        return 1
+    fi
+    
+    # Execute streaming agent with timeout
+    local start_time=\$(date +%s)
+    if timeout 3600 bash \"\$STREAMING_AGENT\" \"\$processing_file\" >> \"\$LOG_FILE\" 2>&1; then
+        # Success - move to completed
+        mv \"\$processing_file\" \"\$COMPLETED_DIR/\$job_name\"
+        local duration=\$(((\$(date +%s) - start_time)))
+        log \"SUCCESS: Job \$job_name completed in \${duration}s\"
+    else
+        # Failed - move to failed directory
+        mv \"\$processing_file\" \"\$FAILED_DIR/\$job_name\"
+        log \"ERROR: Job \$job_name failed or timed out\"
+    fi
+}
+
+cleanup_old_jobs() {
+    # Cleanup jobs older than 24 hours
+    find \"\$COMPLETED_DIR\" -name \"*.json\" -mtime +1 -delete 2>/dev/null || true
+    find \"\$FAILED_DIR\" -name \"*.json\" -mtime +7 -delete 2>/dev/null || true
+}
+
+log \"Job Queue Daemon v3.0 started (VPS ID: \$VPS_ID) - Simple & Reliable\"
+
+while true; do
+    # Process incoming jobs - Server đã quyết định capacity
+    local processed=0
+    for job_file in \"\$INCOMING_DIR\"/*.json; do
+        if [ -f \"\$job_file\" ] && [ \"\$processed\" -lt 3 ]; then
+            process_job \"\$job_file\" &
+            processed=\$((processed + 1))
+            sleep 2  # Delay between job starts
+        fi
+    done
+    
+    # Cleanup old jobs every hour
+    if [ \$((\$(date +%s) % 3600)) -lt 10 ]; then
+        cleanup_old_jobs
+    fi
+    
+    # Wait before next check
+    sleep 5
+done";
+    }
+
+    /**
+     * Get job queue daemon systemd service content
+     */
+    private function getJobQueueServiceContent(): string
+    {
+        return "[Unit]
+Description=Job Queue Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/opt/job-queue-daemon.sh
+Restart=always
+RestartSec=10
+StandardOutput=append:/var/log/job-queue-daemon.log
+StandardError=append:/var/log/job-queue-daemon.log
 
 [Install]
 WantedBy=multi-user.target";

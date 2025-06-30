@@ -1,152 +1,411 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>VPS Live Server Control - Nền Tảng Quản Lý Stream Chuyên Nghiệp</title>
-    <meta name="description" content="Nền tảng quản lý stream chuyên nghiệp với VPS hiệu suất cao, hỗ trợ đa nền tảng và công nghệ tiên tiến nhất.">
+    <title>StreamVPS Pro - Nền tảng Live Stream VPS Tự động #1 Việt Nam</title>
+    <meta name="description" content="Hệ thống quản lý live stream tự động trên mạng lưới VPS toàn cầu. Auto-recovery, streaming 24/7, monitoring real-time. Hỗ trợ YouTube, Facebook, TikTok.">
     
     <!-- Fonts -->
-    <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=inter:300,400,500,600,700,800,900&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     
-    <!-- Scripts -->
-    @vite(['resources/css/app.css', 'resources/js/app.js'])
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#FF0000',
+                        'primary-dark': '#CC0000',
+                        'primary-light': '#FF3333',
+                        accent: '#FF6B6B',
+                        'gray-850': '#1f2937',
+                        'gray-950': '#0f172a'
+                    },
+                    fontFamily: {
+                        'inter': ['Inter', 'sans-serif'],
+                        'mono': ['JetBrains Mono', 'monospace']
+                    },
+                    animation: {
+                        'float': 'float 6s ease-in-out infinite',
+                        'glow': 'glow 2s ease-in-out infinite alternate',
+                        'slide-up': 'slideUp 0.8s ease-out',
+                        'fade-in': 'fadeIn 1s ease-out',
+                        'scale-in': 'scaleIn 0.6s ease-out',
+                    }
+                }
+            }
+        }
+    </script>
     
+    <!-- Custom CSS -->
     <style>
-        body { font-family: 'Inter', sans-serif; }
-        .gradient-text {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-        .hero-gradient {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-        .feature-card {
-            backdrop-filter: blur(20px);
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-        }
-        .glass-effect {
-            backdrop-filter: blur(20px);
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .animate-float {
-            animation: float 6s ease-in-out infinite;
-        }
-        .animate-float-delay {
-            animation: float 6s ease-in-out infinite;
-            animation-delay: 2s;
-        }
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-20px); }
-        }
-        .pricing-card:hover {
-            transform: translateY(-10px);
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-        }
+        * { font-family: 'Inter', sans-serif; }
+        
+        /* Gradients */
+        .gradient-primary { background: linear-gradient(135deg, #FF0000 0%, #CC0000 50%, #FF3333 100%); }
+        .gradient-text { background: linear-gradient(135deg, #FF0000 0%, #FF6B6B 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .gradient-border { background: linear-gradient(135deg, #FF0000, #FF6B6B); padding: 2px; border-radius: 12px; }
+        
+        /* Glass Effects */
+        .glass { backdrop-filter: blur(20px); background: rgba(255, 255, 255, 0.9); border: 1px solid rgba(255, 0, 0, 0.1); }
+        .glass-dark { backdrop-filter: blur(20px); background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .glass-light { backdrop-filter: blur(20px); background: rgba(255, 255, 255, 0.95); border: 1px solid rgba(255, 0, 0, 0.2); }
+        
+        /* Animations */
+        @keyframes float { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-20px); } }
+        @keyframes glow { from { box-shadow: 0 0 20px #FF0000; } to { box-shadow: 0 0 40px #FF0000, 0 0 60px #FF0000; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes scaleIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+        
+        /* Patterns */
+        .mesh-pattern { background-image: radial-gradient(circle at 25px 25px, rgba(255,0,0,0.2) 2px, transparent 0), radial-gradient(circle at 75px 75px, rgba(255,107,107,0.2) 2px, transparent 0); background-size: 100px 100px; }
+        .grid-pattern { background-image: linear-gradient(rgba(255,0,0,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,0,0,0.1) 1px, transparent 1px); background-size: 50px 50px; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #FF0000; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #CC0000; }
+        
+        /* Hover Effects */
+        .hover-lift { transition: all 0.3s ease; }
+        .hover-lift:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(255,0,0,0.2); }
+        
+        /* Live Indicator */
+        .live-dot { animation: pulse 2s infinite; background: #FF0000; }
+        
+        /* VPS Network Animation */
+        .vps-node { animation: float 4s ease-in-out infinite; }
+        .vps-node:nth-child(2) { animation-delay: 1s; }
+        .vps-node:nth-child(3) { animation-delay: 2s; }
+        .vps-node:nth-child(4) { animation-delay: 3s; }
     </style>
 </head>
+<body class="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white transition-all duration-500 overflow-x-hidden" 
+      x-data="{ darkMode: localStorage.getItem('darkMode') === 'true' || (!localStorage.getItem('darkMode') && window.matchMedia('(prefers-color-scheme: dark)').matches) }" 
+      x-init="$watch('darkMode', val => { localStorage.setItem('darkMode', val); val ? document.documentElement.classList.add('dark') : document.documentElement.classList.remove('dark') }); darkMode ? document.documentElement.classList.add('dark') : document.documentElement.classList.remove('dark')">
 
-<body class="bg-gray-50 overflow-x-hidden">
     <!-- Navigation -->
-    <nav class="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-md border-b border-gray-200/20">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex justify-between items-center h-16">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0 flex items-center">
-                        <div class="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-                            <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+    <nav class="fixed w-full z-50 transition-all duration-500" :class="darkMode ? 'glass-dark' : 'glass-light'">
+        <div class="max-w-7xl mx-auto px-6">
+            <div class="flex justify-between items-center py-5">
+                <!-- Logo -->
+                <div class="flex items-center space-x-4 animate-slide-up">
+                    <div class="relative">
+                        <div class="w-14 h-14 gradient-primary rounded-2xl flex items-center justify-center shadow-2xl animate-glow">
+                            <svg class="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8.5 8.64L13.77 12L8.5 15.36V8.64M6.5 5V19L17.5 12L6.5 5Z"/>
                             </svg>
                         </div>
-                        <span class="ml-3 text-xl font-bold">VPS Live Control</span>
+                        <div class="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full live-dot"></div>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-black gradient-text font-inter">StreamVPS</h1>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 font-mono">PRO NETWORK</p>
                     </div>
                 </div>
                 
-                <div class="hidden md:block">
-                    <div class="ml-10 flex items-baseline space-x-8">
-                        <a href="#features" class="text-gray-600 hover:text-gray-900 px-3 py-2 text-sm font-medium transition-colors">Tính Năng</a>
-                        <a href="#pricing" class="text-gray-600 hover:text-gray-900 px-3 py-2 text-sm font-medium transition-colors">Bảng Giá</a>
-                        <a href="#contact" class="text-gray-600 hover:text-gray-900 px-3 py-2 text-sm font-medium transition-colors">Liên Hệ</a>
-                    </div>
+                <!-- Navigation Links -->
+                <div class="hidden lg:flex items-center space-x-10">
+                    <a href="#features" class="relative group font-medium text-gray-700 dark:text-gray-300 hover:text-primary transition-all duration-300">
+                        Tính năng
+                        <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full"></span>
+                    </a>
+                    <a href="#pricing" class="relative group font-medium text-gray-700 dark:text-gray-300 hover:text-primary transition-all duration-300">
+                        Giá cả
+                        <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full"></span>
+                    </a>
+                    <a href="#features" class="relative group font-medium text-gray-700 dark:text-gray-300 hover:text-primary transition-all duration-300">
+                        Mạng lưới
+                        <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full"></span>
+                    </a>
+                    <a href="#support" class="relative group font-medium text-gray-700 dark:text-gray-300 hover:text-primary transition-all duration-300">
+                        Hỗ trợ
+                        <span class="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full"></span>
+                    </a>
                 </div>
                 
-                @if (Route::has('login'))
-                    <div class="flex items-center space-x-4">
-                        @auth
-                            <a href="{{ url('/dashboard') }}" class="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg font-medium hover:shadow-lg transition-all duration-300">
-                                Dashboard
-                            </a>
-                        @else
-                            <a href="{{ route('login') }}" class="text-gray-600 hover:text-gray-900 px-4 py-2 text-sm font-medium transition-colors">
-                                Đăng Nhập
-                            </a>
-                            @if (Route::has('register'))
-                                <a href="{{ route('register') }}" class="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2 rounded-lg font-medium hover:shadow-lg transition-all duration-300">
-                                    Đăng Ký
-                                </a>
-                            @endif
-                        @endauth
-                    </div>
-                @endif
+                <!-- Actions -->
+                <div class="flex items-center space-x-4">
+                    <!-- Dark Mode Toggle -->
+                    <button @click="darkMode = !darkMode" 
+                            class="p-3 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-300 hover-lift">
+                        <svg x-show="!darkMode" class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                        </svg>
+                        <svg x-show="darkMode" class="w-5 h-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+                        </svg>
+                    </button>
+                    
+                    @auth
+                        <a href="{{ route('dashboard') }}" 
+                           class="gradient-primary hover:opacity-90 px-8 py-3 rounded-xl text-white font-bold transition-all duration-300 hover-lift shadow-xl">
+                            Dashboard
+                        </a>
+                    @else
+                        <a href="{{ route('login') }}" 
+                           class="text-gray-600 dark:text-gray-300 hover:text-primary px-6 py-3 transition-all duration-300 font-semibold">
+                            Đăng nhập
+                        </a>
+                        <a href="{{ route('register') }}" 
+                           class="gradient-primary hover:opacity-90 px-8 py-3 rounded-xl text-white font-bold transition-all duration-300 hover-lift shadow-xl">
+                            Đăng ký ngay
+                        </a>
+                    @endauth
+                </div>
             </div>
         </div>
     </nav>
 
+    <!-- Alpine.js -->
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
     <!-- Hero Section -->
-    <section class="relative pt-20 pb-32 overflow-hidden">
-        <div class="absolute inset-0 hero-gradient"></div>
-        <div class="absolute inset-0 bg-black/20"></div>
+    <section class="relative min-h-screen flex items-center justify-center pt-24 overflow-hidden">
+        <!-- Dynamic Background -->
+        <div class="absolute inset-0 mesh-pattern opacity-30"></div>
+        <div class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-accent/10"></div>
         
         <!-- Floating Elements -->
-        <div class="absolute top-20 left-10 w-20 h-20 bg-white/10 rounded-full animate-float"></div>
-        <div class="absolute top-40 right-20 w-32 h-32 bg-white/5 rounded-full animate-float-delay"></div>
-        <div class="absolute bottom-20 left-1/4 w-16 h-16 bg-white/10 rounded-full animate-float"></div>
+        <div class="absolute inset-0 pointer-events-none">
+            <div class="vps-node absolute top-20 left-10 w-3 h-3 bg-primary/40 rounded-full"></div>
+            <div class="vps-node absolute top-32 right-20 w-4 h-4 bg-accent/30 rounded-full"></div>
+            <div class="vps-node absolute bottom-40 left-20 w-2 h-2 bg-primary/50 rounded-full"></div>
+            <div class="vps-node absolute bottom-60 right-10 w-5 h-5 bg-accent/20 rounded-full"></div>
+            <div class="vps-node absolute top-1/2 left-1/3 w-3 h-3 bg-primary/30 rounded-full"></div>
+            <div class="vps-node absolute top-1/3 right-1/3 w-4 h-4 bg-accent/40 rounded-full"></div>
+        </div>
         
-        <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20">
-            <div class="text-center">
-                <h1 class="text-5xl md:text-7xl font-black text-white mb-8 leading-tight">
-                    Nền Tảng Stream
-                    <span class="block text-yellow-300">Chuyên Nghiệp #1</span>
+        <div class="relative z-10 max-w-7xl mx-auto px-6 text-center">
+            <!-- Status Badge -->
+            <div class="inline-flex items-center px-6 py-3 rounded-2xl glass mb-8 animate-fade-in">
+                <div class="w-3 h-3 bg-green-500 rounded-full live-dot mr-3"></div>
+                <span class="font-mono text-sm font-semibold">🔴 LIVE - {{ $stats['active_streams'] }} streams đang hoạt động</span>
+            </div>
+            
+            <!-- Main Headline -->
+            <div class="animate-slide-up">
+                <h1 class="text-5xl md:text-7xl lg:text-8xl font-black leading-none mb-8">
+                    <span class="gradient-text block">LIVE STREAM</span>
+                    <span class="text-gray-900 dark:text-white block">AUTOMATION</span>
                 </h1>
-                <p class="text-xl md:text-2xl text-white/90 mb-12 max-w-3xl mx-auto leading-relaxed">
-                    Quản lý stream đa nền tảng với VPS hiệu suất cao, công nghệ AI tiên tiến và hỗ trợ 24/7. 
-                    Tăng trưởng audience và doanh thu một cách bền vững.
-                </p>
                 
-                <div class="flex flex-col sm:flex-row gap-6 justify-center items-center mb-16">
-                    @if (Route::has('register'))
-                        <a href="{{ route('register') }}" class="bg-white text-blue-600 px-10 py-4 rounded-xl font-bold text-lg hover:bg-gray-50 transform hover:scale-105 transition-all duration-300 shadow-2xl">
-                            🚀 Bắt Đầu Ngay
+                <!-- Animated Subtitle -->
+                <div class="relative mb-12">
+                    <p class="text-xl md:text-2xl lg:text-3xl text-gray-600 dark:text-gray-300 max-w-4xl mx-auto leading-relaxed font-medium">
+                        Hệ thống <span class="gradient-text font-bold">streaming tự động</span> ổn định và chuyên nghiệp
+                        <br class="hidden md:block">
+                        <span class="text-lg md:text-xl opacity-80">Upload video • Auto streaming • 24/7 monitoring</span>
+                    </p>
+                </div>
+            </div>
+            
+            <!-- CTA Section -->
+            <div class="animate-scale-in mb-20">
+                <div class="flex flex-col sm:flex-row gap-6 justify-center items-center mb-8">
+                    @auth
+                        <a href="{{ route('dashboard') }}" 
+                           class="group relative gradient-primary hover:opacity-90 px-12 py-5 rounded-2xl text-white font-black text-xl transition-all duration-500 hover-lift shadow-2xl">
+                            <span class="relative z-10">VÀO DASHBOARD</span>
+                            <div class="absolute inset-0 bg-white/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                         </a>
-                    @endif
-                    <a href="#features" class="glass-effect text-white px-10 py-4 rounded-xl font-bold text-lg hover:bg-white/10 transition-all duration-300">
-                        📺 Xem Demo
-                    </a>
+                    @else
+                        <a href="{{ route('register') }}" 
+                           class="group relative gradient-primary hover:opacity-90 px-12 py-5 rounded-2xl text-white font-black text-xl transition-all duration-500 hover-lift shadow-2xl">
+                            <span class="relative z-10">BẮT ĐẦU NGAY</span>
+                            <div class="absolute inset-0 bg-white/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        </a>
+                        <a href="#pricing" 
+                           class="group px-12 py-5 rounded-2xl border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-black text-xl hover:border-primary hover:text-primary transition-all duration-300 hover-lift">
+                            XEM GÓI DỊCH VỤ
+                        </a>
+                    @endauth
                 </div>
                 
-                <!-- Stats -->
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
-                    <div class="text-center">
-                        <div class="text-3xl md:text-4xl font-black text-white mb-2">10K+</div>
-                        <div class="text-white/80 font-medium">Người Dùng</div>
+                <!-- Trust Indicators -->
+                <div class="flex flex-wrap justify-center items-center gap-8 text-sm text-gray-500 dark:text-gray-400">
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                        <span class="font-semibold">Setup đơn giản</span>
                     </div>
-                    <div class="text-center">
-                        <div class="text-3xl md:text-4xl font-black text-white mb-2">99.9%</div>
-                        <div class="text-white/80 font-medium">Uptime</div>
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                        <span class="font-semibold">Streaming ổn định</span>
                     </div>
-                    <div class="text-center">
-                        <div class="text-3xl md:text-4xl font-black text-white mb-2">50+</div>
-                        <div class="text-white/80 font-medium">Nền Tảng</div>
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                        <span class="text-gray-700 dark:text-gray-300">Hỗ trợ 24/7</span>
                     </div>
-                    <div class="text-center">
-                        <div class="text-3xl md:text-4xl font-black text-white mb-2">24/7</div>
-                        <div class="text-white/80 font-medium">Hỗ Trợ</div>
+                </div>
+            </div>
+            
+            <!-- Performance Stats -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-5xl mx-auto animate-fade-in mb-16">
+                <div class="glass rounded-2xl p-6 hover-lift">
+                    <div class="text-4xl md:text-5xl font-black gradient-text mb-2">99.9%</div>
+                    <div class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">UPTIME</div>
+                </div>
+                <div class="glass rounded-2xl p-6 hover-lift">
+                    <div class="text-4xl md:text-5xl font-black gradient-text mb-2">{{ $stats['total_vps'] }}</div>
+                    <div class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">SERVERS</div>
+                </div>
+                <div class="glass rounded-2xl p-6 hover-lift">
+                    <div class="text-4xl md:text-5xl font-black gradient-text mb-2">24/7</div>
+                    <div class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">SUPPORT</div>
+                </div>
+                <div class="glass rounded-2xl p-6 hover-lift">
+                    <div class="text-4xl md:text-5xl font-black gradient-text mb-2">{{ $stats['active_streams'] }}</div>
+                    <div class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">LIVE STREAMS</div>
+                </div>
+            </div>
+            
+            <!-- Scroll Indicator -->
+            <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce">
+                <div class="w-8 h-12 rounded-full border-2 border-gray-400 dark:border-gray-600 flex justify-center">
+                    <div class="w-1 h-3 bg-primary rounded-full mt-2 animate-pulse"></div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section id="pricing" class="relative py-32 bg-gray-50 dark:bg-gray-900 overflow-hidden">
+        <!-- Background Effects -->
+        <div class="absolute inset-0 mesh-pattern opacity-10"></div>
+        
+        <div class="relative z-10 max-w-7xl mx-auto px-6">
+            <!-- Section Header -->
+            <div class="text-center mb-20 animate-fade-in">
+                <div class="inline-flex items-center px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6">
+                    <span class="text-primary font-mono text-sm font-semibold">PRICING PLANS</span>
+                </div>
+                <h2 class="text-5xl md:text-6xl font-black mb-6">
+                    <span class="text-gray-900 dark:text-white">Gói dịch vụ</span>
+                    <span class="gradient-text block">Phù hợp</span>
+                </h2>
+                <p class="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed">
+                    Chọn gói dịch vụ phù hợp với nhu cầu của bạn. 
+                    <span class="text-gray-900 dark:text-white font-semibold">Không ràng buộc, hủy bất kỳ lúc nào</span>
+                </p>
+            </div>
+
+            <!-- Pricing Cards -->
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                @foreach($stats['service_packages'] as $package)
+                <div class="group relative animate-scale-in hover-lift" style="animation-delay: {{ $loop->index * 0.2 }}s;">
+                    @if($package->is_popular)
+                        <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 z-20">
+                            <div class="gradient-primary px-6 py-2 rounded-full text-white text-sm font-bold shadow-lg">
+                                PHỔ BIẾN NHẤT
+                            </div>
+                        </div>
+                    @endif
+                    
+                    <div class="relative bg-white dark:bg-gray-800 rounded-3xl p-8 border-2 border-gray-200 dark:border-gray-700 group-hover:border-primary/50 transition-all duration-300 h-full z-10 {{ $package->is_popular ? 'transform scale-105 border-primary/50' : '' }}">
+                        <!-- Package Header -->
+                        <div class="text-center mb-8">
+                            <h3 class="text-2xl font-black text-gray-900 dark:text-white mb-2">{{ $package->name }}</h3>
+                            <p class="text-gray-600 dark:text-gray-400 mb-6">{{ $package->description }}</p>
+                            <div class="mb-6">
+                                <span class="text-5xl font-black gradient-text">{{ number_format($package->price, 0, ',', '.') }}</span>
+                                <span class="text-gray-600 dark:text-gray-400 text-lg">đ/tháng</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Features -->
+                        <div class="space-y-4 mb-8">
+                            @php
+                                $features = is_string($package->features) 
+                                    ? json_decode($package->features, true) ?? [] 
+                                    : (is_array($package->features) ? $package->features : []);
+                            @endphp
+                            @if(count($features) > 0)
+                                @foreach($features as $feature)
+                                <div class="flex items-center">
+                                    <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span class="text-gray-700 dark:text-gray-300">{{ $feature }}</span>
+                                </div>
+                                @endforeach
+                            @else
+                                <!-- Default features if none specified -->
+                                <div class="flex items-center">
+                                    <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span class="text-gray-700 dark:text-gray-300">Streaming tự động 24/7</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span class="text-gray-700 dark:text-gray-300">Hỗ trợ kỹ thuật</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                    </svg>
+                                    <span class="text-gray-700 dark:text-gray-300">Monitoring real-time</span>
+                                </div>
+                            @endif
+                        </div>
+
+                        <!-- CTA Button -->
+                        <div class="text-center">
+                            @auth
+                                <a href="{{ route('services') }}" 
+                                   class="w-full inline-block gradient-primary hover:opacity-90 px-8 py-4 rounded-2xl text-white font-bold transition-all duration-300 hover-lift">
+                                    Chọn gói này
+                                </a>
+                            @else
+                                <a href="{{ route('register') }}" 
+                                   class="w-full inline-block gradient-primary hover:opacity-90 px-8 py-4 rounded-2xl text-white font-bold transition-all duration-300 hover-lift">
+                                    Bắt đầu ngay
+                                </a>
+                            @endauth
+                        </div>
+                    </div>
+                </div>
+                @endforeach
+            </div>
+
+            <!-- Additional Info -->
+            <div class="text-center mt-16">
+                <p class="text-gray-600 dark:text-gray-400 mb-4">
+                    Tất cả các gói đều bao gồm hỗ trợ 24/7 và không có phí setup
+                </p>
+                <div class="flex flex-wrap justify-center items-center gap-8 text-sm text-gray-500 dark:text-gray-500">
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Không ràng buộc hợp đồng</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Hủy bất kỳ lúc nào</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                        </svg>
+                        <span>Nâng cấp/hạ cấp linh hoạt</span>
                     </div>
                 </div>
             </div>
@@ -154,330 +413,441 @@
     </section>
 
     <!-- Features Section -->
-    <section id="features" class="py-24 bg-white">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="text-center mb-20">
-                <h2 class="text-4xl md:text-5xl font-black text-gray-900 mb-6">
-                    Tại Sao Chọn <span class="gradient-text">VPS Live Control</span>?
+    <section id="features" class="relative py-32 bg-gray-900 dark:bg-gray-950 overflow-hidden">
+        <!-- Background Effects -->
+        <div class="absolute inset-0 grid-pattern opacity-20"></div>
+        <div class="absolute top-0 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl"></div>
+        <div class="absolute bottom-0 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl"></div>
+        
+        <div class="relative z-10 max-w-7xl mx-auto px-6">
+            <!-- Section Header -->
+            <div class="text-center mb-20 animate-fade-in">
+                <div class="inline-flex items-center px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6">
+                    <span class="text-primary font-mono text-sm font-semibold">CORE FEATURES</span>
+                </div>
+                <h2 class="text-5xl md:text-6xl font-black mb-6">
+                    <span class="text-white">Tính năng</span>
+                    <span class="gradient-text block">Chính</span>
                 </h2>
-                <p class="text-xl text-gray-600 max-w-3xl mx-auto">
-                    Chúng tôi cung cấp giải pháp toàn diện cho mọi nhu cầu streaming của bạn
+                <p class="text-xl text-gray-400 max-w-3xl mx-auto leading-relaxed">
+                    Hệ thống streaming tự động đơn giản và ổn định, được thiết kế cho 
+                    <span class="text-white font-semibold">creator và doanh nghiệp</span>
                 </p>
             </div>
             
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                <!-- Feature 1 -->
-                <div class="bg-gradient-to-br from-blue-50 to-indigo-100 p-8 rounded-2xl hover:shadow-xl transition-all duration-300 group">
-                    <div class="w-16 h-16 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                        </svg>
+            <!-- Features Grid -->
+            <div class="grid lg:grid-cols-3 gap-8 mb-20">
+                <!-- Feature 1: File Upload & Management -->
+                <div class="group relative animate-scale-in">
+                    <div class="absolute inset-0 gradient-primary rounded-3xl opacity-0 group-hover:opacity-10 transition-opacity duration-500"></div>
+                    <div class="glass-dark rounded-3xl p-8 h-full hover-lift">
+                        <div class="relative">
+                            <!-- Icon -->
+                            <div class="w-20 h-20 gradient-primary rounded-3xl flex items-center justify-center mb-6 group-hover:animate-glow">
+                                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                                </svg>
+                            </div>
+                            
+                            <!-- Content -->
+                            <h3 class="text-2xl font-black text-white mb-4">Upload & Quản lý File</h3>
+                            <p class="text-gray-300 mb-6 leading-relaxed">
+                                Upload video dễ dàng với hệ thống quản lý file an toàn. 
+                                <span class="text-primary font-semibold">Cloud storage</span> đáng tin cậy.
+                            </p>
+                            
+                            <!-- Features List -->
+                            <div class="space-y-3">
+                                <div class="flex items-center text-sm">
+                                    <div class="w-2 h-2 bg-green-400 rounded-full mr-3 animate-pulse"></div>
+                                    <span class="text-gray-300">Upload tốc độ cao với <span class="text-white font-semibold">resumable</span></span>
+                                </div>
+                                <div class="flex items-center text-sm">
+                                    <div class="w-2 h-2 bg-blue-400 rounded-full mr-3 animate-pulse"></div>
+                                    <span class="text-gray-300">Hỗ trợ nhiều định dạng video</span>
+                                </div>
+                                <div class="flex items-center text-sm">
+                                    <div class="w-2 h-2 bg-purple-400 rounded-full mr-3 animate-pulse"></div>
+                                    <span class="text-gray-300">Quản lý thư viện video</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Hiệu Suất Vượt Trội</h3>
-                    <p class="text-gray-600 leading-relaxed">VPS với SSD NVMe, RAM DDR4 và CPU Intel Xeon mới nhất đảm bảo stream 4K không lag.</p>
                 </div>
-                
-                <!-- Feature 2 -->
-                <div class="bg-gradient-to-br from-purple-50 to-pink-100 p-8 rounded-2xl hover:shadow-xl transition-all duration-300 group">
-                    <div class="w-16 h-16 bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 0h10m-10 0a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V6a2 2 0 00-2-2"/>
-                        </svg>
+
+                <!-- Feature 2: Auto Streaming -->
+                <div class="group relative animate-scale-in" style="animation-delay: 0.2s;">
+                    <div class="absolute inset-0 gradient-primary rounded-3xl opacity-0 group-hover:opacity-10 transition-opacity duration-500"></div>
+                    <div class="glass-dark rounded-3xl p-8 h-full hover-lift">
+                        <div class="relative">
+                            <!-- Icon -->
+                            <div class="w-20 h-20 gradient-primary rounded-3xl flex items-center justify-center mb-6 group-hover:animate-glow">
+                                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                </svg>
+                            </div>
+                            
+                            <!-- Content -->
+                            <h3 class="text-2xl font-black text-white mb-4">Streaming Tự động</h3>
+                            <p class="text-gray-300 mb-6 leading-relaxed">
+                                Streaming tự động với backup URL khi gặp sự cố. 
+                                <span class="text-primary font-semibold">Streaming 24/7</span> ổn định.
+                            </p>
+                            
+                            <!-- Features List -->
+                            <div class="space-y-3">
+                                <div class="flex items-center text-sm">
+                                    <div class="w-2 h-2 bg-green-400 rounded-full mr-3 animate-pulse"></div>
+                                    <span class="text-gray-300">Tự động khởi động lại khi <span class="text-white font-semibold">lỗi</span></span>
+                                </div>
+                                <div class="flex items-center text-sm">
+                                    <div class="w-2 h-2 bg-blue-400 rounded-full mr-3 animate-pulse"></div>
+                                    <span class="text-gray-300">Hỗ trợ YouTube, Facebook, TikTok</span>
+                                </div>
+                                <div class="flex items-center text-sm">
+                                    <div class="w-2 h-2 bg-purple-400 rounded-full mr-3 animate-pulse"></div>
+                                    <span class="text-gray-300">Playlist và lặp video</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Đa Nền Tảng</h3>
-                    <p class="text-gray-600 leading-relaxed">Hỗ trợ YouTube, Facebook, TikTok, Twitch và 50+ nền tảng khác cùng lúc.</p>
                 </div>
-                
-                <!-- Feature 3 -->
-                <div class="bg-gradient-to-br from-green-50 to-emerald-100 p-8 rounded-2xl hover:shadow-xl transition-all duration-300 group">
-                    <div class="w-16 h-16 bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                        </svg>
+
+                <!-- Feature 3: Monitoring & Support -->
+                <div class="group relative animate-scale-in" style="animation-delay: 0.4s;">
+                    <div class="absolute inset-0 gradient-primary rounded-3xl opacity-0 group-hover:opacity-10 transition-opacity duration-500"></div>
+                    <div class="glass-dark rounded-3xl p-8 h-full hover-lift">
+                        <div class="relative">
+                            <!-- Icon -->
+                            <div class="w-20 h-20 gradient-primary rounded-3xl flex items-center justify-center mb-6 group-hover:animate-glow">
+                                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                                </svg>
+                            </div>
+                            
+                            <!-- Content -->
+                            <h3 class="text-2xl font-black text-white mb-4">Monitoring & Hỗ trợ</h3>
+                            <p class="text-gray-300 mb-6 leading-relaxed">
+                                Dashboard theo dõi chi tiết với <span class="text-primary font-semibold">thông báo Telegram</span>. 
+                                Hỗ trợ kỹ thuật 24/7.
+                            </p>
+                            
+                            <!-- Features List -->
+                            <div class="space-y-3">
+                                <div class="flex items-center text-sm">
+                                    <div class="w-2 h-2 bg-green-400 rounded-full mr-3 animate-pulse"></div>
+                                    <span class="text-gray-300">Thông báo real-time qua <span class="text-white font-semibold">Telegram</span></span>
+                                </div>
+                                <div class="flex items-center text-sm">
+                                    <div class="w-2 h-2 bg-blue-400 rounded-full mr-3 animate-pulse"></div>
+                                    <span class="text-gray-300">Dashboard theo dõi trạng thái</span>
+                                </div>
+                                <div class="flex items-center text-sm">
+                                    <div class="w-2 h-2 bg-purple-400 rounded-full mr-3 animate-pulse"></div>
+                                    <span class="text-gray-300">Hỗ trợ kỹ thuật 24/7</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Bảo Mật Tuyệt Đối</h3>
-                    <p class="text-gray-600 leading-relaxed">Mã hóa SSL 256-bit, firewall tiên tiến và backup tự động bảo vệ dữ liệu của bạn.</p>
                 </div>
-                
-                <!-- Feature 4 -->
-                <div class="bg-gradient-to-br from-yellow-50 to-orange-100 p-8 rounded-2xl hover:shadow-xl transition-all duration-300 group">
-                    <div class="w-16 h-16 bg-gradient-to-r from-yellow-600 to-orange-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+            </div>
+            
+            <!-- Platform Support -->
+            <div class="text-center animate-fade-in">
+                <h3 class="text-2xl font-bold text-white mb-8">Hỗ trợ tất cả nền tảng streaming</h3>
+                <div class="flex flex-wrap justify-center items-center gap-12 opacity-80">
+                    <!-- YouTube -->
+                    <div class="flex items-center space-x-3 hover:opacity-100 transition-opacity">
+                        <svg class="w-10 h-10 text-primary" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                         </svg>
+                        <span class="text-white font-semibold">YouTube</span>
                     </div>
-                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Analytics Thông Minh</h3>
-                    <p class="text-gray-600 leading-relaxed">Theo dõi real-time, báo cáo chi tiết và AI insights để tối ưu hóa content.</p>
-                </div>
-                
-                <!-- Feature 5 -->
-                <div class="bg-gradient-to-br from-red-50 to-pink-100 p-8 rounded-2xl hover:shadow-xl transition-all duration-300 group">
-                    <div class="w-16 h-16 bg-gradient-to-r from-red-600 to-pink-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192L5.636 18.364M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"/>
+                    <!-- Facebook -->
+                    <div class="flex items-center space-x-3 hover:opacity-100 transition-opacity">
+                        <svg class="w-10 h-10 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                         </svg>
+                        <span class="text-white font-semibold">Facebook</span>
                     </div>
-                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Hỗ Trợ 24/7</h3>
-                    <p class="text-gray-600 leading-relaxed">Đội ngũ chuyên gia sẵn sàng hỗ trợ qua chat, email và hotline mọi lúc.</p>
-                </div>
-                
-                <!-- Feature 6 -->
-                <div class="bg-gradient-to-br from-indigo-50 to-blue-100 p-8 rounded-2xl hover:shadow-xl transition-all duration-300 group">
-                    <div class="w-16 h-16 bg-gradient-to-r from-indigo-600 to-blue-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/>
+                    <!-- TikTok -->
+                    <div class="flex items-center space-x-3 hover:opacity-100 transition-opacity">
+                        <svg class="w-10 h-10 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/>
                         </svg>
+                        <span class="text-white font-semibold">TikTok</span>
                     </div>
-                    <h3 class="text-2xl font-bold text-gray-900 mb-4">Giá Cả Hợp Lý</h3>
-                    <p class="text-gray-600 leading-relaxed">Gói cước linh hoạt từ 99,000 VND/tháng, không phí ẩn và có thể hủy bất kỳ lúc nào.</p>
+                    <!-- Twitch -->
+                    <div class="flex items-center space-x-3 hover:opacity-100 transition-opacity">
+                        <svg class="w-10 h-10 text-purple-500" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714Z"/>
+                        </svg>
+                        <span class="text-white font-semibold">Twitch</span>
+                    </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Pricing Section -->
-    <section id="pricing" class="py-24 bg-gray-50">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="text-center mb-20">
-                <h2 class="text-4xl md:text-5xl font-black text-gray-900 mb-6">
-                    Chọn Gói <span class="gradient-text">Phù Hợp</span> Với Bạn
+    <!-- Support Section -->
+    <section id="support" class="relative py-32 bg-gray-50 dark:bg-gray-900 overflow-hidden">
+        <div class="relative z-10 max-w-7xl mx-auto px-6">
+            <!-- Section Header -->
+            <div class="text-center mb-20 animate-fade-in">
+                <div class="inline-flex items-center px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6">
+                    <span class="text-primary font-mono text-sm font-semibold">SUPPORT & HELP</span>
+                </div>
+                <h2 class="text-5xl md:text-6xl font-black mb-6">
+                    <span class="text-gray-900 dark:text-white">Hỗ trợ</span>
+                    <span class="gradient-text block">24/7</span>
                 </h2>
-                <p class="text-xl text-gray-600 max-w-3xl mx-auto">
-                    Từ creator mới bắt đầu đến streamer chuyên nghiệp, chúng tôi có gói dành cho mọi nhu cầu
+                <p class="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed">
+                    Chúng tôi luôn sẵn sàng hỗ trợ bạn với đội ngũ kỹ thuật chuyên nghiệp
                 </p>
             </div>
             
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <!-- Basic Plan -->
-                <div class="bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all duration-300 pricing-card">
-                    <div class="text-center mb-8">
-                        <h3 class="text-2xl font-bold text-gray-900 mb-4">Starter</h3>
-                        <div class="text-5xl font-black text-gray-900 mb-2">99,000</div>
-                        <div class="text-gray-600">VND/tháng</div>
+            <!-- Support Options -->
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+                <!-- Live Chat -->
+                <div class="group bg-white dark:bg-gray-800 rounded-3xl p-8 border-2 border-gray-200 dark:border-gray-700 hover:border-primary/50 transition-all duration-300 hover-lift">
+                    <div class="w-16 h-16 gradient-primary rounded-2xl flex items-center justify-center mb-6 group-hover:animate-glow">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                        </svg>
                     </div>
-                    <ul class="space-y-4 mb-8">
-                        <li class="flex items-center">
-                            <svg class="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            2 streams đồng thời
-                        </li>
-                        <li class="flex items-center">
-                            <svg class="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            1080p HD quality
-                        </li>
-                        <li class="flex items-center">
-                            <svg class="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            10GB lưu trữ
-                        </li>
-                        <li class="flex items-center">
-                            <svg class="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            Email support
-                        </li>
-                    </ul>
-                    <a href="{{ route('register') }}" class="w-full bg-gray-900 text-white py-3 rounded-xl font-bold text-center block hover:bg-gray-800 transition-colors">
-                        Bắt Đầu Ngay
-                    </a>
+                    <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Live Chat</h3>
+                    <p class="text-gray-600 dark:text-gray-400 mb-6">
+                        Trò chuyện trực tiếp với đội ngũ hỗ trợ qua Telegram hoặc website
+                    </p>
+                    <div class="space-y-2 text-sm text-gray-500 dark:text-gray-500">
+                        <div>⏰ Phản hồi trong vòng 5 phút</div>
+                        <div>🕐 Hoạt động 24/7</div>
+                    </div>
                 </div>
                 
-                <!-- Pro Plan -->
-                <div class="bg-gradient-to-br from-blue-600 to-purple-600 rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300 pricing-card transform scale-105 relative">
-                    <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-gray-900 px-6 py-2 rounded-full text-sm font-bold">
-                        PHỔ BIẾN NHẤT
+                <!-- Documentation -->
+                <div class="group bg-white dark:bg-gray-800 rounded-3xl p-8 border-2 border-gray-200 dark:border-gray-700 hover:border-primary/50 transition-all duration-300 hover-lift">
+                    <div class="w-16 h-16 gradient-primary rounded-2xl flex items-center justify-center mb-6 group-hover:animate-glow">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C20.832 18.477 19.246 18 17.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+                        </svg>
                     </div>
-                    <div class="text-center mb-8">
-                        <h3 class="text-2xl font-bold text-white mb-4">Professional</h3>
-                        <div class="text-5xl font-black text-white mb-2">299,000</div>
-                        <div class="text-blue-100">VND/tháng</div>
+                    <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Tài liệu</h3>
+                    <p class="text-gray-600 dark:text-gray-400 mb-6">
+                        Hướng dẫn chi tiết từ setup đến sử dụng nâng cao
+                    </p>
+                    <div class="space-y-2 text-sm text-gray-500 dark:text-gray-500">
+                        <div>📖 Hướng dẫn setup</div>
+                        <div>🎥 Video tutorials</div>
+                        <div>❓ FAQ thường gặp</div>
                     </div>
-                    <ul class="space-y-4 mb-8 text-white">
-                        <li class="flex items-center">
-                            <svg class="w-5 h-5 text-yellow-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            10 streams đồng thời
-                        </li>
-                        <li class="flex items-center">
-                            <svg class="w-5 h-5 text-yellow-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            4K Ultra HD quality
-                        </li>
-                        <li class="flex items-center">
-                            <svg class="w-5 h-5 text-yellow-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            100GB lưu trữ
-                        </li>
-                        <li class="flex items-center">
-                            <svg class="w-5 h-5 text-yellow-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            24/7 Priority support
-                        </li>
-                        <li class="flex items-center">
-                            <svg class="w-5 h-5 text-yellow-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            AI Analytics
-                        </li>
-                    </ul>
-                    <a href="{{ route('register') }}" class="w-full bg-white text-blue-600 py-3 rounded-xl font-bold text-center block hover:bg-gray-50 transition-colors">
-                        Chọn Gói Pro
-                    </a>
                 </div>
                 
-                <!-- Enterprise Plan -->
-                <div class="bg-white rounded-2xl p-8 shadow-lg hover:shadow-2xl transition-all duration-300 pricing-card">
-                    <div class="text-center mb-8">
-                        <h3 class="text-2xl font-bold text-gray-900 mb-4">Enterprise</h3>
-                        <div class="text-5xl font-black text-gray-900 mb-2">999,000</div>
-                        <div class="text-gray-600">VND/tháng</div>
+                <!-- Phone Support -->
+                <div class="group bg-white dark:bg-gray-800 rounded-3xl p-8 border-2 border-gray-200 dark:border-gray-700 hover:border-primary/50 transition-all duration-300 hover-lift">
+                    <div class="w-16 h-16 gradient-primary rounded-2xl flex items-center justify-center mb-6 group-hover:animate-glow">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/>
+                        </svg>
                     </div>
-                    <ul class="space-y-4 mb-8">
-                        <li class="flex items-center">
-                            <svg class="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            Unlimited streams
-                        </li>
-                        <li class="flex items-center">
-                            <svg class="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            8K HDR quality
-                        </li>
-                        <li class="flex items-center">
-                            <svg class="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            1TB lưu trữ
-                        </li>
-                        <li class="flex items-center">
-                            <svg class="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            Dedicated support
-                        </li>
-                        <li class="flex items-center">
-                            <svg class="w-5 h-5 text-green-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            Custom API
-                        </li>
-                    </ul>
-                    <a href="{{ route('register') }}" class="w-full bg-gray-900 text-white py-3 rounded-xl font-bold text-center block hover:bg-gray-800 transition-colors">
-                        Liên Hệ Tư Vấn
-                    </a>
+                    <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Hỗ trợ trực tiếp</h3>
+                    <p class="text-gray-600 dark:text-gray-400 mb-6">
+                        Liên hệ trực tiếp qua điện thoại hoặc Zalo để được hỗ trợ nhanh nhất
+                    </p>
+                    <div class="space-y-2 text-sm text-gray-500 dark:text-gray-500">
+                        <div>📞 Gọi điện trực tiếp</div>
+                        <div>💬 Chat qua Zalo</div>
+                        <div>⚡ Phản hồi ngay lập tức</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Contact Info -->
+            <div class="text-center mt-16">
+                <div class="bg-white dark:bg-gray-800 rounded-3xl p-8 border-2 border-gray-200 dark:border-gray-700 max-w-2xl mx-auto">
+                    <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Liên hệ trực tiếp</h3>
+                    <div class="grid md:grid-cols-2 gap-6">
+                        <div class="text-center">
+                            <div class="text-primary font-bold text-lg mb-2">Zalo / Điện thoại</div>
+                            <div class="text-gray-600 dark:text-gray-400 font-mono text-xl">0971.125.260</div>
+                        </div>
+                        <div class="text-center">
+                            <div class="text-primary font-bold text-lg mb-2">Telegram</div>
+                            <div class="text-gray-600 dark:text-gray-400">@streamvps_support</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </section>
 
     <!-- CTA Section -->
-    <section class="py-24 bg-gradient-to-r from-blue-600 to-purple-600">
-        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <h2 class="text-4xl md:text-5xl font-black text-white mb-8">
-                Sẵn Sàng Bắt Đầu Hành Trình?
+    <section class="relative py-32 overflow-hidden">
+        <!-- Background -->
+        <div class="absolute inset-0 gradient-primary"></div>
+        <div class="absolute inset-0 mesh-pattern opacity-20"></div>
+        
+        <!-- Floating Elements -->
+        <div class="absolute inset-0 pointer-events-none">
+            <div class="vps-node absolute top-10 left-10 w-4 h-4 bg-white/20 rounded-full"></div>
+            <div class="vps-node absolute top-20 right-20 w-6 h-6 bg-white/10 rounded-full"></div>
+            <div class="vps-node absolute bottom-20 left-20 w-3 h-3 bg-white/30 rounded-full"></div>
+            <div class="vps-node absolute bottom-10 right-10 w-5 h-5 bg-white/15 rounded-full"></div>
+        </div>
+        
+        <div class="relative z-10 max-w-5xl mx-auto px-6 text-center">
+            <!-- Badge -->
+            <div class="inline-flex items-center px-6 py-3 rounded-2xl bg-white/10 backdrop-blur-sm border border-white/20 mb-8">
+                <span class="text-white font-mono text-sm font-semibold">🚀 SẴN SÀNG STREAMING?</span>
+            </div>
+            
+            <!-- Headline -->
+            <h2 class="text-5xl md:text-7xl font-black text-white mb-8 leading-tight">
+                Bắt đầu ngay
+                <span class="block text-white/80">hôm nay!</span>
             </h2>
-            <p class="text-xl text-white/90 mb-12 max-w-2xl mx-auto">
-                Tham gia cùng hàng nghìn creator đang sử dụng VPS Live Control để phát triển kênh của họ
+            
+            <!-- Subtitle -->
+            <p class="text-xl md:text-2xl text-white/80 mb-12 max-w-3xl mx-auto leading-relaxed">
+                Tham gia cùng <span class="text-white font-bold">các creator</span> và doanh nghiệp 
+                đang sử dụng hệ thống streaming tự động của chúng tôi
             </p>
-            <div class="flex flex-col sm:flex-row gap-6 justify-center">
-                @if (Route::has('register'))
-                    <a href="{{ route('register') }}" class="bg-white text-blue-600 px-10 py-4 rounded-xl font-bold text-lg hover:bg-gray-50 transform hover:scale-105 transition-all duration-300">
-                        🚀 Bắt Đầu Ngay
+            
+            <!-- CTA Buttons -->
+            <div class="flex flex-col sm:flex-row gap-6 justify-center items-center mb-16">
+                @guest
+                    <a href="{{ route('register') }}" 
+                       class="group relative px-12 py-5 bg-white text-primary rounded-2xl text-xl font-black transition-all duration-500 hover-lift shadow-2xl">
+                        <span class="relative z-10 flex items-center">
+                            <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                            </svg>
+                            ĐĂNG KÝ NGAY
+                        </span>
+                        <div class="absolute inset-0 bg-gray-100 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     </a>
-                @endif
-                <a href="#contact" class="glass-effect text-white px-10 py-4 rounded-xl font-bold text-lg hover:bg-white/10 transition-all duration-300">
-                    📞 Tư Vấn Miễn Phí
-                </a>
+                    <a href="#pricing" 
+                       class="px-12 py-5 border-2 border-white/30 text-white rounded-2xl text-xl font-black hover:bg-white/10 transition-all duration-300 hover-lift">
+                        XEM GIÁ
+                    </a>
+                @else
+                    <a href="{{ route('dashboard') }}" 
+                       class="group relative px-12 py-5 bg-white text-primary rounded-2xl text-xl font-black transition-all duration-500 hover-lift shadow-2xl">
+                        <span class="relative z-10 flex items-center">
+                            <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                            </svg>
+                            VÀO DASHBOARD
+                        </span>
+                        <div class="absolute inset-0 bg-gray-100 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                    </a>
+                @endguest
+            </div>
+            
+            <!-- Trust Indicators -->
+            <div class="flex flex-wrap justify-center items-center gap-12 text-white/60">
+                <div class="flex items-center space-x-3">
+                    <svg class="w-6 h-6 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                    </svg>
+                    <span class="font-semibold">Setup nhanh chóng</span>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <svg class="w-6 h-6 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                    </svg>
+                    <span class="font-semibold">Hỗ trợ 24/7</span>
+                </div>
+                <div class="flex items-center space-x-3">
+                    <svg class="w-6 h-6 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                    </svg>
+                    <span class="font-semibold">Ổn định & tin cậy</span>
+                </div>
             </div>
         </div>
     </section>
 
     <!-- Footer -->
-    <footer id="contact" class="bg-gray-900 text-white py-16">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
-                <div class="col-span-1 md:col-span-2">
-                    <div class="flex items-center mb-6">
-                        <div class="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
-                            <svg class="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+    <footer class="relative bg-black py-20">
+        <!-- Background -->
+        <div class="absolute inset-0 grid-pattern opacity-10"></div>
+        
+        <div class="relative z-10 max-w-7xl mx-auto px-6">
+            <!-- Main Footer Content -->
+            <div class="grid lg:grid-cols-4 md:grid-cols-2 gap-12 mb-12">
+                <!-- Company Info -->
+                <div class="lg:col-span-2">
+                    <div class="flex items-center space-x-4 mb-8">
+                        <div class="w-16 h-16 gradient-primary rounded-3xl flex items-center justify-center shadow-2xl">
+                            <svg class="w-9 h-9 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8.5 8.64L13.77 12L8.5 15.36V8.64M6.5 5V19L17.5 12L6.5 5Z"/>
                             </svg>
                         </div>
-                        <span class="ml-3 text-xl font-bold">VPS Live Control</span>
+                        <div>
+                            <h3 class="text-3xl font-black gradient-text">StreamVPS</h3>
+                            <p class="text-gray-400 font-mono">PRO NETWORK</p>
+                        </div>
                     </div>
-                    <p class="text-gray-400 mb-6 max-w-md">
-                        Nền tảng quản lý stream hàng đầu Việt Nam, được tin tưởng bởi hàng nghìn creator và doanh nghiệp.
+                    <p class="text-gray-400 text-lg leading-relaxed mb-8 max-w-lg">
+                        Hệ thống streaming tự động ổn định và đáng tin cậy. 
+                        <span class="text-white font-semibold">Dịch vụ chuyên nghiệp</span>, hỗ trợ 24/7.
                     </p>
-                    <div class="flex space-x-4">
-                        <a href="#" class="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-gray-700 transition-colors">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/>
-                            </svg>
-                        </a>
-                        <a href="#" class="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-gray-700 transition-colors">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M22.46 6c-.77.35-1.6.58-2.46.69.88-.53 1.56-1.37 1.88-2.38-.83.5-1.75.85-2.72 1.05C18.37 4.5 17.26 4 16 4c-2.35 0-4.27 1.92-4.27 4.29 0 .34.04.67.11.98C8.28 9.09 5.11 7.38 3 4.79c-.37.63-.58 1.37-.58 2.15 0 1.49.75 2.81 1.91 3.56-.71 0-1.37-.2-1.95-.5v.03c0 2.08 1.48 3.82 3.44 4.21a4.22 4.22 0 0 1-1.93.07 4.28 4.28 0 0 0 4 2.98 8.521 8.521 0 0 1-5.33 1.84c-.34 0-.68-.02-1.02-.06C3.44 20.29 5.7 21 8.12 21 16 21 20.33 14.46 20.33 8.79c0-.19 0-.37-.01-.56.84-.6 1.56-1.36 2.14-2.23z"/>
-                            </svg>
-                        </a>
-                        <a href="#" class="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-gray-700 transition-colors">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
-                            </svg>
-                        </a>
-                    </div>
                 </div>
                 
+                <!-- Quick Links -->
                 <div>
-                    <h3 class="text-lg font-bold mb-4">Sản Phẩm</h3>
-                    <ul class="space-y-2 text-gray-400">
-                        <li><a href="#" class="hover:text-white transition-colors">VPS Streaming</a></li>
-                        <li><a href="#" class="hover:text-white transition-colors">Multi-Platform</a></li>
-                        <li><a href="#" class="hover:text-white transition-colors">Analytics</a></li>
-                        <li><a href="#" class="hover:text-white transition-colors">API</a></li>
+                    <h4 class="text-xl font-bold text-white mb-6">Liên kết</h4>
+                    <ul class="space-y-4">
+                        <li><a href="#features" class="text-gray-400 hover:text-white transition-colors font-medium">Tính năng</a></li>
+                        <li><a href="#pricing" class="text-gray-400 hover:text-white transition-colors font-medium">Giá cả</a></li>
+                        <li><a href="#support" class="text-gray-400 hover:text-white transition-colors font-medium">Hỗ trợ</a></li>
+                        @auth
+                            <li><a href="{{ route('dashboard') }}" class="text-gray-400 hover:text-white transition-colors font-medium">Dashboard</a></li>
+                        @else
+                            <li><a href="{{ route('login') }}" class="text-gray-400 hover:text-white transition-colors font-medium">Đăng nhập</a></li>
+                            <li><a href="{{ route('register') }}" class="text-gray-400 hover:text-white transition-colors font-medium">Đăng ký</a></li>
+                        @endauth
                     </ul>
                 </div>
                 
+                                 <!-- Contact -->
                 <div>
-                    <h3 class="text-lg font-bold mb-4">Hỗ Trợ</h3>
-                    <ul class="space-y-2 text-gray-400">
-                        <li><a href="#" class="hover:text-white transition-colors">Tài Liệu</a></li>
-                        <li><a href="#" class="hover:text-white transition-colors">Hướng Dẫn</a></li>
-                        <li><a href="#" class="hover:text-white transition-colors">Liên Hệ</a></li>
-                        <li><a href="#" class="hover:text-white transition-colors">FAQ</a></li>
+                    <h4 class="text-xl font-bold text-white mb-6">Liên hệ</h4>
+                    <ul class="space-y-4">
+                        <li class="text-gray-400">
+                            <span class="text-white font-medium">Zalo/Phone:</span><br>
+                            <span class="font-mono text-lg">0971.125.260</span>
+                        </li>
+                        <li class="text-gray-400">
+                            <span class="text-white font-medium">Telegram:</span><br>
+                            @streamvps_support
+                        </li>
+                        <li class="text-gray-400">
+                            <span class="text-white font-medium">Hỗ trợ:</span><br>
+                            24/7 - Phản hồi nhanh
+                        </li>
                     </ul>
                 </div>
             </div>
             
-            <div class="border-t border-gray-800 mt-12 pt-8 text-center text-gray-400">
-                <p>&copy; 2024 VPS Live Control. Tất cả quyền được bảo lưu.</p>
+            <!-- Bottom Footer -->
+            <div class="border-t border-gray-800 pt-8">
+                <div class="flex flex-col lg:flex-row justify-between items-center gap-6">
+                    <div class="flex flex-col md:flex-row items-center gap-6 text-gray-400 text-sm">
+                        <p>&copy; {{ date('Y') }} StreamVPS Pro. All rights reserved.</p>
+                        <p class="font-mono">Built with ❤️ using Laravel & Livewire</p>
+                    </div>
+                    <div class="flex flex-wrap gap-6">
+                        <a href="#" class="text-gray-400 hover:text-white text-sm transition-colors font-medium">Privacy Policy</a>
+                        <a href="#" class="text-gray-400 hover:text-white text-sm transition-colors font-medium">Terms of Service</a>
+                        <a href="#" class="text-gray-400 hover:text-white text-sm transition-colors font-medium">Cookie Policy</a>
+                        <a href="#" class="text-gray-400 hover:text-white text-sm transition-colors font-medium">DMCA</a>
+                    </div>
+                </div>
             </div>
         </div>
     </footer>
-
-    <!-- Smooth Scroll Script -->
-    <script>
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                const target = document.querySelector(this.getAttribute('href'));
-                if (target) {
-                    target.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start'
-                    });
-                }
-            });
-        });
-    </script>
+    </div>
 </body>
-</html>
+</html> 

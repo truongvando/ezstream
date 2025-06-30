@@ -109,4 +109,12 @@ class TransactionManagement extends Component
         ])->layout('layouts.sidebar')
           ->slot('header', '<h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Quản lý Giao dịch</h1>');
     }
+
+    /**
+     * ✅ THÊM HELPER METHOD FORMAT TIỀN VNĐ
+     */
+    public function formatVND($amount)
+    {
+        return number_format($amount, 0, ',', '.') . ' VNĐ';
+    }
 }

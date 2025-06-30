@@ -20,16 +20,24 @@
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Số Luồng</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Dung Lượng (GB)</th>
                         <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Trạng Thái</th>
+                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Phổ Biến</th>
                         <th scope="col" class="relative px-6 py-3"><span class="sr-only">Hành động</span></th>
                     </tr>
                 </thead>
                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     @foreach($packages as $package)
                     <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{{ $package->name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                            {{ $package->name }}
+                            @if($package->is_popular)
+                                <span class="ml-2 px-2 py-1 text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-800/30 dark:text-red-300 rounded-full">
+                                    PHỔ BIẾN
+                                </span>
+                            @endif
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{{ number_format($package->price, 0, ',', '.') }}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{{ $package->max_streams }}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{{ $package->storage_limit ? round($package->storage_limit / (1024*1024*1024)) : 'N/A' }}</td>
+                                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">{{ $package->storage_limit_gb ?? 'N/A' }} GB</td>
                         <td class="px-6 py-4 whitespace-nowrap">
                             <span @class([
                                 'px-2 inline-flex text-xs leading-5 font-semibold rounded-full',
@@ -38,6 +46,25 @@
                             ])>
                                 {{ $package->is_active ? 'Kích hoạt' : 'Vô hiệu hóa' }}
                             </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <button wire:click="togglePopular({{ $package->id }})" 
+                                    class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium transition-colors
+                                           {{ $package->is_popular 
+                                              ? 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200 dark:bg-yellow-800/30 dark:text-yellow-300' 
+                                              : 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300' }}">
+                                @if($package->is_popular)
+                                    <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                                    </svg>
+                                    Phổ biến
+                                @else
+                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/>
+                                    </svg>
+                                    Đặt phổ biến
+                                @endif
+                            </button>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <button wire:click="edit({{ $package->id }})" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-200">Sửa</button>
@@ -85,10 +112,24 @@
                                 @error('max_streams') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                             </div>
                             <div>
-                                <label for="storage_limit_gb" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Dung Lượng Lưu Trữ (GB)</label>
+                                <label for="storage_limit_gb" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Dung Lượng (GB)</label>
                                 <input type="number" wire:model.defer="storage_limit_gb" id="storage_limit_gb" class="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                 @error('storage_limit_gb') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                             </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="max_video_width" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Max Video Width</label>
+                                    <input type="number" wire:model.defer="max_video_width" id="max_video_width" class="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    @error('max_video_width') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                                </div>
+                                <div>
+                                    <label for="max_video_height" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Max Video Height</label>
+                                    <input type="number" wire:model.defer="max_video_height" id="max_video_height" class="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    @error('max_video_height') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                                </div>
+                            </div>
+                            
                             <div>
                                 <label for="description" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Mô tả</label>
                                 <textarea wire:model.defer="description" id="description" rows="3" class="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white"></textarea>
@@ -106,11 +147,19 @@
                                     <input type="text" wire:model.lazy="newFeature" wire:keydown.enter="addFeature" placeholder="Thêm tính năng và nhấn Enter" class="block w-full shadow-sm sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                 </div>
                             </div>
-                             <div class="flex items-center">
-                                <input id="is_active" wire:model.defer="is_active" type="checkbox" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
-                                <label for="is_active" class="ml-2 block text-sm text-gray-900 dark:text-gray-300">
-                                    Kích hoạt
-                                </label>
+                            <div class="flex items-center space-x-6">
+                                <div class="flex items-center">
+                                    <input id="is_active" wire:model.defer="is_active" type="checkbox" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded">
+                                    <label for="is_active" class="ml-2 block text-sm text-gray-900 dark:text-gray-300">
+                                        Kích hoạt
+                                    </label>
+                                </div>
+                                <div class="flex items-center">
+                                    <input id="is_popular" wire:model.defer="is_popular" type="checkbox" class="h-4 w-4 text-yellow-600 focus:ring-yellow-500 border-gray-300 rounded">
+                                    <label for="is_popular" class="ml-2 block text-sm text-gray-900 dark:text-gray-300">
+                                        Gói phổ biến
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>

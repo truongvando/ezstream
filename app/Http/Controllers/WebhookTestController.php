@@ -76,7 +76,16 @@ class WebhookTestController extends Controller
     {
         $streams = StreamConfiguration::orderBy('created_at', 'desc')->limit(10)->get();
         
-        return view('webhook-test', compact('streams'));
+        // View đã bị xóa, trả về response JSON thay thế
+        return response()->json([
+            'message' => 'Webhook Test Controller',
+            'note' => 'View đã được cleanup, sử dụng API endpoints thay thế',
+            'streams_count' => $streams->count(),
+            'available_endpoints' => [
+                'POST /webhook-test/simulate',
+                'GET /webhook-test/quick/{streamId}/{status}',
+            ]
+        ]);
     }
     
     /**

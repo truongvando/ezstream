@@ -12,13 +12,14 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Http;
 use App\Models\UserFile;
 use App\Services\FileSecurityService;
+use App\Services\GoogleDriveService;
 
 class DownloadFromGoogleDriveJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $timeout = 3600; // 1 hour timeout
-    public $tries = 3;
+    public $timeout = 7200; // 2 hours timeout for large files
+    public $tries = 2;
 
     private UserFile $userFile;
     private string $googleDriveFileId;
@@ -29,209 +30,231 @@ class DownloadFromGoogleDriveJob implements ShouldQueue
         $this->googleDriveFileId = $googleDriveFileId;
     }
 
-    public function handle(FileSecurityService $fileSecurityService): void
+    public function handle(FileSecurityService $fileSecurityService, GoogleDriveService $googleDriveService): void
     {
-        Log::info('Starting Google Drive download', [
+        Log::info('GOOGLE_DRIVE_IMPORT_JOB: Starting download', [
             'user_file_id' => $this->userFile->id,
             'google_drive_file_id' => $this->googleDriveFileId,
-            'user_id' => $this->userFile->user_id
         ]);
 
+        $tempPath = null; // Initialize temp path to null
+
         try {
-            // Update status to downloading
             $this->userFile->update(['status' => 'DOWNLOADING']);
 
-            // Get download URL
             $downloadUrl = $this->getDirectDownloadUrl($this->googleDriveFileId);
             if (!$downloadUrl) {
-                throw new \Exception('Cannot get download URL for Google Drive file');
+                throw new \Exception('Cannot get a valid download URL from Google Drive.');
             }
 
-            // Create temp file path
-            $tempFileName = 'temp_' . uniqid() . '_' . $this->userFile->original_name;
+            // Create a unique temporary file path
+            $tempFileName = 'gdrive_import_' . uniqid() . '.' . pathinfo($this->userFile->original_name, PATHINFO_EXTENSION);
             $tempPath = storage_path('app/temp_downloads/' . $tempFileName);
             
-            // Ensure directory exists
             $tempDir = dirname($tempPath);
             if (!file_exists($tempDir)) {
                 mkdir($tempDir, 0755, true);
             }
 
-            // Download file with progress tracking
             $this->downloadFileWithProgress($downloadUrl, $tempPath);
 
-            // Validate downloaded file
-            $validationResult = $this->validateDownloadedFile($tempPath, $fileSecurityService);
-            if (!$validationResult['valid']) {
-                unlink($tempPath);
-                throw new \Exception('File validation failed: ' . $validationResult['reason']);
-            }
-
-            // Move to final location
-            $finalFileName = uniqid() . '_' . time() . '_' . $this->userFile->original_name;
-            $finalPath = storage_path('app/user_uploads/' . $finalFileName);
-            
-            if (!rename($tempPath, $finalPath)) {
-                throw new \Exception('Failed to move file to final location');
-            }
-
-            // Update file record
-            $actualSize = filesize($finalPath);
-            $this->userFile->update([
-                'path' => 'user_uploads/' . $finalFileName,
-                'size' => $actualSize,
-                'status' => 'PENDING_TRANSFER'
-            ]);
-
-            // Dispatch transfer to VPS
-            TransferVideoToVpsJob::dispatch($this->userFile);
-
-            // Clear progress cache
-            cache()->forget('download_progress_' . $this->userFile->id);
-
-            Log::info('Google Drive download completed successfully', [
+            Log::info('GOOGLE_DRIVE_IMPORT_JOB: File downloaded successfully, now uploading to system Google Drive', [
                 'user_file_id' => $this->userFile->id,
-                'final_size' => $actualSize,
-                'user_id' => $this->userFile->user_id
+                'temp_path' => $tempPath,
+                'file_size' => filesize($tempPath),
+            ]);
+            
+            // Upload to system's Google Drive (same as normal upload)
+            $uploadedFileId = $googleDriveService->uploadFile($tempPath, $this->userFile->original_name);
+            
+            if (!$uploadedFileId) {
+                throw new \Exception('Failed to upload file to system Google Drive');
+            }
+            
+            Log::info('GOOGLE_DRIVE_IMPORT_JOB: File uploaded to system Google Drive successfully', [
+                'user_file_id' => $this->userFile->id,
+                'google_drive_file_id' => $uploadedFileId,
+            ]);
+            
+            // Update file record (same as normal upload)
+            $this->userFile->update([
+                'disk' => 'google',
+                'path' => $uploadedFileId,
+                'size' => filesize($tempPath),
+                'status' => 'AVAILABLE',
+                'error_message' => null,
+            ]);
+            
+            Log::info('GOOGLE_DRIVE_IMPORT_JOB: Process completed successfully', [
+                'user_file_id' => $this->userFile->id,
+                'google_drive_file_id' => $uploadedFileId,
             ]);
 
         } catch (\Exception $e) {
             $this->handleDownloadFailure($e);
+        } finally {
+            // Always clean up the temporary file
+            if ($tempPath && file_exists($tempPath)) {
+                unlink($tempPath);
+                Log::info('GOOGLE_DRIVE_IMPORT_JOB: Cleaned up temporary file.', ['path' => $tempPath]);
+            }
         }
     }
 
-    /**
-     * Get direct download URL for Google Drive file
-     */
     private function getDirectDownloadUrl(string $fileId): ?string
     {
-        // Try multiple methods to get download URL
-        $downloadUrls = [
+        // Use direct download URLs like Python's gdown - no API key needed
+        $directUrls = [
             "https://drive.google.com/uc?export=download&id={$fileId}",
-            "https://drive.google.com/uc?id={$fileId}&export=download",
-            "https://docs.google.com/uc?export=download&id={$fileId}"
+            "https://drive.google.com/uc?id={$fileId}&export=download", 
+            "https://docs.google.com/uc?export=download&id={$fileId}",
+            "https://drive.google.com/file/d/{$fileId}/view?usp=sharing"
         ];
-
-        foreach ($downloadUrls as $url) {
+        
+        foreach ($directUrls as $url) {
             try {
-                // Test if URL is accessible
-                $response = Http::timeout(30)->head($url);
+                // Test with HEAD request first
+                $response = Http::timeout(10)->head($url);
+                
                 if ($response->successful()) {
-                    return $url;
+                    $contentType = $response->header('Content-Type');
+                    $contentLength = $response->header('Content-Length');
+                    
+                    Log::info('GOOGLE_DRIVE_IMPORT_JOB: Testing direct URL', [
+                        'url' => substr($url, 0, 50) . '...',
+                        'content_type' => $contentType,
+                        'content_length' => $contentLength
+                    ]);
+                    
+                    // If it returns video content or reasonable size, use this URL
+                    if (str_contains($contentType, 'video/') || 
+                        str_contains($contentType, 'application/octet-stream') ||
+                        $contentLength > 1000000) { // > 1MB
+                        return $url;
+                    }
                 }
             } catch (\Exception $e) {
+                Log::warning('GOOGLE_DRIVE_IMPORT_JOB: Direct URL failed', [
+                    'url' => substr($url, 0, 50) . '...',
+                    'error' => $e->getMessage()
+                ]);
                 continue;
             }
         }
-
-        return null;
+        
+        // Fallback to first URL anyway
+        Log::info('GOOGLE_DRIVE_IMPORT_JOB: Using fallback URL');
+        return $directUrls[0];
     }
 
-    /**
-     * Download file with progress tracking
-     */
     private function downloadFileWithProgress(string $url, string $destinationPath): void
     {
         $progressKey = 'download_progress_' . $this->userFile->id;
-        
-        // Initialize progress
-        cache()->put($progressKey, 0, 3600);
+        cache()->put($progressKey, 0, 7200);
 
-        $fp = fopen($destinationPath, 'w+');
-        if (!$fp) {
-            throw new \Exception('Cannot create temporary file');
+        $destinationHandle = fopen($destinationPath, 'w');
+        if ($destinationHandle === false) {
+            throw new \Exception('Cannot create temporary file for download.');
         }
 
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $url,
-            CURLOPT_FILE => $fp,
-            CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_TIMEOUT => 3600, // 1 hour
-            CURLOPT_USERAGENT => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            CURLOPT_PROGRESSFUNCTION => function($resource, $downloadSize, $downloaded, $uploadSize, $uploaded) use ($progressKey) {
-                if ($downloadSize > 0) {
-                    $progress = ($downloaded / $downloadSize) * 100;
-                    cache()->put($progressKey, round($progress, 2), 3600);
+        $response = Http::withOptions([
+            'stream' => true,
+            'sink' => $destinationHandle,
+            'timeout' => 7200, // 2 hours
+            'progress' => function ($totalDownload, $downloadedBytes) use ($progressKey) {
+                if ($totalDownload > 0) {
+                    $progress = round(($downloadedBytes / $totalDownload) * 100, 2);
+                    cache()->put($progressKey, $progress, 7200);
                 }
-                return 0; // Continue download
-            },
-            CURLOPT_NOPROGRESS => false,
-        ]);
+            }
+        ])->get($url);
 
-        $result = curl_exec($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error = curl_error($ch);
-        
-        curl_close($ch);
-        fclose($fp);
-
-        if ($result === false || $httpCode !== 200) {
-            unlink($destinationPath);
-            throw new \Exception("Download failed. HTTP Code: {$httpCode}, Error: {$error}");
+        if ($response->failed()) {
+            throw new \Exception("Download failed with status: " . $response->status());
         }
 
-        // Check if file was actually downloaded
-        if (!file_exists($destinationPath) || filesize($destinationPath) === 0) {
-            throw new \Exception('Downloaded file is empty or corrupted');
+        // Check if downloaded file is actually HTML (Google Drive error page)
+        if (filesize($destinationPath) < 1024 * 1024) { // Only check small files (< 1MB)
+            $content = file_get_contents($destinationPath, false, null, 0, 2048);
+            
+            // Check for common Google Drive error indicators
+            if (str_contains($content, '<html') || 
+                str_contains($content, 'Virus scan warning') || 
+                str_contains($content, 'accounts.google.com') ||
+                str_contains($content, 'Google Drive - Virus scan warning') ||
+                str_contains($content, 'cannot be scanned with Google')) {
+                
+                // Try alternative download URLs
+                $alternativeUrls = $this->getAlternativeDownloadUrls($this->googleDriveFileId);
+                
+                foreach ($alternativeUrls as $altUrl) {
+                    Log::info('GOOGLE_DRIVE_IMPORT_JOB: Trying alternative download URL', ['url' => $altUrl]);
+                    
+                    // Reset file handle
+                    fclose($destinationHandle);
+                    $destinationHandle = fopen($destinationPath, 'w');
+                    
+                    $altResponse = Http::withOptions([
+                        'stream' => true,
+                        'sink' => $destinationHandle,
+                        'timeout' => 7200,
+                        'progress' => function ($totalDownload, $downloadedBytes) use ($progressKey) {
+                            if ($totalDownload > 0) {
+                                $progress = round(($downloadedBytes / $totalDownload) * 100, 2);
+                                cache()->put($progressKey, $progress, 7200);
+                            }
+                        }
+                    ])->get($altUrl);
+                    
+                    if ($altResponse->successful() && filesize($destinationPath) > 1024) {
+                        $newContent = file_get_contents($destinationPath, false, null, 0, 1024);
+                        if (!str_contains($newContent, '<html')) {
+                            Log::info('GOOGLE_DRIVE_IMPORT_JOB: Successfully downloaded with alternative URL');
+                            return; // Success
+                        }
+                    }
+                }
+                
+                throw new \Exception('Downloaded file appears to be HTML instead of video. The file may require manual confirmation or may not be publicly accessible.');
+            }
         }
     }
 
-    /**
-     * Validate downloaded file
-     */
-    private function validateDownloadedFile(string $filePath, FileSecurityService $fileSecurityService): array
+    private function getAlternativeDownloadUrls(string $fileId): array
     {
-        // Get file extension from original name
-        $extension = strtolower(pathinfo($this->userFile->original_name, PATHINFO_EXTENSION));
-        
-        // Validate using FileSecurityService
-        return $fileSecurityService->validateVideoFile($filePath, $extension);
+        return [
+            "https://drive.google.com/uc?export=download&id={$fileId}&confirm=t",
+            "https://drive.google.com/uc?id={$fileId}&export=download",
+            "https://docs.google.com/uc?export=download&id={$fileId}",
+            "https://drive.google.com/u/0/uc?id={$fileId}&export=download&confirm=t"
+        ];
     }
 
-    /**
-     * Handle download failure
-     */
     private function handleDownloadFailure(\Exception $e): void
     {
-        Log::error('Google Drive download failed', [
+        Log::error('GOOGLE_DRIVE_IMPORT_JOB: Job failed.', [
             'user_file_id' => $this->userFile->id,
-            'google_drive_file_id' => $this->googleDriveFileId,
-            'user_id' => $this->userFile->user_id,
             'error' => $e->getMessage(),
             'trace' => $e->getTraceAsString()
         ]);
 
-        // Update file status
         $this->userFile->update([
             'status' => 'FAILED',
             'error_message' => $e->getMessage()
         ]);
-
-        // Clear progress cache
         cache()->forget('download_progress_' . $this->userFile->id);
-
-        // Re-throw for job retry mechanism
-        throw $e;
     }
-
-    /**
-     * Handle job failure after all retries
-     */
+    
     public function failed(\Throwable $exception): void
     {
-        Log::error('Google Drive download job failed permanently', [
+        Log::critical('GOOGLE_DRIVE_IMPORT_JOB: Job failed permanently after all retries.', [
             'user_file_id' => $this->userFile->id,
-            'google_drive_file_id' => $this->googleDriveFileId,
-            'user_id' => $this->userFile->user_id,
-            'error' => $exception->getMessage()
+            'exception' => $exception->getMessage(),
         ]);
-
         $this->userFile->update([
             'status' => 'FAILED',
-            'error_message' => 'Download failed after multiple retries: ' . $exception->getMessage()
+            'error_message' => 'Job failed permanently: ' . $exception->getMessage()
         ]);
-
         cache()->forget('download_progress_' . $this->userFile->id);
     }
 }

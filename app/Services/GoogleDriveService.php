@@ -86,20 +86,30 @@ class GoogleDriveService
     }
 
     /**
-     * Upload file to Google Drive
+     * Upload file to Google Drive.
+     * Can accept a file path or an UploadedFile object.
+     *
+     * @param string|\Illuminate\Http\UploadedFile $source
+     * @param string $fileName
+     * @param string|null $mimeType
+     * @return array
      */
-    public function uploadFile($filePath, $fileName, $mimeType = null)
+    public function uploadFile($source, $fileName, $mimeType = null)
     {
         try {
+            $isUploadedFile = $source instanceof \Illuminate\Http\UploadedFile;
+            
+            $filePath = $isUploadedFile ? $source->getRealPath() : $source;
+            $fileSize = $isUploadedFile ? $source->getSize() : filesize($filePath);
+            $detectedMimeType = $isUploadedFile ? $source->getMimeType() : mime_content_type($filePath);
+
             if (!file_exists($filePath)) {
-                throw new Exception("File not found: {$filePath}");
+                throw new Exception("File source not found: {$filePath}");
             }
-
-            $fileSize = filesize($filePath);
-
+            
             // Auto-detect MIME type if not provided
             if (!$mimeType) {
-                $mimeType = mime_content_type($filePath) ?: 'application/octet-stream';
+                $mimeType = $detectedMimeType ?: 'application/octet-stream';
             }
 
             $fileMetadata = new DriveFile([

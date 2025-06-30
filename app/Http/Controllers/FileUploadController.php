@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Services\GoogleDriveService;
+use App\Services\FileSecurityService;
+use App\Services\VideoValidationService;
 use Exception;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -12,10 +14,12 @@ use App\Models\UserFile;
 class FileUploadController extends Controller
 {
     protected $googleDriveService;
+    protected $fileSecurityService;
 
-    public function __construct(GoogleDriveService $googleDriveService)
+    public function __construct(GoogleDriveService $googleDriveService, FileSecurityService $fileSecurityService)
     {
         $this->googleDriveService = $googleDriveService;
+        $this->fileSecurityService = $fileSecurityService;
     }
 
     /**
@@ -25,12 +29,12 @@ class FileUploadController extends Controller
     public function uploadVideo(Request $request)
     {
         // Set reasonable time limit for large uploads
-        set_time_limit(600); // 10 minutes
+        set_time_limit(7200); // 2 hours for 20GB files
         
         Log::info('File upload started', ['user_id' => auth()->id()]);
         
         $request->validate([
-            'file' => 'required|file|mimes:mp4,mov,avi,mkv|max:2097152', // Max 2GB in kilobytes
+            'file' => 'required|file|mimes:mp4,mov,avi,mkv|max:20971520', // Max 20GB in kilobytes
         ]);
 
         try {
@@ -40,16 +44,45 @@ class FileUploadController extends Controller
             }
 
             $uploadedFile = $request->file('file');
-            $fileName = $uploadedFile->getClientOriginalName();
-            $tempPath = $uploadedFile->getPathname();
+            $originalFileName = $uploadedFile->getClientOriginalName();
             $fileSize = $uploadedFile->getSize();
+            
+            // Security validation (simplified)
+            Log::info('Starting security validation', ['file_name' => $originalFileName]);
+            
+            // 1. Sanitize filename
+            $fileName = $this->fileSecurityService->sanitizeFileName($originalFileName);
+            if (!$fileName) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Tên file không hợp lệ hoặc chứa ký tự nguy hiểm.'
+                ], 400);
+            }
+
+            // 2. Perform simplified validation using the uploaded file object
+            $securityResult = $this->fileSecurityService->validateUploadedVideo($uploadedFile, $fileName);
+            
+            if (!$securityResult['valid']) {
+                Log::alert('Security validation failed', [
+                    'file_name' => $fileName,
+                    'reason' => $securityResult['reason'],
+                    'user_id' => $user->id
+                ]);
+                
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'File không hợp lệ: ' . $securityResult['reason']
+                ], 400);
+            }
+            
+            Log::info('Security validation passed', ['file_name' => $fileName]);
             
             // Check storage limit for non-admin users
             if (!$user->isAdmin()) {
                 $currentUsage = $user->files()->sum('size');
                 $activeSubscription = $user->subscriptions()
                     ->where('status', 'active')
-                    ->where('expires_at', '>', now())
+                    ->where('ends_at', '>', now())
                     ->first();
                     
                 if (!$activeSubscription || !$activeSubscription->servicePackage) {
@@ -59,7 +92,7 @@ class FileUploadController extends Controller
                     ], 403);
                 }
                 
-                $storageLimit = $activeSubscription->servicePackage->storage_limit * 1024 * 1024 * 1024; // GB to bytes
+                $storageLimit = $activeSubscription->servicePackage->storage_limit_gb * 1024 * 1024 * 1024; // GB to bytes
                 
                 if (($currentUsage + $fileSize) > $storageLimit) {
                     $remaining = $storageLimit - $currentUsage;
@@ -74,11 +107,11 @@ class FileUploadController extends Controller
             Log::info('Upload details', [
                 'file_name' => $fileName,
                 'file_size' => $fileSize,
-                'temp_path' => $tempPath,
+                'temp_path' => $uploadedFile->getRealPath(),
             ]);
 
-            // Upload to Google Drive from the temporary path
-            $result = $this->googleDriveService->uploadFile($tempPath, $fileName, $uploadedFile->getMimeType());
+            // Upload to Google Drive from the UploadedFile object
+            $result = $this->googleDriveService->uploadFile($uploadedFile, $fileName, $uploadedFile->getMimeType());
             
             Log::info('Google Drive upload result', ['success' => $result['success'] ?? false]);
 
@@ -137,16 +170,26 @@ class FileUploadController extends Controller
 
         try {
             $user = auth()->user();
-            $fileName = $request->fileName;
+            $originalFileName = $request->fileName;
             $fileSize = $request->fileSize;
             $mimeType = $request->mimeType;
+            
+            // Security validation
+            $fileName = $this->fileSecurityService->sanitizeFileName($originalFileName);
+            if (!$fileName || !$this->fileSecurityService->isAllowedExtension($fileName) || 
+                !$this->fileSecurityService->isAllowedMimeType($mimeType)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'File không hợp lệ hoặc không được hỗ trợ.'
+                ], 400);
+            }
 
             // Check storage limit
             if (!$user->isAdmin()) {
                 $currentUsage = $user->files()->sum('size');
                 $activeSubscription = $user->subscriptions()
                     ->where('status', 'active')
-                    ->where('expires_at', '>', now())
+                    ->where('ends_at', '>', now())
                     ->first();
                     
                 if (!$activeSubscription) {
@@ -156,7 +199,7 @@ class FileUploadController extends Controller
                     ], 403);
                 }
                 
-                $storageLimit = $activeSubscription->servicePackage->storage_limit * 1024 * 1024 * 1024;
+                $storageLimit = $activeSubscription->servicePackage->storage_limit_gb * 1024 * 1024 * 1024;
                 
                 if (($currentUsage + $fileSize) > $storageLimit) {
                     return response()->json([
@@ -363,7 +406,7 @@ class FileUploadController extends Controller
                 $currentUsage = $user->files()->sum('size');
                 $activeSubscription = $user->subscriptions()
                     ->where('status', 'active')
-                    ->where('expires_at', '>', now())
+                    ->where('ends_at', '>', now())
                     ->first();
                     
                 if (!$activeSubscription) {
@@ -373,7 +416,7 @@ class FileUploadController extends Controller
                     ], 403);
                 }
                 
-                $storageLimit = $activeSubscription->servicePackage->storage_limit * 1024 * 1024 * 1024;
+                $storageLimit = $activeSubscription->servicePackage->storage_limit_gb * 1024 * 1024 * 1024;
                 
                 if (($currentUsage + $request->fileSize) > $storageLimit) {
                     return response()->json([
@@ -436,9 +479,19 @@ class FileUploadController extends Controller
             ]);
 
             $user = auth()->user();
-            $fileName = $request->fileName;
+            $originalFileName = $request->fileName;
             $fileSize = $request->fileSize;
             $mimeType = $request->mimeType;
+            
+            // Security validation
+            $fileName = $this->fileSecurityService->sanitizeFileName($originalFileName);
+            if (!$fileName || !$this->fileSecurityService->isAllowedExtension($fileName) || 
+                !$this->fileSecurityService->isAllowedMimeType($mimeType)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'File không hợp lệ hoặc không được hỗ trợ.'
+                ]);
+            }
 
             // Check storage limit (Admin = unlimited)
             if (!$user->isAdmin()) {
@@ -451,7 +504,7 @@ class FileUploadController extends Controller
                 }
 
                 $usedStorage = $user->files()->sum('size');
-                $storageLimit = $subscription->servicePackage->storage_limit * 1024 * 1024 * 1024; // GB to bytes
+                $storageLimit = $subscription->servicePackage->storage_limit_gb * 1024 * 1024 * 1024; // GB to bytes
 
                 if (($usedStorage + $fileSize) > $storageLimit) {
                     return response()->json([
@@ -671,7 +724,7 @@ class FileUploadController extends Controller
     {
         // Set unlimited time for large files
         set_time_limit(0);
-        ini_set('memory_limit', '256M'); // Chỉ cần buffer nhỏ
+        ini_set('memory_limit', '1G'); // Tăng buffer cho file 20GB
         
         Log::info('Streaming proxy upload started', ['user_id' => auth()->id()]);
         
@@ -693,31 +746,56 @@ class FileUploadController extends Controller
                 ], 400);
             }
 
-            // Validate file type
-            if (!in_array($mimeType, ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-matroska'])) {
+            // Security validation
+            Log::info('Starting security validation for streaming upload', ['file_name' => $fileName]);
+            
+            // 1. Sanitize filename
+            $sanitizedFileName = $this->fileSecurityService->sanitizeFileName($fileName);
+            if (!$sanitizedFileName) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'Chỉ hỗ trợ file video (mp4, mov, avi, mkv)'
+                    'message' => 'Tên file không hợp lệ hoặc chứa ký tự nguy hiểm.'
+                ], 400);
+            }
+            $fileName = $sanitizedFileName;
+            
+            // 2. Check allowed extension
+            if (!$this->fileSecurityService->isAllowedExtension($fileName)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Định dạng file không được hỗ trợ.'
                 ], 400);
             }
             
-            // Check storage limit for non-admin users
+            // 3. Check MIME type
+            if (!$this->fileSecurityService->isAllowedMimeType($mimeType)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Loại file không được phép.'
+                ], 400);
+            }
+
+            $maxWidth = 10000;
+            $maxHeight = 10000;
+            
+            // Check storage limit and resolution for non-admin users
             if (!$user->isAdmin()) {
-                $currentUsage = $user->files()->sum('size');
                 $activeSubscription = $user->subscriptions()
                     ->where('status', 'active')
-                    ->where('expires_at', '>', now())
+                    ->where('ends_at', '>', now())
                     ->first();
                     
-                if (!$activeSubscription) {
+                if (!$activeSubscription || !$activeSubscription->servicePackage) {
                     return response()->json([
                         'status' => 'error',
-                        'message' => 'Bạn cần có gói dịch vụ để upload file.'
+                        'message' => 'Bạn cần có gói dịch vụ đang hoạt động để upload file.'
                     ], 403);
                 }
                 
-                $storageLimit = $activeSubscription->servicePackage->storage_limit * 1024 * 1024 * 1024;
-                
+                $package = $activeSubscription->servicePackage;
+                $storageLimit = $package->storage_limit_gb * 1024 * 1024 * 1024;
+                $currentUsage = $user->files()->sum('size');
+
                 if (($currentUsage + $fileSize) > $storageLimit) {
                     $remaining = $storageLimit - $currentUsage;
                     $remainingGB = round($remaining / (1024 * 1024 * 1024), 2);
@@ -726,6 +804,9 @@ class FileUploadController extends Controller
                         'message' => "Vượt quá giới hạn lưu trữ. Dung lượng còn lại: {$remainingGB}GB"
                     ], 403);
                 }
+
+                $maxWidth = $package->max_video_width ?? 1920;
+                $maxHeight = $package->max_video_height ?? 1080;
             }
 
             // Get input stream (raw request body)
@@ -734,16 +815,45 @@ class FileUploadController extends Controller
                 throw new Exception('Cannot read input stream');
             }
 
+            // --- SERVER-SIDE RESOLUTION VALIDATION ---
+            // Create a temporary file to stream the content into for validation
+            $tempFilePath = tempnam(sys_get_temp_dir(), 'video_upload_');
+            $tempFileStream = fopen($tempFilePath, 'wb');
+            stream_copy_to_stream($inputStream, $tempFileStream);
+            fclose($tempFileStream);
+            fclose($inputStream);
+
+            $videoValidator = new VideoValidationService();
+            $validationResult = $videoValidator->validateResolution($tempFilePath, $maxWidth, $maxHeight);
+
+            if (!$validationResult['valid']) {
+                unlink($tempFilePath); // Clean up temp file
+                Log::warning('Server-side validation failed', [
+                    'reason' => $validationResult['reason'],
+                    'user_id' => $user->id,
+                    'file_name' => $fileName
+                ]);
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Lỗi xác thực video: ' . $validationResult['reason']
+                ], 400);
+            }
+            // --- END VALIDATION ---
+
             Log::info('Starting streaming proxy to Google Drive', [
                 'file_name' => $fileName,
                 'file_size' => $fileSize,
                 'mime_type' => $mimeType
             ]);
 
+            // Re-open the temporary file to stream to Google Drive
+            $fileStreamForUpload = fopen($tempFilePath, 'rb');
+
             // Stream directly to Google Drive
-            $result = $this->googleDriveService->streamUploadFile($inputStream, $fileName, $mimeType, $fileSize);
+            $result = $this->googleDriveService->streamUploadFile($fileStreamForUpload, $fileName, $mimeType, $fileSize);
             
-            fclose($inputStream);
+            fclose($fileStreamForUpload);
+            unlink($tempFilePath); // Clean up temp file after upload
             
             Log::info('Google Drive streaming result', ['success' => $result['success']]);
 

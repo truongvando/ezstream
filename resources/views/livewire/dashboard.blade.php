@@ -1,10 +1,4 @@
 <div>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            {{ __('Bảng điều khiển') }}
-        </h2>
-    </x-slot>
-
     <div class="py-8">
         <div class="max-w-7xl mx-auto">
             <!-- Welcome Section -->
@@ -65,17 +59,15 @@
                         <div>
                             <p class="text-sm font-medium text-gray-600">Gói hiện tại</p>
                             <p class="text-2xl font-bold text-gray-900">
-                                @if($activeSubscription)
-                                    {{ $activeSubscription->servicePackage->name }}
-                                @else
-                                    Chưa có gói
-                                @endif
+                                {{ auth()->user()->getSubscriptionDisplayName() }}
                             </p>
                             <p class="text-sm text-purple-600 mt-1">
-                                @if($activeSubscription)
-                                    Đang hoạt động
+                                @if(auth()->user()->isAdmin())
+                                    👑 Quản trị viên
+                                @elseif(auth()->user()->getTotalAllowedStreams() > 0)
+                                    💎 Đang hoạt động ({{ auth()->user()->getTotalAllowedStreams() }} streams)
                                 @else
-                                    <a href="{{ route('billing.manager') }}" class="hover:underline">Chọn gói ngay →</a>
+                                    <a href="{{ route('services') }}" class="hover:underline">Chọn gói ngay →</a>
                                 @endif
                             </p>
                         </div>
@@ -116,15 +108,15 @@
                         </div>
                     </a>
 
-                    <a href="{{ route('billing.manager') }}" class="group bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 p-6 rounded-lg transition-all duration-200 border border-purple-200">
+                    <a href="{{ route('services') }}" class="group bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 p-6 rounded-lg transition-all duration-200 border border-purple-200">
                         <div class="text-center">
                             <div class="bg-purple-500 text-white rounded-full p-3 w-12 h-12 mx-auto mb-3 group-hover:scale-110 transition-transform">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
                                 </svg>
                             </div>
-                            <h4 class="font-semibold text-gray-900">Gói & Thanh toán</h4>
-                            <p class="text-sm text-gray-600 mt-1">Quản lý gói dịch vụ</p>
+                            <h4 class="font-semibold text-gray-900">Gói Dịch Vụ</h4>
+                            <p class="text-sm text-gray-600 mt-1">Chọn gói & thanh toán</p>
                         </div>
                     </a>
 

@@ -15,6 +15,8 @@ class FileManager extends Component
     public $storageUsage = 0;
     public $storageLimit = 0;
     public $canUpload = false;
+    public $maxVideoWidth = 0;
+    public $maxVideoHeight = 0;
     
     // Upload status
     public $uploadMessage = '';
@@ -45,19 +47,25 @@ class FileManager extends Component
         // Get storage limit from active subscription
         if ($user->isAdmin()) {
             $this->storageLimit = PHP_INT_MAX; // Unlimited for admin
+            $this->maxVideoWidth = 10000; // Effectively unlimited
+            $this->maxVideoHeight = 10000;
             $this->canUpload = true;
         } else {
             // Get active subscription
             $activeSubscription = $user->subscriptions()
                 ->where('status', 'active')
-                ->where('expires_at', '>', now())
+                ->where('ends_at', '>', now())
                 ->first();
                 
             if ($activeSubscription && $activeSubscription->servicePackage) {
-                $this->storageLimit = $activeSubscription->servicePackage->storage_limit * 1024 * 1024 * 1024; // Convert GB to bytes
+                $this->storageLimit = $activeSubscription->servicePackage->storage_limit_gb * 1024 * 1024 * 1024; // Convert GB to bytes
+                $this->maxVideoWidth = $activeSubscription->servicePackage->max_video_width ?? 1920;
+                $this->maxVideoHeight = $activeSubscription->servicePackage->max_video_height ?? 1080;
                 $this->canUpload = $this->storageUsage < $this->storageLimit;
             } else {
                 $this->storageLimit = 0;
+                $this->maxVideoWidth = 0;
+                $this->maxVideoHeight = 0;
                 $this->canUpload = false;
             }
         }
@@ -273,11 +281,13 @@ class FileManager extends Component
 
     public function render()
     {
-        $files = Auth::user()->files()->latest()->get();
+        $user = Auth::user();
+        $files = $user->files()->latest()->get();
 
         // Use unified sidebar layout
         return view('livewire.file-manager', [
-            'files' => $files
+            'files' => $files,
+            'user' => $user,
         ])->layout('layouts.sidebar')
           ->slot('header', '<h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Quản lý File</h1>');
     }

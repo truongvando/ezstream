@@ -29,7 +29,7 @@
                             </div>
                             <div class="ml-4">
                                 <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Total Revenue</p>
-                                <p class="text-2xl font-semibold text-gray-900 dark:text-gray-100">${{ number_format($stats['total_revenue'], 2) }}</p>
+                                <p class="text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ number_format($stats['total_revenue'], 0, ',', '.') }} VNĐ</p>
                             </div>
                         </div>
                     </div>

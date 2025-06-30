@@ -25,8 +25,20 @@ class ProfileUpdateRequest extends FormRequest
                 'max:255',
                 Rule::unique(User::class)->ignore($this->user()->id),
             ],
-            'telegram_bot_token' => ['nullable', 'string', 'max:255'],
-            'telegram_chat_id' => ['nullable', 'string', 'max:255'],
+            'telegram_bot_token' => ['nullable', 'string', 'max:255', 'regex:/^\d+:[A-Za-z0-9_-]+$/'],
+            'telegram_chat_id' => ['nullable', 'numeric', 'digits_between:1,20'],
+        ];
+    }
+
+    /**
+     * Get the error messages for the defined validation rules.
+     */
+    public function messages(): array
+    {
+        return [
+            'telegram_bot_token.regex' => 'Bot Token không đúng định dạng. Ví dụ: 123456789:ABCDEFghijklmnop',
+            'telegram_chat_id.numeric' => 'Chat ID phải là số.',
+            'telegram_chat_id.digits_between' => 'Chat ID phải có từ 1 đến 20 chữ số.',
         ];
     }
 }

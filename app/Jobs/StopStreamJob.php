@@ -68,17 +68,14 @@ class StopStreamJob implements ShouldQueue
             
             file_put_contents($localJobFile, json_encode($stopJobPackage, JSON_PRETTY_PRINT));
             
-            // Upload to VPS
-            $remoteJobPath = "/tmp/{$jobFileName}";
+            // Upload to VPS Job Queue (TỐI ƯU HÓA)
+            $remoteJobPath = "/opt/job-queue/incoming/{$jobFileName}";
             if (!$sshService->uploadFile($localJobFile, $remoteJobPath)) {
-                throw new \Exception('Failed to upload stop job package to VPS');
+                throw new \Exception('Failed to upload stop job package to VPS job queue');
             }
             
-            // Execute stop via streaming agent
-            $agentCommand = "bash /opt/streaming_agent/main.sh {$remoteJobPath}";
-            $sshService->executeInBackgroundAndGetPid($agentCommand);
-            
-            Log::info("Stop job package sent to VPS agent", [
+            // Job Queue Daemon sẽ tự động xử lý stop job
+            Log::info("Stop job package queued for processing by daemon", [
                 'stream_id' => $streamId,
                 'job_file' => $remoteJobPath
             ]);
@@ -129,6 +126,13 @@ class StopStreamJob implements ShouldQueue
                 $sshService->execute("kill -TERM {$this->stream->ffmpeg_pid} 2>/dev/null || kill -9 {$this->stream->ffmpeg_pid} 2>/dev/null");
             }
             
+            // ✅ THÊM CLEANUP - Xóa files và directories
+            Log::info("Performing cleanup for stream {$streamId} via direct SSH");
+            $sshService->execute("rm -rf /tmp/stream_{$streamId} 2>/dev/null || true");
+            $sshService->execute("rm -f /tmp/job_{$streamId}_*.json 2>/dev/null || true");
+            $sshService->execute("rm -f /tmp/stop_job_{$streamId}_*.json 2>/dev/null || true");
+            $sshService->execute("rm -f /tmp/stream_{$streamId}.stop 2>/dev/null || true");
+            
             // Wait and verify
             sleep(2);
             $remaining = $sshService->execute("pgrep -f 'stream_{$streamId}\\|{$rtmpUrl}' 2>/dev/null || echo 'NONE'");
@@ -136,10 +140,11 @@ class StopStreamJob implements ShouldQueue
             if (trim($remaining) === 'NONE') {
                 $this->stream->update([
                     'status' => 'STOPPED',
-                    'output_log' => 'Stream stopped via direct SSH (fallback)',
+                    'output_log' => 'Stream stopped via direct SSH (fallback) with cleanup',
                     'last_stopped_at' => now(),
                     'ffmpeg_pid' => null,
                 ]);
+                Log::info("Stream {$streamId} stopped and cleaned up successfully via fallback");
             } else {
                 $this->stream->update([
                     'status' => 'ERROR',

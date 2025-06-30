@@ -155,7 +155,14 @@ class AdminStreamManager extends Component
         
         // Parse file list from JSON or handle legacy single file
         try {
-            $fileList = json_decode($stream->video_source_path, true);
+            // Check if video_source_path is already an array or needs JSON decoding
+            if (is_array($stream->video_source_path)) {
+                $fileList = $stream->video_source_path;
+            } elseif (is_string($stream->video_source_path)) {
+                $fileList = json_decode($stream->video_source_path, true);
+            } else {
+                $fileList = null;
+            }
             if (is_array($fileList)) {
                 $this->user_file_ids = collect($fileList)->pluck('file_id')->toArray();
             } else {

@@ -1,8 +1,8 @@
 # PHP Upload Limits for Admin
-php_value upload_max_filesize 1024M
-php_value post_max_size 1024M  
-php_value max_execution_time 3600
-php_value memory_limit 512M
+php_value upload_max_filesize 20480M
+php_value post_max_size 20480M  
+php_value max_execution_time 7200
+php_value memory_limit 4096M
 php_value max_input_vars 10000
 
 <IfModule mod_rewrite.c>

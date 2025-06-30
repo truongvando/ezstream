@@ -16,8 +16,12 @@ class SetLocale
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (session()->has('locale')) {
-            App::setLocale(session()->get('locale'));
+        // Chỉ set locale cho non-Livewire requests
+        if (!$request->header('X-Livewire') && session()->has('locale')) {
+            $locale = session()->get('locale');
+            if (in_array($locale, ['en', 'vi'])) {
+                App::setLocale($locale);
+            }
         }
 
         return $next($request);

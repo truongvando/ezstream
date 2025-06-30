@@ -100,4 +100,121 @@ class User extends Authenticatable
     {
         return $this->hasMany(UserFile::class);
     }
+
+    /**
+     * Get total allowed streams from all active subscriptions
+     */
+    public function getTotalAllowedStreams(): int
+    {
+        if ($this->isAdmin()) {
+            return PHP_INT_MAX; // Admin unlimited
+        }
+
+        // ✅ Auto-expire subscriptions hết hạn trước khi tính
+        $this->subscriptions()
+            ->where('status', 'ACTIVE')
+            ->where('ends_at', '<=', now())
+            ->update(['status' => 'EXPIRED']);
+
+        return $this->subscriptions()
+            ->where('status', 'ACTIVE')
+            ->where('ends_at', '>', now()) // Chưa hết hạn
+            ->with('servicePackage')
+            ->get()
+            ->sum(function ($subscription) {
+                return $subscription->servicePackage->max_streams ?? 0;
+            });
+    }
+
+    /**
+     * Get active subscriptions with details
+     */
+    public function getActiveSubscriptionsDetails(): array
+    {
+        $subscriptions = $this->subscriptions()
+            ->where('status', 'ACTIVE')
+            ->where('ends_at', '>', now())
+            ->with('servicePackage')
+            ->orderBy('ends_at')
+            ->get();
+
+        return $subscriptions->map(function ($sub) {
+            return [
+                'package_name' => $sub->servicePackage->name,
+                'max_streams' => $sub->servicePackage->max_streams,
+                'ends_at' => $sub->ends_at,
+                'days_remaining' => now()->diffInDays($sub->ends_at, false)
+            ];
+        })->toArray();
+    }
+
+    /**
+     * Get display name for current subscription status
+     * Hiển thị tên phù hợp cho dashboard/profile
+     */
+    public function getSubscriptionDisplayName(): string
+    {
+        if ($this->isAdmin()) {
+            return 'Admin (Không giới hạn)';
+        }
+
+        // Auto-expire subscriptions hết hạn
+        $this->subscriptions()
+            ->where('status', 'ACTIVE')
+            ->where('ends_at', '<=', now())
+            ->update(['status' => 'EXPIRED']);
+
+        $activeSubscriptions = $this->subscriptions()
+            ->where('status', 'ACTIVE')
+            ->where('ends_at', '>', now())
+            ->with('servicePackage')
+            ->orderBy('ends_at', 'desc') // Gói hết hạn muộn nhất trước
+            ->get();
+
+        if ($activeSubscriptions->isEmpty()) {
+            return 'Chưa có gói';
+        }
+
+        // Nếu chỉ có 1 gói
+        if ($activeSubscriptions->count() === 1) {
+            return $activeSubscriptions->first()->servicePackage->name;
+        }
+
+        // Nếu có nhiều gói - hiển thị gói cao nhất + số lượng
+        $totalStreams = $activeSubscriptions->sum(function ($sub) {
+            return $sub->servicePackage->max_streams;
+        });
+        
+        $highestPackage = $activeSubscriptions->sortByDesc('servicePackage.price')->first();
+        
+        return $highestPackage->servicePackage->name . " + " . ($activeSubscriptions->count() - 1) . " gói khác ({$totalStreams} streams)";
+    }
+
+    /**
+     * Get short display name for compact spaces
+     * Hiển thị ngắn gọn cho sidebar/compact areas
+     */
+    public function getSubscriptionShortName(): string
+    {
+        if ($this->isAdmin()) {
+            return 'Admin';
+        }
+
+        $activeSubscriptions = $this->subscriptions()
+            ->where('status', 'ACTIVE')
+            ->where('ends_at', '>', now())
+            ->with('servicePackage')
+            ->get();
+
+        if ($activeSubscriptions->isEmpty()) {
+            return 'Chưa có';
+        }
+
+        if ($activeSubscriptions->count() === 1) {
+            return $activeSubscriptions->first()->servicePackage->name;
+        }
+
+        $totalStreams = $activeSubscriptions->sum('servicePackage.max_streams');
+        return "{$activeSubscriptions->count()} gói ({$totalStreams} streams)";
+    }
 }

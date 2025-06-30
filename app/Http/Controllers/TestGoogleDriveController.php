@@ -30,7 +30,17 @@ class TestGoogleDriveController extends Controller
      */
     public function index()
     {
-        return view('test-google-drive');
+        // View đã bị xóa, trả về response JSON thay thế
+        return response()->json([
+            'message' => 'Test Google Drive Controller',
+            'note' => 'View đã được cleanup, sử dụng API endpoints thay thế',
+            'available_endpoints' => [
+                'POST /test-google-drive/test-connection',
+                'POST /test-google-drive/upload-test',
+                'GET /test-google-drive/list-files',
+                // ... other endpoints
+            ]
+        ]);
     }
 
     /**

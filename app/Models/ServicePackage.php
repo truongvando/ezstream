@@ -14,15 +14,19 @@ class ServicePackage extends Model
         'name',
         'description',
         'price',
+        'max_video_width',
+        'max_video_height',
         'max_streams',
-        'storage_limit',
+        'storage_limit_gb',
         'features',
         'is_active',
+        'is_popular',
     ];
 
     protected $casts = [
         'features' => 'array',
         'is_active' => 'boolean',
+        'is_popular' => 'boolean',
     ];
 
     /**
@@ -34,15 +38,11 @@ class ServicePackage extends Model
     }
 
     /**
-     * Calculate yearly discount percentage
+     * Calculate yearly discount percentage (placeholder - not implemented)
      */
     public function getYearlyDiscountPercentAttribute(): float
     {
-        if (!$this->price_yearly || !$this->price_monthly) {
-            return 0;
-        }
-        
-        $monthlyYearly = $this->price_monthly * 12;
-        return round((($monthlyYearly - $this->price_yearly) / $monthlyYearly) * 100, 1);
+        // Placeholder - yearly pricing not implemented yet
+        return 0;
     }
 }

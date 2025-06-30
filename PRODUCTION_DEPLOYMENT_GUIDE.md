@@ -252,10 +252,10 @@ pm.max_spare_servers = 35
 pm.max_requests = 500
 
 ; PHP settings
-php_admin_value[memory_limit] = 512M
-php_admin_value[upload_max_filesize] = 2G
-php_admin_value[post_max_size] = 2G
-php_admin_value[max_execution_time] = 300
+php_admin_value[memory_limit] = 4G
+php_admin_value[upload_max_filesize] = 20G
+php_admin_value[post_max_size] = 20G
+php_admin_value[max_execution_time] = 7200
 ```
 
 ```bash

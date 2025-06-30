@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class TelegramNotificationService
 {
@@ -21,6 +22,15 @@ class TelegramNotificationService
             return false;
         }
 
+        // Rate limiting: max 3 messages per minute per chat
+        $rateLimitKey = "telegram_rate_limit_{$chatId}";
+        $messageCount = Cache::get($rateLimitKey, 0);
+        
+        if ($messageCount >= 3) {
+            Log::warning("Telegram rate limit exceeded for chat ID: {$chatId}");
+            return false;
+        }
+
         $url = "https://api.telegram.org/bot{$botToken}/sendMessage";
 
         try {
@@ -31,6 +41,9 @@ class TelegramNotificationService
             ]);
 
             if ($response->successful()) {
+                // Increment rate limit counter
+                Cache::put($rateLimitKey, $messageCount + 1, 60); // 60 seconds TTL
+                
                 Log::info("Telegram notification sent to Chat ID: {$chatId}");
                 return true;
             } else {

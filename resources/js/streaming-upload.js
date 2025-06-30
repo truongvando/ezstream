@@ -9,14 +9,150 @@ window.initStreamingUpload = function() {
         return;
     }
     
-    const fileInput = document.getElementById("file-upload");
+    const fileInput = document.getElementById("file-input");
+    const uploadPrompt = document.getElementById("upload-prompt");
     const fileInfo = document.getElementById("file-info");
-    const uploadProgress = document.getElementById("upload-progress");
+    const uploadProgress = document.getElementById("upload-progress-container");
     const fileNameElement = document.getElementById("file-name");
     const fileSizeElement = document.getElementById("file-size");
     const uploadBtn = document.getElementById("upload-btn");
 
     let selectedFile = null;
+
+    // Tab switching functionality
+    const directUploadTab = document.getElementById('direct-upload-tab');
+    const gdriveImportTab = document.getElementById('gdrive-import-tab');
+    const directUploadSection = document.getElementById('direct-upload-section');
+    const gdriveImportSection = document.getElementById('gdrive-import-section');
+
+    if (directUploadTab && gdriveImportTab) {
+        directUploadTab.addEventListener('click', () => {
+            // Switch to direct upload
+            directUploadTab.className = 'px-4 py-2 text-sm font-medium rounded-md bg-indigo-600 text-white';
+            gdriveImportTab.className = 'px-4 py-2 text-sm font-medium rounded-md bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600';
+            
+            directUploadSection.classList.remove('hidden');
+            gdriveImportSection.classList.add('hidden');
+        });
+
+        gdriveImportTab.addEventListener('click', () => {
+            // Switch to Google Drive import
+            gdriveImportTab.className = 'px-4 py-2 text-sm font-medium rounded-md bg-green-600 text-white';
+            directUploadTab.className = 'px-4 py-2 text-sm font-medium rounded-md bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600';
+            
+            directUploadSection.classList.add('hidden');
+            gdriveImportSection.classList.remove('hidden');
+        });
+    }
+
+    // Google Drive functionality
+    const gdriveUrlInput = document.getElementById('gdrive-url');
+    const validateGdriveBtn = document.getElementById('validate-gdrive-btn');
+    const importGdriveBtn = document.getElementById('import-gdrive-btn');
+    const gdriveValidationResult = document.getElementById('gdrive-validation-result');
+    const gdriveImportProgress = document.getElementById('gdrive-import-progress');
+
+    if (validateGdriveBtn) {
+        validateGdriveBtn.addEventListener('click', async () => {
+            const url = gdriveUrlInput.value.trim();
+            if (!url) {
+                showValidationResult('error', 'Vui lòng nhập link Google Drive');
+                return;
+            }
+
+            validateGdriveBtn.disabled = true;
+            validateGdriveBtn.textContent = '🔍 Đang kiểm tra...';
+
+            try {
+                const response = await fetch('/google-drive/validate-url', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify({ url: url })
+                });
+
+                const result = await response.json();
+
+                if (result.valid) {
+                    showValidationResult('success', 
+                        `✅ File hợp lệ: <strong>${result.fileName}</strong><br>` +
+                        `📦 Dung lượng: <strong>${formatFileSize(result.fileSize)}</strong>`
+                    );
+                    importGdriveBtn.disabled = false;
+                } else {
+                    showValidationResult('error', `❌ ${result.error}`);
+                    importGdriveBtn.disabled = true;
+                }
+            } catch (error) {
+                showValidationResult('error', '❌ Lỗi kết nối. Vui lòng thử lại.');
+                importGdriveBtn.disabled = true;
+            }
+
+            validateGdriveBtn.disabled = false;
+            validateGdriveBtn.textContent = '🔍 Kiểm tra Link';
+        });
+    }
+
+    if (importGdriveBtn) {
+        importGdriveBtn.addEventListener('click', async () => {
+            const url = gdriveUrlInput.value.trim();
+            if (!url) return;
+
+            importGdriveBtn.disabled = true;
+            gdriveImportProgress.classList.remove('hidden');
+
+            try {
+                const response = await fetch('/google-drive/init-download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                    },
+                    body: JSON.stringify({ driveUrl: url })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showValidationResult('success', 
+                        `🎉 Import thành công!<br>` +
+                        `File <strong>${result.fileName}</strong> đang được tải về và xử lý.<br>` +
+                        `Bạn sẽ thấy file trong danh sách khi hoàn tất.`
+                    );
+                    
+                    // Reset form
+                    gdriveUrlInput.value = '';
+                    importGdriveBtn.disabled = true;
+                    
+                    // Refresh file list after 2 seconds
+                    setTimeout(() => {
+                        if (window.Livewire) {
+                            window.Livewire.find(document.querySelector('[wire\\:id]').getAttribute('wire:id')).call('$refresh');
+                        }
+                    }, 2000);
+                } else {
+                    showValidationResult('error', `❌ ${result.error || 'Lỗi import file'}`);
+                }
+            } catch (error) {
+                showValidationResult('error', '❌ Lỗi kết nối. Vui lòng thử lại.');
+            }
+
+            importGdriveBtn.disabled = false;
+            gdriveImportProgress.classList.add('hidden');
+        });
+    }
+
+    function showValidationResult(type, message) {
+        gdriveValidationResult.className = `mt-4 p-4 rounded-lg ${
+            type === 'success' 
+                ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300' 
+                : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
+        }`;
+        gdriveValidationResult.innerHTML = message;
+        gdriveValidationResult.classList.remove('hidden');
+    }
 
     fileInput.addEventListener("change", function(e) {
         const file = e.target.files[0];
@@ -24,9 +160,24 @@ window.initStreamingUpload = function() {
             selectedFile = file;
             fileNameElement.textContent = "File: " + file.name;
             fileSizeElement.textContent = "Size: " + formatFileSize(file.size);
+            
+            // Hide prompt and show file info
+            uploadPrompt.classList.add("hidden");
             fileInfo.classList.remove("hidden");
         }
     });
+
+    // Handle upload button click
+    if (uploadBtn) {
+        uploadBtn.addEventListener("click", async function(e) {
+            e.preventDefault();
+            if (!selectedFile) {
+                alert("Vui lòng chọn file");
+                return;
+            }
+            await handleStandardUpload();
+        });
+    }
 
     uploadForm.addEventListener("submit", async function(e) {
         e.preventDefault();
@@ -48,9 +199,9 @@ window.initStreamingUpload = function() {
                 throw new Error('Chỉ hỗ trợ file video (mp4, mov, avi, mkv)');
             }
 
-            // Check file size (max 2GB) - Server side will also check
-            if (selectedFile.size > 2 * 1024 * 1024 * 1024) {
-                throw new Error('File không được vượt quá 2GB');
+            // Check file size (max 20GB) - Server side will also check
+            if (selectedFile.size > 20 * 1024 * 1024 * 1024) {
+                throw new Error('File không được vượt quá 20GB');
             }
             
             const formData = new FormData();
@@ -180,6 +331,9 @@ window.initStreamingUpload = function() {
         uploadProgress.classList.add("hidden");
         uploadBtn.disabled = false;
         
+        // Show prompt again
+        uploadPrompt.classList.remove("hidden");
+
         const progressBar = uploadProgress.querySelector(".progress-bar");
         if (progressBar) {
             progressBar.remove();

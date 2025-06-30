@@ -140,7 +140,7 @@
                                     <span class="text-sm text-gray-700 dark:text-gray-300">Gói hiện tại</span>
                                 </div>
                                 <span class="font-semibold text-purple-600 dark:text-purple-400 text-xs">
-                                    {{ $activeSubscription ? $activeSubscription->servicePackage->name : 'Chưa có' }}
+                                    {{ auth()->user()->getSubscriptionShortName() }}
                                 </span>
                             </div>
                         </div>
@@ -162,8 +162,8 @@
                             <a href="{{ route('user.streams') }}" class="block w-full px-4 py-2 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-200 dark:hover:bg-green-900/40 transition-colors duration-200 text-center text-sm font-medium">
                                 🎥 Quản lý Streams
                             </a>
-                            <a href="{{ route('billing.manager') }}" class="block w-full px-4 py-2 bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/40 transition-colors duration-200 text-center text-sm font-medium">
-                                💳 Gói & Thanh toán
+                            <a href="{{ route('services') }}" class="block w-full px-4 py-2 bg-purple-100 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-200 dark:hover:bg-purple-900/40 transition-colors duration-200 text-center text-sm font-medium">
+                                💳 Gói Dịch Vụ
                             </a>
                             @endif
                         </div>

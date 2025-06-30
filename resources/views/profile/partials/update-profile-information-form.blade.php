@@ -129,6 +129,17 @@
                     </svg>
                     Đã lưu thành công!
                 </p>
+            @elseif (session('status') === 'profile-updated-telegram-tested')
+                <p class="text-sm text-green-600 dark:text-green-400 flex items-center"
+                    x-data="{ show: true }"
+                    x-show="show"
+                    x-transition
+                    x-init="setTimeout(() => show = false, 5000)">
+                    <svg class="w-4 h-4 mr-1 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 0C5.374 0 0 5.373 0 12s5.374 12 12 12 12-5.373 12-12S18.626 0 12 0zm5.568 8.16c-.169 1.858-.896 6.728-.896 6.728-.302 1.4-1.123 1.645-2.279 1.023l-3.005-2.49-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.374-.12l-6.873 4.329-2.96-.924c-.643-.203-.657-.643.135-.953l11.566-4.458c.538-.196 1.006.129.856.922z"/>
+                    </svg>
+                    Đã lưu thành công! Telegram đã được test - kiểm tra tin nhắn trong Telegram của bạn.
+                </p>
             @endif
         </div>
     </form>

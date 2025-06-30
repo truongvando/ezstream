@@ -28,9 +28,26 @@ class VpsAllocationService
             return null;
         }
 
-        // Find the server with the lowest CPU usage among the eligible ones.
-        // If CPU usage are equal, it will pick the first one.
-        $bestVps = $eligibleVps->sortBy('latestStat.cpu_usage_percent')->first();
+        // ✅ SMART SELECTION - Dựa trên available_capacity từ stats real-time
+        $bestVps = $eligibleVps->sortByDesc(function ($vps) {
+            $latestStat = $vps->latestStat;
+            
+            if (!$latestStat) {
+                return 100; // VPS mới, ưu tiên cao
+            }
+            
+            // Ưu tiên VPS có available_capacity cao nhất
+            $availableCapacity = $latestStat->available_capacity ?? 0;
+            $ramUsage = $latestStat->ram_usage_percent ?? 0;
+            $diskUsage = $latestStat->disk_usage_percent ?? 0;
+            
+            // Score calculation: available_capacity + penalties cho high usage
+            $score = $availableCapacity;
+            $score -= ($ramUsage > 70 ? ($ramUsage - 70) * 2 : 0); // Penalty cho RAM cao
+            $score -= ($diskUsage > 70 ? ($diskUsage - 70) * 3 : 0); // Penalty cao hơn cho Disk
+            
+            return max(0, $score);
+        })->first();
 
         return $bestVps;
     }
@@ -64,27 +81,38 @@ class VpsAllocationService
             ->get();
 
         return $allActiveVps->filter(function (VpsServer $vps) {
-            // If a server has no stats yet, consider it eligible but not optimal.
+            // If a server has no stats yet, consider it eligible
             if (!$vps->latestStat) {
                 return true; 
             }
 
-            // Use the correct field names from VpsStat model
-            $cpuUsagePercent = $vps->latestStat->cpu_usage_percent;
-            $ramUsagePercent = $vps->latestStat->ram_usage_percent;
-            $diskUsagePercent = $vps->latestStat->disk_usage_percent;
+            $latestStat = $vps->latestStat;
             
-            if ($cpuUsagePercent >= self::CPU_LOAD_THRESHOLD) {
-                return false;
+            // ✅ PRIMARY CHECK - Available capacity từ VPS stats agent
+            $availableCapacity = $latestStat->available_capacity ?? null;
+            if ($availableCapacity !== null && $availableCapacity <= 0) {
+                return false; // VPS đã full capacity
             }
-
-            if ($ramUsagePercent >= self::RAM_USAGE_THRESHOLD) {
-                return false;
+            
+            // ✅ SECONDARY CHECKS - Hard limits để safety
+            $ramUsage = $latestStat->ram_usage_percent ?? 0;
+            $diskUsage = $latestStat->disk_usage_percent ?? 0;
+            
+            // Hard limits cho safety
+            if ($ramUsage >= 90) return false;  // RAM critical
+            if ($diskUsage >= 95) return false; // Disk critical
+            
+            // ✅ SOFT CHECKS - Cho phép nếu có available_capacity
+            if ($availableCapacity !== null && $availableCapacity > 0) {
+                return true; // VPS báo có capacity → OK
             }
-
-            if ($diskUsagePercent >= self::DISK_USAGE_THRESHOLD) {
-                return false;
-            }
+            
+            // ✅ FALLBACK - Nếu không có available_capacity, dùng old logic
+            $cpuUsage = $latestStat->cpu_usage_percent ?? 0;
+            
+            if ($cpuUsage >= self::CPU_LOAD_THRESHOLD) return false;
+            if ($ramUsage >= self::RAM_USAGE_THRESHOLD) return false;
+            if ($diskUsage >= self::DISK_USAGE_THRESHOLD) return false;
 
             return true;
         });

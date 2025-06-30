@@ -14,6 +14,7 @@ class Dashboard extends Component
     public $streamCount = 0;
     public $storageUsedFormatted = '0 B';
     public $storageLimit;
+    public $totalStorageUsed = 0;
     public $activeSubscription = null;
     public $pendingSubscription;
 
@@ -29,22 +30,34 @@ class Dashboard extends Component
         }
 
         try {
-            $totalStorageUsed = UserFile::where('user_id', $user->id)->sum('size');
-            $this->storageUsedFormatted = $this->formatBytes($totalStorageUsed);
+            $this->totalStorageUsed = UserFile::where('user_id', $user->id)->sum('size');
+            $this->storageUsedFormatted = $this->formatBytes($this->totalStorageUsed);
         } catch (\Exception $e) {
+            $this->totalStorageUsed = 0;
             $this->storageUsedFormatted = '0 B';
         }
 
+        // ✅ Sử dụng method từ User model thay vì query riêng
         try {
-            $this->activeSubscription = $user->subscriptions()->where('status', 'ACTIVE')->with('servicePackage')->first();
+            $this->activeSubscription = $user->subscriptions()
+                ->where('status', 'ACTIVE')
+                ->where('ends_at', '>', now())
+                ->with('servicePackage')
+                ->first();
         } catch (\Exception $e) {
             $this->activeSubscription = null;
         }
 
-        if ($this->activeSubscription) {
-            $this->storageLimit = $this->activeSubscription->servicePackage->storage_limit;
+        // ✅ Tính storage limit từ subscription duy nhất (mô hình mới: 1 user - 1 gói)
+        if ($user->isAdmin()) {
+            $this->storageLimit = null; // Unlimited
         } else {
-            $this->storageLimit = 0;
+            if ($this->activeSubscription && $this->activeSubscription->servicePackage) {
+                // Convert GB to bytes for internal calculation
+                $this->storageLimit = $this->activeSubscription->servicePackage->storage_limit_gb * 1024 * 1024 * 1024;
+            } else {
+                $this->storageLimit = 0;
+            }
         }
     }
 
@@ -69,9 +82,15 @@ class Dashboard extends Component
 
     public function render()
     {
+        // Format storage limit correctly
+        $storageLimitFormatted = 'Không giới hạn';
+        if ($this->storageLimit !== null && $this->storageLimit > 0) {
+            $storageLimitFormatted = $this->formatBytes($this->storageLimit);
+        }
+        
         return view('livewire.dashboard', [
             'storageUsedFormatted' => $this->storageUsedFormatted,
-            'storageLimitFormatted' => Number::fileSize($this->storageLimit, precision: 2),
+            'storageLimitFormatted' => $storageLimitFormatted,
         ])->layout('layouts.sidebar')
           ->slot('header', '<h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Dashboard</h1>');
     }

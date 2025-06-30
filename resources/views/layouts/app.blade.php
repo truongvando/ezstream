@@ -132,11 +132,11 @@
                                         Quản Lý File
                                     </a>
 
-                                    <a href="{{ route('billing.manager') }}" class="px-4 py-2 rounded-lg {{ request()->routeIs('billing.manager') || request()->routeIs('payment.manager') ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-semibold' : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700' }} transition-all duration-200">
+                                    <a href="{{ route('services') }}" class="px-4 py-2 rounded-lg {{ request()->routeIs('services') || request()->routeIs('billing.manager') || request()->routeIs('payment.manager') || request()->routeIs('package.selection') || request()->routeIs('user.subscriptions') || request()->routeIs('user.payments') ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 font-semibold' : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700' }} transition-all duration-200">
                                         <svg class="w-5 h-5 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                                         </svg>
-                                        Gói & Thanh toán
+                                        Gói Dịch Vụ
                                     </a>
                                 @endif
                             </div>
@@ -207,12 +207,12 @@
                                         </a>
 
                                         @if(!auth()->user()->isAdmin())
-                                        <a href="{{ route('billing.manager') }}" class="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
-                                            <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
-                                            </svg>
-                                            Billing & Gói dịch vụ
-                                        </a>
+                                                                <a href="{{ route('services') }}" class="flex items-center px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200">
+                            <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                            </svg>
+                            Gói Dịch Vụ
+                        </a>
                                         @endif
 
                                         <!-- Dark Mode Toggle -->
@@ -293,11 +293,11 @@
                                 </svg>
                                 Quản Lý File
                             </a>
-                            <a href="{{ route('billing.manager') }}" class="block px-3 py-2 rounded-md text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200 {{ request()->routeIs('billing.manager') ? 'bg-blue-100 dark:bg-blue-900' : '' }}">
+                            <a href="{{ route('services') }}" class="block px-3 py-2 rounded-md text-gray-900 dark:text-gray-100 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-200 {{ request()->routeIs('services') || request()->routeIs('billing.manager') ? 'bg-blue-100 dark:bg-blue-900' : '' }}">
                                 <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
                                 </svg>
-                                Gói & Thanh toán
+                                Gói Dịch Vụ
                             </a>
                         @endif
                         
