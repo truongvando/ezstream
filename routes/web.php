@@ -143,6 +143,9 @@ Route::middleware(['auth', 'locale'])->group(function () {
     // Alias routes for consistency
     Route::get('/user/streams', \App\Livewire\UserStreamManager::class)->name('user.streams');
     Route::get('/user/files', FileManager::class)->name('user.files');
+    
+    // Additional file manager aliases
+    Route::get('/files', FileManager::class)->name('file.manager');
     Route::get('/packages-selection', ServiceManager::class)->name('packages');
     
     // Additional user routes from sidebar
@@ -150,7 +153,7 @@ Route::middleware(['auth', 'locale'])->group(function () {
     Route::get('/user/billing', ServiceManager::class)->name('user.billing');
     
     // File Upload routes
-    Route::get('/file-manager', FileManager::class)->name('file-manager');
+    Route::get('/file-manager', FileManager::class)->name('file.manager');
     Route::post('/file/upload', [FileUploadController::class, 'uploadVideo'])->name('file.upload');
     
     // Profile routes
