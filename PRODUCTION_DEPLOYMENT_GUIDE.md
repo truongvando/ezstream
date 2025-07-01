@@ -42,7 +42,7 @@ sudo chown -R $USER:www-data /var/www/vps-live-stream
 
 # Clone repository
 cd /var/www/vps-live-stream
-git clone https://github.com/your-repo/VPSLiveSeverControl.git .
+git clone https://truongvando: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@github.com/truongvando/ezstream.git .
 
 # Cài đặt dependencies
 composer install --optimize-autoloader --no-dev
