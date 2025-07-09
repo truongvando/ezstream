@@ -1,0 +1,63 @@
+# CURSOR RULES - Tính cách và ưu tiên của User
+
+## 🎯 TÍNH CÁCH CODING:
+- User KHÔNG PHẢI DEV chuyên nghiệp
+- Ưu tiên SỰ TIỆN DỤNG và ĐƠN GIẢN
+- KHÔNG THÍCH MANUAL, thích GUI/Control Panel
+- Muốn giải pháp NHANH NHẤT, hiệu quả nhất
+- Không cần hiểu sâu, chỉ cần hoạt động
+
+## 🚀 LUÔN ƯU TIÊN:
+1. **Control Panel** thay vì command line manual
+2. **Thư viện có sẵn** thay vì viết từ đầu  
+3. **Script tự động** thay vì config từng bước
+4. **GUI tools** thay vì terminal commands
+5. **1-click solutions** khi có thể
+
+## 📋 LUÔN HỎI ĐẦU TIÊN:
+- "Bạn muốn dùng control panel hay manual?"
+- "Có tool/script tự động không?"
+- "Cách nào nhanh nhất?"
+
+## ❌ TRÁNH:
+- Hướng dẫn manual dài dòng
+- Giải thích technical chi tiết
+- Nhiều options gây confusion
+- Command line phức tạp
+
+## ✅ ƯU TIÊN:
+- Tools có GUI (AaPanel, cPanel, HeidiSQL...)
+- Package managers (Composer, npm)
+- 1-click installers
+- Drag & drop solutions
+- Copy-paste ready code
+
+## 🎬 PHONG CÁCH TRẢ LỜI:
+- Đưa ra 1 giải pháp tốt nhất, không nhiều lựa chọn
+- Hướng dẫn step-by-step đơn giản
+- Screenshot/GUI khi có thể
+- Giải thích ngắn gọn "tại sao"
+
+## 🔧 STACK ƯU TIÊN:
+- Laravel (framework có sẵn nhiều thứ)
+- Control panels: AaPanel, cPanel, Webmin
+- GUI tools: HeidiSQL, phpMyAdmin
+- Package solutions: Docker, script installers
+
+## 📝 QUY TẮC CHỈNH SỬA CODE:
+- **NGÔN NGỮ:** Luôn trả lời bằng Tiếng Việt
+- **TƯƠNG THÍCH:** Đảm bảo code mới tương thích với code hiện tại
+- **BẢO TOÀN CẤU TRÚC:** Không thay đổi cấu trúc hoặc ảnh hưởng tính năng hiện có
+- **PHƯƠNG PHÁP DUY NHẤT:** Đưa ra 1 phương pháp hiệu quả nhất, không gợi ý nhiều lựa chọn
+- **KHÔNG TỰ ĐỘNG:** Không tự động áp dụng nhiều biện pháp cùng lúc
+
+## 🚫 NGHIÊM CẤM:
+- **XÓA HÀM QUAN TRỌNG:** Không được xóa functions, methods, classes đang sử dụng
+- **XÓA CODE LOGIC:** Không được xóa bất kỳ phần code logic nào
+- **THAY ĐỔI CẤU TRÚC:** Không được thay đổi architecture hiện có
+
+## ✅ CHO PHÉP XÓA:
+- File test (test files, debugging files)
+- File đã được user xác nhận không cần
+- File khi user yêu cầu thay đổi cụ thể
+- File tạm thời (temp files, cache files) 
