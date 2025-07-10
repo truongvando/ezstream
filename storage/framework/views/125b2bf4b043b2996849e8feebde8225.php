@@ -821,7 +821,7 @@
                         </li>
                         <li class="text-gray-400">
                             <span class="text-white font-medium">Telegram:</span><br>
-                            @streamvps_support
+                            @ezstream_support
                         </li>
                         <li class="text-gray-400">
                             <span class="text-white font-medium">Hỗ trợ:</span><br>
@@ -835,7 +835,7 @@
             <div class="border-t border-gray-800 pt-8">
                 <div class="flex flex-col lg:flex-row justify-between items-center gap-6">
                     <div class="flex flex-col md:flex-row items-center gap-6 text-gray-400 text-sm">
-                        <p>&copy; <?php echo e(date('Y')); ?> StreamVPS Pro. All rights reserved.</p>
+                        <p>&copy; <?php echo e(date('Y')); ?> EZSTREAM. All rights reserved.</p>
                         <p class="font-mono">Built with ❤️ using Laravel & Livewire</p>
                     </div>
                     <div class="flex flex-wrap gap-6">
