@@ -94,12 +94,12 @@ EXIT;
 
 ```bash
 # Tạo thư mục project
-sudo mkdir -p /var/www/vps-live-stream
-sudo chown -R deploy:www-data /var/www/vps-live-stream
+sudo mkdir -p /var/www/ezstream
+sudo chown -R deploy:www-data /var/www/ezstream
 
 # Clone code (thay YOUR_REPO_URL bằng URL repo thực tế)
-cd /var/www/vps-live-stream
-git clone https://github.com/YOUR_USERNAME/VPSLiveSeverControl.git .
+cd /var/www/ezstream
+git clone https://github.com/truongvando/ezstream.git .
 
 # Cài đặt PHP dependencies
 composer install --optimize-autoloader --no-dev

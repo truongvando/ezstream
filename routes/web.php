@@ -18,17 +18,72 @@ use App\Http\Controllers\DashboardController;
 use App\Livewire\ServiceManager;
 
 Route::get('/', function () {
-    // Lấy dữ liệu thực từ hệ thống
-    $stats = [
-        'total_vps' => \App\Models\VpsServer::where('status', 'ACTIVE')->count(),
-        'active_streams' => \App\Models\StreamConfiguration::where('status', 'STREAMING')->count(),
-        'total_users' => \App\Models\User::count(),
-        'service_packages' => \App\Models\ServicePackage::orderBy('price')->get(),
-        'uptime_percentage' => 99.9, // Có thể tính từ VPS stats
-    ];
-    
+    try {
+        // Lấy dữ liệu thực từ hệ thống
+        $stats = [
+            'total_vps' => \App\Models\VpsServer::where('status', 'ACTIVE')->count(),
+            'active_streams' => \App\Models\StreamConfiguration::where('status', 'STREAMING')->count(),
+            'total_users' => \App\Models\User::count(),
+            'service_packages' => \App\Models\ServicePackage::orderBy('price')->get(),
+            'uptime_percentage' => 99.9, // Có thể tính từ VPS stats
+        ];
+    } catch (\Exception $e) {
+        // Fallback data nếu database chưa sẵn sàng
+        $stats = [
+            'total_vps' => 5,
+            'active_streams' => 12,
+            'total_users' => 150,
+            'service_packages' => collect([
+                (object)[
+                    'id' => 1,
+                    'name' => 'Basic',
+                    'description' => 'Gói cơ bản cho người mới bắt đầu',
+                    'price' => 299000,
+                    'features' => json_encode(['1 VPS Server', '24/7 Support', 'Basic Monitoring']),
+                    'is_popular' => false
+                ],
+                (object)[
+                    'id' => 2,
+                    'name' => 'Pro',
+                    'description' => 'Gói chuyên nghiệp cho creator',
+                    'price' => 599000,
+                    'features' => json_encode(['3 VPS Servers', '24/7 Support', 'Advanced Monitoring', 'Auto Recovery']),
+                    'is_popular' => true
+                ],
+                (object)[
+                    'id' => 3,
+                    'name' => 'Enterprise',
+                    'description' => 'Gói doanh nghiệp với tính năng đầy đủ',
+                    'price' => 999000,
+                    'features' => json_encode(['10 VPS Servers', 'Priority Support', 'Full Monitoring', 'Custom Setup']),
+                    'is_popular' => false
+                ]
+            ]),
+            'uptime_percentage' => 99.9,
+        ];
+    }
+
     return view('welcome', compact('stats'));
 })->name('welcome');
+
+// Simple test route
+Route::get('/test', function () {
+    return response()->json([
+        'status' => 'success',
+        'message' => 'Laravel is working!',
+        'app_env' => config('app.env'),
+        'app_debug' => config('app.debug'),
+        'database_connection' => config('database.default'),
+        'timestamp' => now()->toDateTimeString(),
+        'livewire_installed' => class_exists('Livewire\Component') ? 'YES' : 'NO',
+        'vendor_path_exists' => file_exists(base_path('vendor/livewire/livewire')) ? 'YES' : 'NO'
+    ]);
+})->name('test');
+
+// Test route without Livewire
+Route::get('/simple', function () {
+    return '<h1>Laravel hoạt động OK!</h1><p>Thời gian: ' . now() . '</p><p>Environment: ' . config('app.env') . '</p>';
+})->name('simple');
 
 // Test route
 Route::get('/test-layout', function () {
@@ -124,22 +179,22 @@ Route::get('/language/{locale}', function ($locale) {
 Route::middleware(['auth', 'locale'])->group(function () {
     // User Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
-    
+
     // Service Manager - Trang gói dịch vụ tổng hợp
     Route::get('/services', ServiceManager::class)->name('services');
-    
+
     // Alias routes để tương thích với code cũ
     Route::get('/billing', ServiceManager::class)->name('billing.manager');
     Route::get('/packages', ServiceManager::class)->name('package.selection');
     Route::get('/subscriptions', ServiceManager::class)->name('user.subscriptions');
     Route::get('/payments', ServiceManager::class)->name('user.payments');
-    
+
     // Payment Manager (giữ lại cho thanh toán riêng biệt nếu cần)
     Route::get('/payment/{subscription}', \App\Livewire\PaymentManager::class)->name('payment.manager');
-    
+
     // User Stream Manager
     Route::get('/streams', \App\Livewire\UserStreamManager::class)->name('user.stream.manager');
-    
+
     // Alias routes for consistency
     Route::get('/user/streams', \App\Livewire\UserStreamManager::class)->name('user.streams');
     Route::get('/user/files', FileManager::class)->name('user.files');
@@ -147,11 +202,11 @@ Route::middleware(['auth', 'locale'])->group(function () {
     // Additional file manager aliases
     Route::get('/files', FileManager::class)->name('file.manager');
     Route::get('/packages-selection', ServiceManager::class)->name('packages');
-    
+
     // Additional user routes from sidebar
     Route::get('/user/packages', ServiceManager::class)->name('user.packages');
     Route::get('/user/billing', ServiceManager::class)->name('user.billing');
-    
+
     // File Upload routes
     Route::get('/file-manager', FileManager::class)->name('file.manager');
     Route::post('/file/upload', [FileUploadController::class, 'uploadVideo'])->name('file.upload');

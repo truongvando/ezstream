@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="<?php echo e(str_replace('_', '-', app()->getLocale())); ?>">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -144,21 +144,21 @@
                         </svg>
                     </button>
                     
-                    @auth
-                        <a href="{{ route('dashboard') }}" 
+                    <?php if(auth()->guard()->check()): ?>
+                        <a href="<?php echo e(route('dashboard')); ?>" 
                            class="gradient-primary hover:opacity-90 px-8 py-3 rounded-xl text-white font-bold transition-all duration-300 hover-lift shadow-xl">
                             Dashboard
                         </a>
-                    @else
-                        <a href="{{ route('login') }}" 
+                    <?php else: ?>
+                        <a href="<?php echo e(route('login')); ?>" 
                            class="text-gray-600 dark:text-gray-300 hover:text-primary px-6 py-3 transition-all duration-300 font-semibold">
                             Đăng nhập
                         </a>
-                        <a href="{{ route('register') }}" 
+                        <a href="<?php echo e(route('register')); ?>" 
                            class="gradient-primary hover:opacity-90 px-8 py-3 rounded-xl text-white font-bold transition-all duration-300 hover-lift shadow-xl">
                             Đăng ký ngay
                         </a>
-                    @endauth
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -187,7 +187,7 @@
             <!-- Status Badge -->
             <div class="inline-flex items-center px-6 py-3 rounded-2xl glass mb-8 animate-fade-in">
                 <div class="w-3 h-3 bg-green-500 rounded-full live-dot mr-3"></div>
-                <span class="font-mono text-sm font-semibold">🔴 LIVE - {{ $stats['active_streams'] }} streams đang hoạt động</span>
+                <span class="font-mono text-sm font-semibold">🔴 LIVE - <?php echo e($stats['active_streams']); ?> streams đang hoạt động</span>
             </div>
             
             <!-- Main Headline -->
@@ -210,14 +210,14 @@
             <!-- CTA Section -->
             <div class="animate-scale-in mb-20">
                 <div class="flex flex-col sm:flex-row gap-6 justify-center items-center mb-8">
-                    @auth
-                        <a href="{{ route('dashboard') }}" 
+                    <?php if(auth()->guard()->check()): ?>
+                        <a href="<?php echo e(route('dashboard')); ?>" 
                            class="group relative gradient-primary hover:opacity-90 px-12 py-5 rounded-2xl text-white font-black text-xl transition-all duration-500 hover-lift shadow-2xl">
                             <span class="relative z-10">VÀO DASHBOARD</span>
                             <div class="absolute inset-0 bg-white/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                         </a>
-                    @else
-                        <a href="{{ route('register') }}" 
+                    <?php else: ?>
+                        <a href="<?php echo e(route('register')); ?>" 
                            class="group relative gradient-primary hover:opacity-90 px-12 py-5 rounded-2xl text-white font-black text-xl transition-all duration-500 hover-lift shadow-2xl">
                             <span class="relative z-10">BẮT ĐẦU NGAY</span>
                             <div class="absolute inset-0 bg-white/20 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
@@ -226,7 +226,7 @@
                            class="group px-12 py-5 rounded-2xl border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-black text-xl hover:border-primary hover:text-primary transition-all duration-300 hover-lift">
                             XEM GÓI DỊCH VỤ
                         </a>
-                    @endauth
+                    <?php endif; ?>
                 </div>
                 
                 <!-- Trust Indicators -->
@@ -259,7 +259,7 @@
                     <div class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">UPTIME</div>
                 </div>
                 <div class="glass rounded-2xl p-6 hover-lift">
-                    <div class="text-4xl md:text-5xl font-black gradient-text mb-2">{{ $stats['total_vps'] }}</div>
+                    <div class="text-4xl md:text-5xl font-black gradient-text mb-2"><?php echo e($stats['total_vps']); ?></div>
                     <div class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">SERVERS</div>
                 </div>
                 <div class="glass rounded-2xl p-6 hover-lift">
@@ -267,7 +267,7 @@
                     <div class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">SUPPORT</div>
                 </div>
                 <div class="glass rounded-2xl p-6 hover-lift">
-                    <div class="text-4xl md:text-5xl font-black gradient-text mb-2">{{ $stats['active_streams'] }}</div>
+                    <div class="text-4xl md:text-5xl font-black gradient-text mb-2"><?php echo e($stats['active_streams']); ?></div>
                     <div class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">LIVE STREAMS</div>
                 </div>
             </div>
@@ -304,44 +304,44 @@
 
             <!-- Pricing Cards -->
             <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
-                @foreach($stats['service_packages'] as $package)
-                <div class="group relative animate-scale-in hover-lift" style="animation-delay: {{ $loop->index * 0.2 }}s;">
-                    @if($package->is_popular)
+                <?php $__currentLoopData = $stats['service_packages']; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $package): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                <div class="group relative animate-scale-in hover-lift" style="animation-delay: <?php echo e($loop->index * 0.2); ?>s;">
+                    <?php if($package->is_popular): ?>
                         <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 z-20">
                             <div class="gradient-primary px-6 py-2 rounded-full text-white text-sm font-bold shadow-lg">
                                 PHỔ BIẾN NHẤT
                             </div>
                         </div>
-                    @endif
+                    <?php endif; ?>
                     
-                    <div class="relative bg-white dark:bg-gray-800 rounded-3xl p-8 border-2 border-gray-200 dark:border-gray-700 group-hover:border-primary/50 transition-all duration-300 h-full z-10 {{ $package->is_popular ? 'transform scale-105 border-primary/50' : '' }}">
+                    <div class="relative bg-white dark:bg-gray-800 rounded-3xl p-8 border-2 border-gray-200 dark:border-gray-700 group-hover:border-primary/50 transition-all duration-300 h-full z-10 <?php echo e($package->is_popular ? 'transform scale-105 border-primary/50' : ''); ?>">
                         <!-- Package Header -->
                         <div class="text-center mb-8">
-                            <h3 class="text-2xl font-black text-gray-900 dark:text-white mb-2">{{ $package->name }}</h3>
-                            <p class="text-gray-600 dark:text-gray-400 mb-6">{{ $package->description }}</p>
+                            <h3 class="text-2xl font-black text-gray-900 dark:text-white mb-2"><?php echo e($package->name); ?></h3>
+                            <p class="text-gray-600 dark:text-gray-400 mb-6"><?php echo e($package->description); ?></p>
                             <div class="mb-6">
-                                <span class="text-5xl font-black gradient-text">{{ number_format($package->price, 0, ',', '.') }}</span>
+                                <span class="text-5xl font-black gradient-text"><?php echo e(number_format($package->price, 0, ',', '.')); ?></span>
                                 <span class="text-gray-600 dark:text-gray-400 text-lg">đ/tháng</span>
                             </div>
                         </div>
                         
                         <!-- Features -->
                         <div class="space-y-4 mb-8">
-                            @php
+                            <?php
                                 $features = is_string($package->features) 
                                     ? json_decode($package->features, true) ?? [] 
                                     : (is_array($package->features) ? $package->features : []);
-                            @endphp
-                            @if(count($features) > 0)
-                                @foreach($features as $feature)
+                            ?>
+                            <?php if(count($features) > 0): ?>
+                                <?php $__currentLoopData = $features; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $feature): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                                 <div class="flex items-center">
                                     <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                         <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
                                     </svg>
-                                    <span class="text-gray-700 dark:text-gray-300">{{ $feature }}</span>
+                                    <span class="text-gray-700 dark:text-gray-300"><?php echo e($feature); ?></span>
                                 </div>
-                                @endforeach
-                            @else
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
+                            <?php else: ?>
                                 <!-- Default features if none specified -->
                                 <div class="flex items-center">
                                     <svg class="w-5 h-5 text-green-500 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -361,26 +361,26 @@
                                     </svg>
                                     <span class="text-gray-700 dark:text-gray-300">Monitoring real-time</span>
                                 </div>
-                            @endif
+                            <?php endif; ?>
                         </div>
 
                         <!-- CTA Button -->
                         <div class="text-center">
-                            @auth
-                                <a href="{{ route('services') }}" 
+                            <?php if(auth()->guard()->check()): ?>
+                                <a href="<?php echo e(route('services')); ?>" 
                                    class="w-full inline-block gradient-primary hover:opacity-90 px-8 py-4 rounded-2xl text-white font-bold transition-all duration-300 hover-lift">
                                     Chọn gói này
                                 </a>
-                            @else
-                                <a href="{{ route('register') }}" 
+                            <?php else: ?>
+                                <a href="<?php echo e(route('register')); ?>" 
                                    class="w-full inline-block gradient-primary hover:opacity-90 px-8 py-4 rounded-2xl text-white font-bold transition-all duration-300 hover-lift">
                                     Bắt đầu ngay
                                 </a>
-                            @endauth
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
-                @endforeach
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
             </div>
 
             <!-- Additional Info -->
@@ -715,8 +715,8 @@
             
             <!-- CTA Buttons -->
             <div class="flex flex-col sm:flex-row gap-6 justify-center items-center mb-16">
-                @guest
-                    <a href="{{ route('register') }}" 
+                <?php if(auth()->guard()->guest()): ?>
+                    <a href="<?php echo e(route('register')); ?>" 
                        class="group relative px-12 py-5 bg-white text-primary rounded-2xl text-xl font-black transition-all duration-500 hover-lift shadow-2xl">
                         <span class="relative z-10 flex items-center">
                             <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -730,8 +730,8 @@
                        class="px-12 py-5 border-2 border-white/30 text-white rounded-2xl text-xl font-black hover:bg-white/10 transition-all duration-300 hover-lift">
                         XEM GIÁ
                     </a>
-                @else
-                    <a href="{{ route('dashboard') }}" 
+                <?php else: ?>
+                    <a href="<?php echo e(route('dashboard')); ?>" 
                        class="group relative px-12 py-5 bg-white text-primary rounded-2xl text-xl font-black transition-all duration-500 hover-lift shadow-2xl">
                         <span class="relative z-10 flex items-center">
                             <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -741,7 +741,7 @@
                         </span>
                         <div class="absolute inset-0 bg-gray-100 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                     </a>
-                @endguest
+                <?php endif; ?>
             </div>
             
             <!-- Trust Indicators -->
@@ -802,12 +802,12 @@
                         <li><a href="#features" class="text-gray-400 hover:text-white transition-colors font-medium">Tính năng</a></li>
                         <li><a href="#pricing" class="text-gray-400 hover:text-white transition-colors font-medium">Giá cả</a></li>
                         <li><a href="#support" class="text-gray-400 hover:text-white transition-colors font-medium">Hỗ trợ</a></li>
-                        @auth
-                            <li><a href="{{ route('dashboard') }}" class="text-gray-400 hover:text-white transition-colors font-medium">Dashboard</a></li>
-                        @else
-                            <li><a href="{{ route('login') }}" class="text-gray-400 hover:text-white transition-colors font-medium">Đăng nhập</a></li>
-                            <li><a href="{{ route('register') }}" class="text-gray-400 hover:text-white transition-colors font-medium">Đăng ký</a></li>
-                        @endauth
+                        <?php if(auth()->guard()->check()): ?>
+                            <li><a href="<?php echo e(route('dashboard')); ?>" class="text-gray-400 hover:text-white transition-colors font-medium">Dashboard</a></li>
+                        <?php else: ?>
+                            <li><a href="<?php echo e(route('login')); ?>" class="text-gray-400 hover:text-white transition-colors font-medium">Đăng nhập</a></li>
+                            <li><a href="<?php echo e(route('register')); ?>" class="text-gray-400 hover:text-white transition-colors font-medium">Đăng ký</a></li>
+                        <?php endif; ?>
                     </ul>
                 </div>
                 
@@ -821,7 +821,7 @@
                         </li>
                         <li class="text-gray-400">
                             <span class="text-white font-medium">Telegram:</span><br>
-                            @ezstream_support
+                            @streamvps_support
                         </li>
                         <li class="text-gray-400">
                             <span class="text-white font-medium">Hỗ trợ:</span><br>
@@ -835,7 +835,7 @@
             <div class="border-t border-gray-800 pt-8">
                 <div class="flex flex-col lg:flex-row justify-between items-center gap-6">
                     <div class="flex flex-col md:flex-row items-center gap-6 text-gray-400 text-sm">
-                        <p>&copy; {{ date('Y') }} EZSTREAM. All rights reserved.</p>
+                        <p>&copy; <?php echo e(date('Y')); ?> StreamVPS Pro. All rights reserved.</p>
                         <p class="font-mono">Built with ❤️ using Laravel & Livewire</p>
                     </div>
                     <div class="flex flex-wrap gap-6">
@@ -850,4 +850,4 @@
     </footer>
     </div>
 </body>
-</html> 
+</html> <?php /**PATH D:\laragon\www\ezstream\resources\views/welcome.blade.php ENDPATH**/ ?>
