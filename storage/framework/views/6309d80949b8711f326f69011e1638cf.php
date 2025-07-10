@@ -19,6 +19,13 @@
         </div>
     <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 
+    <?php if(session()->has('error')): ?>
+        <div class="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            <?php echo e(session('error')); ?>
+
+        </div>
+    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+
     <!-- VPS Servers Table -->
     <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-xl sm:rounded-lg">
         <div class="overflow-x-auto">

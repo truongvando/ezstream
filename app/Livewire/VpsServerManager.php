@@ -104,7 +104,7 @@ class VpsServerManager extends Component
     public function save()
     {
         $rules = $this->rules;
-        
+
         // If editing, ignore unique validation for current record
         if ($this->editingServer) {
             $rules['ip_address'] = 'required|ip|unique:vps_servers,ip_address,' . $this->editingServer->id;
@@ -112,16 +112,25 @@ class VpsServerManager extends Component
 
         $validatedData = $this->validate($rules);
 
-        if ($this->editingServer) {
-            $this->editingServer->update($validatedData);
-            session()->flash('message', 'VPS Server đã được cập nhật thành công!');
-        } else {
-            $server = VpsServer::create($validatedData);
-            ProvisionVpsJob::dispatch($server);
-            session()->flash('message', 'VPS Server đã được thêm và đang được cài đặt tự động!');
-        }
+        try {
+            if ($this->editingServer) {
+                $this->editingServer->update($validatedData);
+                session()->flash('message', 'VPS Server đã được cập nhật thành công!');
+            } else {
+                $server = VpsServer::create($validatedData);
+                ProvisionVpsJob::dispatch($server);
+                session()->flash('message', 'VPS Server đã được thêm và đang được cài đặt tự động!');
+            }
 
-        $this->closeModal();
+            $this->closeModal();
+
+            // Force refresh the component
+            $this->dispatch('vps-updated');
+
+        } catch (\Exception $e) {
+            Log::error('VPS save error: ' . $e->getMessage());
+            session()->flash('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
     }
 
     public function edit(VpsServer $server)
