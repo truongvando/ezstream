@@ -63,13 +63,18 @@ class ProvisionVpsJob implements ShouldQueue
             Log::channel('provisioning')->info("✅ [VPS #{$this->vps->id}] SSH connection successful");
             $this->vps->update(['status' => 'PROVISIONING', 'status_message' => 'Connecting and installing packages...']);
 
-            // 1. Install required packages
-            Log::channel('provisioning')->info("📦 [VPS #{$this->vps->id}] Installing required packages (ffmpeg, jq, curl)");
+            // 1. Install required packages including nginx-rtmp
+            Log::channel('provisioning')->info("📦 [VPS #{$this->vps->id}] Installing required packages (ffmpeg, nginx, nginx-rtmp, jq, curl)");
             $updateResult = $sshService->execute('sudo apt-get update -y');
             Log::channel('provisioning')->info("📦 [VPS #{$this->vps->id}] apt-get update completed");
-            
-            $installResult = $sshService->execute('sudo apt-get install -y ffmpeg jq curl');
+
+            // Install nginx and nginx-rtmp module
+            $installResult = $sshService->execute('sudo apt-get install -y ffmpeg nginx libnginx-mod-rtmp jq curl');
             Log::channel('provisioning')->info("✅ [VPS #{$this->vps->id}] Packages installed successfully");
+
+            // 1.5. Setup nginx-rtmp configuration
+            Log::channel('provisioning')->info("🔧 [VPS #{$this->vps->id}] Configuring nginx-rtmp proxy");
+            $this->setupNginxRtmpProxy($sshService);
 
             // 2. Deploy Streaming Agent
             Log::channel('provisioning')->info("📁 [VPS #{$this->vps->id}] Deploying streaming agent");
@@ -576,13 +581,152 @@ WantedBy=multi-user.target";
     }
 
     /**
+     * Setup nginx-rtmp proxy for stable streaming
+     */
+    private function setupNginxRtmpProxy(SshService $sshService): void
+    {
+        try {
+            Log::channel('provisioning')->info("🔧 [VPS #{$this->vps->id}] Creating nginx-rtmp configuration");
+
+            // Create nginx-rtmp configuration
+            $nginxRtmpConfig = $this->getNginxRtmpConfig();
+
+            // Upload nginx config
+            $sshService->execute("sudo tee /etc/nginx/nginx.conf > /dev/null << 'EOF'
+{$nginxRtmpConfig}
+EOF");
+
+            // Test nginx configuration
+            $testResult = $sshService->execute('sudo nginx -t');
+            Log::channel('provisioning')->info("🧪 [VPS #{$this->vps->id}] Nginx config test: " . $testResult);
+
+            // Enable and start nginx
+            $sshService->execute('sudo systemctl enable nginx');
+            $sshService->execute('sudo systemctl restart nginx');
+
+            // Check nginx status
+            $nginxStatus = $sshService->execute('sudo systemctl is-active nginx');
+            Log::channel('provisioning')->info("✅ [VPS #{$this->vps->id}] Nginx-RTMP proxy status: " . trim($nginxStatus));
+
+            // Create streaming directories
+            $sshService->execute('sudo mkdir -p /var/log/nginx/rtmp');
+            $sshService->execute('sudo chown -R www-data:www-data /var/log/nginx/rtmp');
+
+        } catch (\Exception $e) {
+            Log::channel('provisioning')->error("❌ [VPS #{$this->vps->id}] Nginx-RTMP setup failed: " . $e->getMessage());
+            throw $e;
+        }
+    }
+
+    /**
+     * Get nginx-rtmp configuration
+     */
+    private function getNginxRtmpConfig(): string
+    {
+        return "user www-data;
+worker_processes auto;
+pid /run/nginx.pid;
+include /etc/nginx/modules-enabled/*.conf;
+
+events {
+    worker_connections 1024;
+    use epoll;
+    multi_accept on;
+}
+
+# RTMP Configuration for Streaming Proxy
+rtmp {
+    server {
+        listen 1935;
+        chunk_size 4096;
+        allow publish all;
+        allow play all;
+
+        # Live streaming application
+        application live {
+            live on;
+            record off;
+
+            # Enable push to external RTMP servers
+            # This will be dynamically configured per stream
+            # push rtmp://a.rtmp.youtube.com/live2/STREAM_KEY;
+
+            # Auto-reconnect settings
+            push_reconnect 30s;
+
+            # Drop frames on slow connections
+            drop_idle_publisher 10s;
+
+            # Sync settings
+            sync 10ms;
+
+            # Access log
+            access_log /var/log/nginx/rtmp/access.log;
+        }
+
+        # Health check application
+        application health {
+            live on;
+            record off;
+            allow publish 127.0.0.1;
+            allow play all;
+        }
+    }
+}
+
+# HTTP Configuration
+http {
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+
+    # Logging
+    log_format main '\$remote_addr - \$remote_user [\$time_local] \"\$request\" '
+                    '\$status \$body_bytes_sent \"\$http_referer\" '
+                    '\"\$http_user_agent\" \"\$http_x_forwarded_for\"';
+
+    access_log /var/log/nginx/access.log main;
+    error_log /var/log/nginx/error.log warn;
+
+    # Performance settings
+    sendfile on;
+    tcp_nopush on;
+    tcp_nodelay on;
+    keepalive_timeout 65;
+    types_hash_max_size 2048;
+
+    # RTMP statistics endpoint
+    server {
+        listen 8080;
+        server_name localhost;
+
+        location /stat {
+            rtmp_stat all;
+            rtmp_stat_stylesheet stat.xsl;
+            add_header Access-Control-Allow-Origin *;
+        }
+
+        location /stat.xsl {
+            root /usr/share/nginx/html;
+        }
+
+        # Health check endpoint
+        location /health {
+            access_log off;
+            return 200 'RTMP Proxy OK';
+            add_header Content-Type text/plain;
+        }
+    }
+}";
+    }
+
+    /**
      * Handle a job failure.
      */
     public function failed(Throwable $exception): void
     {
         Log::channel('provisioning')->error("--- 💣 [VPS #{$this->vps->id}] JOB FAILED ---");
         Log::channel('provisioning')->error("Error: " . $exception->getMessage());
-        
+
         $this->vps->refresh();
         $this->vps->update([
             'status' => 'PROVISION_FAILED',
