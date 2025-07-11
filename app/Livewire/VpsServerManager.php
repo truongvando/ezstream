@@ -116,9 +116,15 @@ class VpsServerManager extends Component
             if ($this->editingServer) {
                 $this->editingServer->update($validatedData);
                 session()->flash('message', 'VPS Server đã được cập nhật thành công!');
+                Log::info("VPS updated successfully: {$this->editingServer->name}");
             } else {
                 $server = VpsServer::create($validatedData);
+                Log::info("VPS created successfully: {$server->name} (ID: {$server->id})");
+
+                // Dispatch provision job
                 ProvisionVpsJob::dispatch($server);
+                Log::info("ProvisionVpsJob dispatched for VPS ID: {$server->id}");
+
                 session()->flash('message', 'VPS Server đã được thêm và đang được cài đặt tự động!');
             }
 
@@ -127,8 +133,18 @@ class VpsServerManager extends Component
             // Force refresh the component
             $this->dispatch('vps-updated');
 
+            // Reset form
+            $this->reset(['name', 'provider', 'ip_address', 'ssh_user', 'ssh_password', 'ssh_port', 'description']);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // Re-throw validation exceptions to show field errors
+            throw $e;
         } catch (\Exception $e) {
-            Log::error('VPS save error: ' . $e->getMessage());
+            Log::error('VPS save error: ' . $e->getMessage(), [
+                'user_id' => auth()->id(),
+                'data' => $validatedData,
+                'trace' => $e->getTraceAsString()
+            ]);
             session()->flash('error', 'Có lỗi xảy ra: ' . $e->getMessage());
         }
     }
