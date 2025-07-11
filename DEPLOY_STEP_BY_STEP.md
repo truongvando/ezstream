@@ -51,7 +51,8 @@ sudo apt install -y nginx mysql-server php8.2-fpm php8.2-mysql php8.2-mbstring \
     php8.2-xml php8.2-curl php8.2-zip php8.2-bcmath php8.2-intl \
     composer git supervisor redis-server certbot python3-certbot-nginx \
     curl unzip software-properties-common
-
+sudo apt update
+sudo apt install -y nginx libnginx-mod-rtmp ( cài cả nginx rtmp để control vps phụ )
 # Cài đặt Node.js
 curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
 sudo apt-get install -y nodejs

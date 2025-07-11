@@ -31,10 +31,33 @@ class SshService
             ]);
 
             $this->ssh = new SSH2($vps->ip_address, $vps->ssh_port);
-            
+
             // Add connection timeout
             $this->ssh->setTimeout(30); // 30 seconds timeout
-            
+
+            // Fix SSH banner exchange compatibility
+            $this->ssh->setWindowColumns(80);
+            $this->ssh->setWindowRows(24);
+
+            // Set compatible SSH client identification
+            $this->ssh->_identifier = 'SSH-2.0-phpseclib_3.0';
+
+            // Additional compatibility settings
+            $this->ssh->setPreferredAlgorithms([
+                'kex' => ['diffie-hellman-group14-sha256', 'diffie-hellman-group14-sha1'],
+                'hostkey' => ['ssh-rsa', 'ssh-ed25519'],
+                'client_to_server' => [
+                    'crypt' => ['aes128-ctr', 'aes192-ctr', 'aes256-ctr'],
+                    'mac' => ['hmac-sha2-256', 'hmac-sha1'],
+                    'comp' => ['none']
+                ],
+                'server_to_client' => [
+                    'crypt' => ['aes128-ctr', 'aes192-ctr', 'aes256-ctr'],
+                    'mac' => ['hmac-sha2-256', 'hmac-sha1'],
+                    'comp' => ['none']
+                ]
+            ]);
+
             // Password is already decrypted by the model's encrypted cast
             $password = $vps->ssh_password;
             
