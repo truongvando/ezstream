@@ -33,7 +33,7 @@ class VpsServerManager extends Component
     public $logsContent = '';
     public $logsError = '';
 
-    protected $rules = [
+    public $rules = [
         'name' => 'required|string|max:255',
         'ip_address' => 'required|ip|unique:vps_servers,ip_address',
         'ssh_user' => 'required|string|max:255',
