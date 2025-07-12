@@ -14,8 +14,14 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
+Route::middleware(['web', 'auth'])->get('/user', function (Request $request) {
     return $request->user();
+});
+
+// File Upload Routes - Use session auth, no CSRF in API routes
+Route::middleware(['web', 'auth'])->group(function () {
+    Route::post('/generate-upload-url', [\App\Http\Controllers\BunnyUploadController::class, 'generateUploadUrl']);
+    Route::post('/confirm-upload', [\App\Http\Controllers\BunnyUploadController::class, 'confirmUpload']);
 });
 
 // VPS Communication APIs
@@ -34,4 +40,14 @@ Route::prefix('vps')->group(function () {
     
     Route::get('/{vps}/auth-token', [\App\Http\Controllers\Api\VpsStatsWebhookController::class, 'getAuthToken'])
         ->middleware('auth');
-}); 
+});
+
+// Multistream VPS Communication API Routes (no auth required - VPS to Laravel)
+Route::prefix('vps')->group(function () {
+    Route::post('{vpsId}/status', [App\Http\Controllers\Api\VpsController::class, 'updateStatus']);
+    Route::post('{vpsId}/provision-complete', [App\Http\Controllers\Api\VpsController::class, 'provisionComplete']);
+    Route::get('{vpsId}/pending-streams', [App\Http\Controllers\Api\VpsController::class, 'getPendingStreams']);
+});
+
+// Stream webhook endpoint for multistream
+Route::post('stream-webhook', [App\Http\Controllers\Api\VpsController::class, 'streamWebhook']);
