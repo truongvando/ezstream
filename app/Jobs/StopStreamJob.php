@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\StreamConfiguration;
 use App\Services\SshService;
+use App\Services\VpsFileManagerService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -31,7 +32,7 @@ class StopStreamJob implements ShouldQueue
     /**
      * Execute the job - Send stop job package to VPS agent
      */
-    public function handle(SshService $sshService): void
+    public function handle(SshService $sshService, VpsFileManagerService $fileManager): void
     {
         Log::info("Stopping stream: {$this->stream->title}", ['stream_id' => $this->stream->id]);
 
@@ -85,11 +86,14 @@ class StopStreamJob implements ShouldQueue
                 'status' => 'STOPPING',
                 'output_log' => 'Stop job sent to VPS agent, waiting for confirmation...',
             ]);
-            
+
             // Cleanup local temp file
             unlink($localJobFile);
-            
+
             $sshService->disconnect();
+
+            // Schedule file cleanup after stream stops (keep files cached for reuse)
+            $fileManager->cleanupAfterStream($this->stream);
 
         } catch (\Exception $e) {
             // Fallback to direct SSH kill if job package fails

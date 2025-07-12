@@ -113,17 +113,30 @@ class StartStreamJob implements ShouldQueue
         // ✅ SIMPLIFIED: Chỉ dùng download mode ổn định
         Log::info("Using stable download streaming mode", ['stream_id' => $this->stream->id]);
 
-        // Generate secure download URLs for each file
+        // ✅ BEST SOLUTION: Use direct CDN URLs (no expiration)
         $filesToDownload = [];
         foreach ($fileList as $file) {
-            $downloadToken = Str::random(32);
-            cache()->put("download_token_{$downloadToken}", $file['file_id'], now()->addHours(2));
-            
-            $filesToDownload[] = [
-                'file_id' => $file['file_id'],
-                'filename' => $file['filename'],
-                'download_url' => url("/api/secure-download/{$downloadToken}")
-            ];
+            $userFile = UserFile::find($file['file_id']);
+
+            if ($userFile->disk === 'bunny_cdn') {
+                // Direct CDN URL - never expires
+                $bunnyService = app(\App\Services\BunnyStorageService::class);
+                $result = $bunnyService->getDirectDownloadLink($userFile->path);
+                $downloadUrl = $result['success'] ? $result['download_link'] : null;
+            } else {
+                // Fallback to secure download with extended expiry for other storage types
+                $downloadToken = Str::random(32);
+                cache()->put("download_token_{$downloadToken}", $file['file_id'], now()->addDays(7));
+                $downloadUrl = url("/api/secure-download/{$downloadToken}");
+            }
+
+            if ($downloadUrl) {
+                $filesToDownload[] = [
+                    'file_id' => $file['file_id'],
+                    'filename' => $file['filename'],
+                    'download_url' => $downloadUrl
+                ];
+            }
         }
 
         // Create job package for VPS agent

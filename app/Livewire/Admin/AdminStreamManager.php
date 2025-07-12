@@ -120,7 +120,7 @@ class AdminStreamManager extends Component
             'user_id' => $this->user_id,
             'title' => $this->title,
             'description' => $this->description,
-            'video_source_path' => json_encode($fileList), // Store file list as JSON
+            'video_source_path' => $fileList, // Store file list as array (auto-cast to JSON)
             'rtmp_url' => $rtmpUrl,
             'rtmp_backup_url' => $backupRtmpUrl, // Auto-generated backup
             'stream_key' => $this->stream_key,
@@ -214,7 +214,7 @@ class AdminStreamManager extends Component
             'user_id' => $this->user_id,
             'title' => $this->title,
             'description' => $this->description,
-            'video_source_path' => json_encode($fileList), // Store file list as JSON
+            'video_source_path' => $fileList, // Store file list as array (auto-cast to JSON)
             'rtmp_url' => $rtmpUrl,
             'rtmp_backup_url' => $backupRtmpUrl, // Auto-generated backup
             'stream_key' => $this->stream_key,
@@ -288,10 +288,6 @@ class AdminStreamManager extends Component
     {
         $platforms = [
             'youtube' => 'rtmp://a.rtmp.youtube.com/live2',
-            'facebook' => 'rtmp://live-api-s.facebook.com/rtmp',
-            'twitch' => 'rtmp://live.twitch.tv/app',
-            'instagram' => 'rtmp://live-upload.instagram.com/rtmp',
-            'tiktok' => 'rtmp://push.tiktokcdn.com/live',
             'custom' => ''
         ];
         return $platforms[$platform] ?? '';
@@ -301,10 +297,6 @@ class AdminStreamManager extends Component
     {
         $backupPlatforms = [
             'youtube' => 'rtmp://b.rtmp.youtube.com/live2',
-            'facebook' => 'rtmp://live-api-s.facebook.com/rtmp', // Facebook usually same server
-            'twitch' => 'rtmp://live-jfk.twitch.tv/app', // Different region
-            'instagram' => 'rtmp://live-upload.instagram.com/rtmp', // Same for Instagram
-            'tiktok' => 'rtmp://push.tiktokcdn-sg.com/live', // Singapore server
             'custom' => '' // No backup for custom
         ];
 
@@ -314,10 +306,6 @@ class AdminStreamManager extends Component
     protected function detectPlatformFromUrl($url)
     {
         if (str_contains($url, 'youtube.com')) return 'youtube';
-        if (str_contains($url, 'facebook.com')) return 'facebook';
-        if (str_contains($url, 'twitch.tv')) return 'twitch';
-        if (str_contains($url, 'instagram.com')) return 'instagram';
-        if (str_contains($url, 'tiktok')) return 'tiktok';
         return 'custom';
     }
 
@@ -325,10 +313,6 @@ class AdminStreamManager extends Component
     {
         return [
             'youtube' => '📺 YouTube Live',
-            'facebook' => '📘 Facebook Live', 
-            'twitch' => '🎮 Twitch',
-            'instagram' => '📷 Instagram Live',
-            'tiktok' => '🎵 TikTok Live',
             'custom' => '⚙️ Custom RTMP'
         ];
     }
@@ -354,7 +338,7 @@ class AdminStreamManager extends Component
         $userFiles = [];
         if (($this->showCreateModal || $this->showEditModal) && $this->user_id) {
             $userFiles = \App\Models\UserFile::where('user_id', $this->user_id)
-                ->where('status', 'AVAILABLE')
+                ->where('status', 'ready')
                 ->get(); // Support both Google Drive and local files
         }
 

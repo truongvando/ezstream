@@ -117,4 +117,85 @@ class VpsAllocationService
             return true;
         });
     }
-} 
+
+    /**
+     * Find the optimal VPS for multistream with concurrent capability
+     */
+    public function findOptimalMultistreamVps(): ?VpsServer
+    {
+        \Illuminate\Support\Facades\Log::info('🔍 Finding optimal multistream VPS');
+
+        // Get VPS servers with multistream capability
+        $eligibleVps = VpsServer::where('status', 'ACTIVE')
+            ->whereJsonContains('capabilities', 'multistream')
+            ->whereColumn('current_streams', '<', 'max_concurrent_streams')
+            ->get();
+
+        if ($eligibleVps->isEmpty()) {
+            \Illuminate\Support\Facades\Log::warning('⚠️ No multistream VPS available');
+            return null;
+        }
+
+        // Sort by available capacity (least loaded first)
+        $bestVps = $eligibleVps->sortBy(function ($vps) {
+            $currentStreams = $vps->current_streams ?? 0;
+            $maxStreams = $vps->max_concurrent_streams ?? 1;
+
+            // Calculate load percentage
+            $loadPercentage = ($currentStreams / $maxStreams) * 100;
+
+            // Get latest stats for additional scoring
+            $latestStat = $vps->latestStat;
+            $ramUsage = $latestStat->ram_usage_percent ?? 0;
+            $cpuUsage = $latestStat->cpu_usage_percent ?? 0;
+
+            // Score: lower is better
+            $score = $loadPercentage;
+            $score += ($ramUsage > 70 ? ($ramUsage - 70) * 2 : 0); // RAM penalty
+            $score += ($cpuUsage > 70 ? ($cpuUsage - 70) * 1.5 : 0); // CPU penalty
+
+            return $score;
+        })->first();
+
+        if ($bestVps) {
+            \Illuminate\Support\Facades\Log::info('✅ Selected multistream VPS', [
+                'vps_id' => $bestVps->id,
+                'vps_ip' => $bestVps->ip_address,
+                'current_streams' => $bestVps->current_streams,
+                'max_streams' => $bestVps->max_concurrent_streams,
+                'load_percentage' => round(($bestVps->current_streams / $bestVps->max_concurrent_streams) * 100, 1)
+            ]);
+        }
+
+        return $bestVps;
+    }
+
+    /**
+     * Check if VPS has multistream capability
+     */
+    public function hasMultistreamCapability(VpsServer $vps): bool
+    {
+        $capabilities = $vps->capabilities;
+
+        if (is_string($capabilities)) {
+            $capabilities = json_decode($capabilities, true);
+        }
+
+        return is_array($capabilities) && in_array('multistream', $capabilities);
+    }
+
+    /**
+     * Get available capacity for a multistream VPS
+     */
+    public function getAvailableCapacity(VpsServer $vps): int
+    {
+        if (!$this->hasMultistreamCapability($vps)) {
+            return 0;
+        }
+
+        $maxStreams = $vps->max_concurrent_streams ?? 0;
+        $currentStreams = $vps->current_streams ?? 0;
+
+        return max(0, $maxStreams - $currentStreams);
+    }
+}

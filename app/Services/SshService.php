@@ -181,7 +181,8 @@ class SshService
     }
 
     /**
-     * Upload a file to the VPS via SFTP.
+     * Upload a file to the VPS via SSH command (more reliable than SFTP).
+     * Handles large files by chunking the upload.
      *
      * @param string $localPath The path to the local file on the Laravel server.
      * @param string $remotePath The destination path on the remote VPS.
@@ -195,23 +196,54 @@ class SshService
         }
 
         try {
-            // Use SFTP subsystem of the existing SSH connection
-            $sftp = new SFTP($this->ssh);
-
-            // Ensure the remote directory exists
-            $remoteDir = dirname($remotePath);
-            $sftp->mkdir($remoteDir, -1, true); // The -1 and true make it recursive
-
-            if (!$sftp->put($remotePath, $localPath, SFTP::SOURCE_LOCAL_FILE)) {
-                Log::error("SFTP upload failed for file: {$localPath} to {$remotePath}");
+            // Read local file content
+            $fileContent = file_get_contents($localPath);
+            if ($fileContent === false) {
+                Log::error("Cannot read local file: {$localPath}");
                 return false;
             }
 
-            Log::info("SFTP upload successful: {$localPath} to {$remotePath}");
+            // Ensure the remote directory exists
+            $remoteDir = dirname($remotePath);
+            $this->execute("sudo mkdir -p " . escapeshellarg($remoteDir));
+
+            // Clear the target file first
+            $this->execute("sudo rm -f " . escapeshellarg($remotePath));
+
+            // For large files, upload in chunks to avoid command line length limits
+            $chunkSize = 4096; // 4KB chunks
+            $fileSize = strlen($fileContent);
+            $chunks = ceil($fileSize / $chunkSize);
+
+            Log::info("Uploading file in {$chunks} chunks: {$localPath} to {$remotePath}");
+
+            for ($i = 0; $i < $chunks; $i++) {
+                $chunk = substr($fileContent, $i * $chunkSize, $chunkSize);
+                $base64Chunk = base64_encode($chunk);
+
+                // Append chunk to file
+                $uploadCommand = "echo " . escapeshellarg($base64Chunk) . " | base64 -d | sudo tee -a " . escapeshellarg($remotePath) . " > /dev/null";
+                $result = $this->execute($uploadCommand);
+
+                if ($i % 10 == 0) { // Log progress every 10 chunks
+                    Log::info("Upload progress: " . round(($i + 1) / $chunks * 100, 1) . "%");
+                }
+            }
+
+            // Verify upload worked by checking file size
+            $verifySize = $this->execute("stat -c%s " . escapeshellarg($remotePath) . " 2>/dev/null || echo '0'");
+            $expectedSize = strlen($fileContent);
+
+            if (trim($verifySize) != $expectedSize) {
+                Log::error("File upload verification failed. Expected size: {$expectedSize}, got: " . trim($verifySize));
+                return false;
+            }
+
+            Log::info("SSH upload successful: {$localPath} to {$remotePath}");
             return true;
 
         } catch (\Exception $e) {
-            Log::error("SFTP operation failed. Error: " . $e->getMessage());
+            Log::error("SSH upload failed. Error: " . $e->getMessage());
             return false;
         }
     }

@@ -11,11 +11,13 @@ use App\Livewire\ServicePackageManager;
 use App\Models\VpsServer;
 use App\Http\Controllers\VpsProvisionController;
 use App\Jobs\ProvisionVpsJob;
-use App\Http\Controllers\TestGoogleDriveController;
-use App\Http\Controllers\FileUploadController;
-use App\Livewire\FileManager;
+
+
+
 use App\Http\Controllers\DashboardController;
 use App\Livewire\ServiceManager;
+
+// File Upload API Routes moved to api.php
 
 Route::get('/', function () {
     try {
@@ -197,39 +199,26 @@ Route::middleware(['auth', 'locale'])->group(function () {
 
     // Alias routes for consistency
     Route::get('/user/streams', \App\Livewire\UserStreamManager::class)->name('user.streams');
-    Route::get('/user/files', FileManager::class)->name('user.files');
-    
-    // Additional file manager aliases
-    Route::get('/files', FileManager::class)->name('file.manager');
+    // File Upload routes
+    Route::get('/files', \App\Livewire\FileUpload::class)->name('files');
+    Route::get('/file-manager', \App\Livewire\FileUpload::class)->name('file.manager');
+
+    // User file routes for consistency
+    Route::get('/user/files', \App\Livewire\FileUpload::class)->name('user.files');
     Route::get('/packages-selection', ServiceManager::class)->name('packages');
 
     // Additional user routes from sidebar
     Route::get('/user/packages', ServiceManager::class)->name('user.packages');
     Route::get('/user/billing', ServiceManager::class)->name('user.billing');
 
-    // File Upload routes
-    Route::get('/file-manager', FileManager::class)->name('file.manager');
-    Route::post('/file/upload', [FileUploadController::class, 'uploadVideo'])->name('file.upload');
+    // File Upload routes - Will be recreated
     
     // Profile routes
     Route::get('/profile', [\App\Http\Controllers\ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [\App\Http\Controllers\ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [\App\Http\Controllers\ProfileController::class, 'destroy'])->name('profile.destroy');
     
-    // Test Google Drive (for admin only)
-    Route::middleware('role:admin')->group(function () {
-        Route::get('/test-google-drive', [TestGoogleDriveController::class, 'index'])->name('test.google-drive');
-        Route::post('/test-google-drive/test-connection', [\App\Http\Controllers\TestGoogleDriveController::class, 'testConnection']);
-        Route::post('/test-google-drive/upload-test', [\App\Http\Controllers\TestGoogleDriveController::class, 'uploadTest']);
-        Route::post('/test-google-drive/upload-file', [\App\Http\Controllers\TestGoogleDriveController::class, 'uploadFile']);
-        Route::get('/test-google-drive/list-files', [\App\Http\Controllers\TestGoogleDriveController::class, 'listFiles']);
-        Route::post('/test-google-drive/download-file', [\App\Http\Controllers\TestGoogleDriveController::class, 'downloadFile']);
-        Route::post('/test-google-drive/delete-file', [\App\Http\Controllers\TestGoogleDriveController::class, 'deleteFile']);
-        Route::get('/test-google-drive/file-info', [\App\Http\Controllers\TestGoogleDriveController::class, 'getFileInfo']);
-        Route::post('/test-google-drive/test-direct-streaming', [\App\Http\Controllers\TestGoogleDriveController::class, 'testDirectStreaming']);
-        Route::post('/test-google-drive/test-optimized-streaming', [\App\Http\Controllers\TestGoogleDriveController::class, 'testOptimizedStreaming']);
-        Route::post('/test-google-drive/test-local-ffmpeg', [\App\Http\Controllers\TestGoogleDriveController::class, 'testLocalFFmpeg']);
-    });
+
     
     Route::middleware('role:admin')->prefix('admin')->name('admin.')->group(function () {
         Route::get('/dashboard', AdminDashboard::class)->name('dashboard');
@@ -237,7 +226,7 @@ Route::middleware(['auth', 'locale'])->group(function () {
         Route::get('/users', AdminUserManagement::class)->name('users');
         Route::get('/vps-servers', \App\Livewire\VpsServerManager::class)->name('vps-servers');
         Route::get('/vps-monitoring', VpsMonitoring::class)->name('vps-monitoring');
-        Route::get('/files', \App\Livewire\FileManager::class)->name('files');
+        Route::get('/files', \App\Livewire\FileUpload::class)->name('files');
         Route::get('/service-packages', ServicePackageManager::class)->name('service-packages');
         Route::get('/transactions', AdminTransactionManagement::class)->name('transactions');
         Route::get('/settings', AdminSettingsManager::class)->name('settings');
@@ -404,29 +393,7 @@ Route::middleware(['auth', 'locale'])->group(function () {
         }
     })->middleware(['auth', 'verified']);
 
-    // Create test file record for streaming
-    Route::get('/create-test-file', function () {
-        // Create a test UserFile record pointing to Google Drive
-        $testFile = \App\Models\UserFile::firstOrCreate([
-            'user_id' => auth()->id(),
-            'original_name' => 'test_video.mp4'
-        ], [
-            'disk' => 'google_drive',
-            'path' => 'google_drive',
-            'mime_type' => 'video/mp4',
-            'size' => 50 * 1024 * 1024, // 50MB
-            'status' => 'AVAILABLE',
-            'download_source' => 'google_drive',
-            'google_drive_file_id' => '1234567890abcdef', // Replace with real Google Drive file ID
-            'source_url' => 'https://drive.google.com/file/d/1234567890abcdef/view'
-        ]);
-        
-        return response()->json([
-            'success' => true,
-            'file_id' => $testFile->id,
-            'message' => 'Test file created. Update google_drive_file_id with real file ID from Google Drive.'
-        ]);
-    })->middleware(['auth', 'verified']);
+
 
     // Quick stream setup
     Route::get('/quick-stream-setup/{vps}', function (VpsServer $vps) {
@@ -446,7 +413,7 @@ Route::middleware(['auth', 'locale'])->group(function () {
             'description' => 'Testing VPS: ' . $vps->name,
             'vps_server_id' => $vps->id,
             'user_file_id' => $testFile->id,
-            'video_source_path' => 'google_drive',
+            'video_source_path' => 'bunny_cdn',
             'rtmp_url' => 'rtmp://a.rtmp.youtube.com/live2',
             'stream_key' => 'YOUR_STREAM_KEY', // Replace with real stream key
             'status' => 'INACTIVE',
@@ -467,15 +434,15 @@ Route::middleware(['auth', 'locale'])->group(function () {
         Route::get('/quick/{streamId}/{status}', [\App\Http\Controllers\WebhookTestController::class, 'quickTest'])->name('webhook.quick');
     });
 
-    // Upload route
-    Route::post('/upload/stream', [FileUploadController::class, 'streamProxyUpload'])->name('upload.stream');
+    // Upload route - DEPRECATED: Redirect to direct upload
+    Route::post('/upload/stream', function() {
+        return response()->json([
+            'status' => 'error',
+            'message' => 'Phương thức upload cũ đã bị vô hiệu hóa. Vui lòng sử dụng direct upload.'
+        ], 400);
+    })->name('upload.stream');
     
-    // Google Drive Import routes
-    Route::prefix('google-drive')->name('google-drive.')->group(function () {
-        Route::post('/validate-url', [\App\Http\Controllers\GoogleDriveController::class, 'validateUrl'])->name('validate-url');
-        Route::post('/init-download', [\App\Http\Controllers\GoogleDriveController::class, 'initDownload'])->name('init-download');
-        Route::get('/check-progress/{fileId}', [\App\Http\Controllers\GoogleDriveController::class, 'checkProgress'])->name('check-progress');
-    });
+
 });
 
 // API Routes for VPS Communication (accessible via /api prefix)

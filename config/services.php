@@ -76,12 +76,31 @@ return [
         'cache_ttl' => env('CDN_CACHE_TTL', 3600),
     ],
 
-    'google_drive' => [
-        'client_id' => env('GOOGLE_DRIVE_CLIENT_ID'),
-        'client_secret' => env('GOOGLE_DRIVE_CLIENT_SECRET'),
-        'refresh_token' => env('GOOGLE_DRIVE_REFRESH_TOKEN'),
-        'folder_id' => env('GOOGLE_DRIVE_FOLDER_ID'),
-        'service_account_path' => env('GOOGLE_SERVICE_ACCOUNT_PATH'),
+
+
+    'onedrive' => [
+        'client_id' => env('ONEDRIVE_CLIENT_ID'),
+        'client_secret' => env('ONEDRIVE_CLIENT_SECRET'),
+        'refresh_token' => env('ONEDRIVE_REFRESH_TOKEN'),
+        'tenant_id' => env('ONEDRIVE_TENANT_ID', 'common'),
+        'redirect_uri' => env('ONEDRIVE_REDIRECT_URI', 'http://localhost'),
+        'folder_id' => env('ONEDRIVE_FOLDER_ID', 'root'),
+    ],
+
+    's3_storage' => [
+        'access_key' => env('S3_STORAGE_ACCESS_KEY'),
+        'secret_key' => env('S3_STORAGE_SECRET_KEY'),
+        'region' => env('S3_STORAGE_REGION', 'us-east-1'),
+        'bucket' => env('S3_STORAGE_BUCKET'),
+        'endpoint' => env('S3_STORAGE_ENDPOINT'),
+        'url' => env('S3_STORAGE_URL'),
+    ],
+
+    'bunny' => [
+        'storage_zone' => env('BUNNY_STORAGE_ZONE', 'ezstream'),
+        'access_key' => env('BUNNY_ACCESS_KEY'),
+        'read_only_password' => env('BUNNY_READ_ONLY_PASSWORD'),
+        'cdn_url' => env('BUNNY_CDN_URL', 'https://ezstream.b-cdn.net'),
     ],
 
 ];

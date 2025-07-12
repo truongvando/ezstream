@@ -32,6 +32,11 @@ class Kernel extends ConsoleKernel
         $schedule->command('subscriptions:check-expiring --days=3')
                  ->dailyAt('09:00') // 9h sáng hàng ngày
                  ->withoutOverlapping();
+
+        // ✅ Monitor stream status every 5 minutes
+        $schedule->job(new \App\Jobs\MonitorStreamStatusJob)
+                 ->everyFiveMinutes()
+                 ->withoutOverlapping();
                  
         $schedule->command('subscriptions:check-expiring --days=1')
                  ->dailyAt('09:00') // Nhắc lại khi còn 1 ngày

@@ -25,10 +25,16 @@ class UserFile extends Model
         'error_message',
         'downloaded_at',
         'download_source',
+        'primary_vps_id',
+        'storage_locations',
+        's3_key',
+        's3_etag',
+        'public_url',
     ];
 
     protected $casts = [
         'downloaded_at' => 'datetime',
+        'storage_locations' => 'array',
     ];
 
     public function user(): BelongsTo

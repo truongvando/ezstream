@@ -14,28 +14,11 @@ class DirectStreamingService
     private const CHUNK_SIZE = 2 * 1024 * 1024; // 2MB chunks for HLS
 
     /**
-     * Tạo M3U8 playlist streaming trực tiếp từ Google Drive
+     * Direct streaming is deprecated - use multistream instead
      */
     public function createDirectStreamPlaylist(UserFile $userFile, VpsServer $vpsServer): array
     {
-        // 1. Lấy direct download URL từ Google Drive
-        $directUrl = $this->getGoogleDriveDirectUrl($userFile->google_drive_file_id);
-        if (!$directUrl) {
-            throw new \Exception('Cannot get direct download URL from Google Drive');
-        }
-
-        // 2. Tạo streaming endpoint trên VPS
-        $streamingEndpoint = $this->createStreamingEndpoint($userFile, $vpsServer, $directUrl);
-
-        // 3. Generate M3U8 playlist
-        $playlistUrl = $this->generateHLSPlaylist($userFile, $vpsServer, $streamingEndpoint);
-
-        return [
-            'playlist_url' => $playlistUrl,
-            'direct_url' => $directUrl,
-            'streaming_endpoint' => $streamingEndpoint,
-            'method' => 'direct_streaming'
-        ];
+        throw new \Exception('Direct streaming is deprecated. Use multistream system instead.');
     }
 
     /**
@@ -77,27 +60,10 @@ class DirectStreamingService
     }
 
     /**
-     * Thử Google Drive API
+     * Google Drive API removed - use Bunny CDN instead
      */
     private function tryGoogleDriveAPI(string $fileId): ?string
     {
-        $apiKey = config('services.google.api_key');
-        if (!$apiKey) return null;
-
-        try {
-            $response = Http::timeout(10)->get(self::GOOGLE_DRIVE_API_URL . "/{$fileId}", [
-                'fields' => 'webContentLink,downloadUrl',
-                'key' => $apiKey
-            ]);
-
-            if ($response->successful()) {
-                $data = $response->json();
-                return $data['webContentLink'] ?? $data['downloadUrl'] ?? null;
-            }
-        } catch (\Exception $e) {
-            // Silent fail, try other methods
-        }
-
         return null;
     }
 

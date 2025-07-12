@@ -23,7 +23,7 @@ class UserStreamManager extends Component
     public $deletingStream;
     
     // Form fields
-    public $title, $description, $user_file_ids = [], $platform;
+    public $title, $description, $user_file_ids = [], $platform = 'youtube';
     public $rtmp_url, $stream_key;
     
     // New feature fields
@@ -68,6 +68,7 @@ class UserStreamManager extends Component
         
         $this->reset(['title', 'description', 'user_file_ids', 'platform', 'rtmp_url', 'stream_key', 'playlist_order']);
         $this->user_file_ids = [];
+        $this->platform = 'youtube';
         $this->playlist_order = 'sequential';
         $this->showCreateModal = true;
         Log::info('showCreateModal set to true: ' . ($this->showCreateModal ? 'true' : 'false'));
@@ -82,10 +83,6 @@ class UserStreamManager extends Component
     {
         $platforms = [
             'youtube' => 'rtmp://a.rtmp.youtube.com/live2',
-            'facebook' => 'rtmp://live-api-s.facebook.com/rtmp',
-            'twitch' => 'rtmp://live.twitch.tv/app',
-            'instagram' => 'rtmp://live-upload.instagram.com/rtmp',
-            'tiktok' => 'rtmp://push.tiktokcdn.com/live',
             'custom' => ''
         ];
 
@@ -96,10 +93,6 @@ class UserStreamManager extends Component
     {
         $backupPlatforms = [
             'youtube' => 'rtmp://b.rtmp.youtube.com/live2',
-            'facebook' => 'rtmp://live-api-s.facebook.com/rtmp', // Facebook usually same server
-            'twitch' => 'rtmp://live-jfk.twitch.tv/app', // Different region
-            'instagram' => 'rtmp://live-upload.instagram.com/rtmp', // Same for Instagram
-            'tiktok' => 'rtmp://push.tiktokcdn-sg.com/live', // Singapore server
             'custom' => '' // No backup for custom
         ];
 
@@ -109,10 +102,6 @@ class UserStreamManager extends Component
     protected function detectPlatformFromUrl($url)
     {
         if (str_contains($url, 'youtube.com')) return 'youtube';
-        if (str_contains($url, 'facebook.com')) return 'facebook';
-        if (str_contains($url, 'twitch.tv')) return 'twitch';
-        if (str_contains($url, 'instagram.com')) return 'instagram';
-        if (str_contains($url, 'tiktok')) return 'tiktok';
         return 'custom';
     }
 
@@ -120,10 +109,6 @@ class UserStreamManager extends Component
     {
         return [
             'youtube' => '📺 YouTube Live',
-            'facebook' => '📘 Facebook Live', 
-            'twitch' => '🎮 Twitch',
-            'instagram' => '📷 Instagram Live',
-            'tiktok' => '🎵 TikTok Live',
             'custom' => '⚙️ Custom RTMP'
         ];
     }
@@ -132,14 +117,6 @@ class UserStreamManager extends Component
     {
         $this->validate();
 
-        $vpsAllocationService = new VpsAllocationService();
-        $optimalVps = $vpsAllocationService->findOptimalVps();
-
-        if (!$optimalVps) {
-            session()->flash('error', 'Hệ thống đang quá tải. Vui lòng thử lại sau.');
-            return;
-        }
-        
         $rtmpUrl = $this->platform === 'custom' ? $this->rtmp_url : $this->getPlatformUrl($this->platform);
 
         // Prepare file list for JSON storage
@@ -157,19 +134,19 @@ class UserStreamManager extends Component
         // Auto-generate backup URL based on platform
         $backupRtmpUrl = $this->platform !== 'custom' ? $this->getPlatformBackupUrl($this->platform) : '';
 
+        // Create stream configuration (VPS allocation will be handled by StartStreamJob)
         Auth::user()->streamConfigurations()->create([
             'title' => $this->title,
             'description' => $this->description,
-            'vps_server_id' => $optimalVps->id,
-            'video_source_path' => json_encode($fileList), // Store file list as JSON
+            'video_source_path' => $fileList, // Store file list as array (auto-cast to JSON)
             'rtmp_url' => $rtmpUrl,
             'rtmp_backup_url' => $backupRtmpUrl, // Auto-generated backup
             'stream_key' => $this->stream_key,
+            'status' => 'INACTIVE',
             'stream_preset' => $this->stream_preset,
             'loop' => $this->loop,
             'scheduled_at' => $this->scheduled_at,
             'playlist_order' => $this->playlist_order,
-            'ffmpeg_options' => '', // Deprecated in favor of presets
             'user_file_id' => $selectedFiles->first()->id, // Primary file for backward compatibility
         ]);
 
@@ -254,7 +231,7 @@ class UserStreamManager extends Component
         $this->editingStream->update([
             'title' => $this->title,
             'description' => $this->description,
-            'video_source_path' => json_encode($fileList),
+            'video_source_path' => $fileList, // Store file list as array (auto-cast to JSON)
             'rtmp_url' => $rtmpUrl,
             'rtmp_backup_url' => $backupRtmpUrl, // Auto-generated backup
             'stream_key' => $this->stream_key,
@@ -262,7 +239,6 @@ class UserStreamManager extends Component
             'loop' => $this->loop,
             'scheduled_at' => $this->scheduled_at,
             'playlist_order' => $this->playlist_order,
-            'ffmpeg_options' => '', // Deprecated
             'user_file_id' => $selectedFiles->first()->id,
         ]);
 
@@ -320,7 +296,7 @@ class UserStreamManager extends Component
     public function render()
     {
         $streams = Auth::user()->streamConfigurations()->with('vpsServer')->paginate(10);
-        $userFiles = Auth::user()->files()->where('status', 'AVAILABLE')->get();
+        $userFiles = Auth::user()->files()->where('status', 'ready')->get();
 
         return view('livewire.user-stream-manager', [
             'streams' => $streams,

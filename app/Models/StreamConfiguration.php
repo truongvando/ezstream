@@ -38,6 +38,7 @@ class StreamConfiguration extends Model
         'last_status_update' => 'datetime',
         'scheduled_at' => 'datetime',
         'loop' => 'boolean',
+        'video_source_path' => 'array', // Cast JSON to array automatically
     ];
 
     public function user()

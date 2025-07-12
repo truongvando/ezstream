@@ -68,13 +68,27 @@ class ProvisionVpsJob implements ShouldQueue
             $updateResult = $sshService->execute('sudo apt-get update -y');
             Log::channel('provisioning')->info("📦 [VPS #{$this->vps->id}] apt-get update completed");
 
-            // Install nginx and nginx-rtmp module
-            $installResult = $sshService->execute('sudo apt-get install -y ffmpeg nginx libnginx-mod-rtmp jq curl');
+            // Install basic packages (nginx-rtmp disabled temporarily)
+            $installResult = $sshService->execute('sudo apt-get install -y ffmpeg jq curl');
             Log::channel('provisioning')->info("✅ [VPS #{$this->vps->id}] Packages installed successfully");
 
-            // 1.5. Setup nginx-rtmp configuration
-            Log::channel('provisioning')->info("🔧 [VPS #{$this->vps->id}] Configuring nginx-rtmp proxy");
-            $this->setupNginxRtmpProxy($sshService);
+            // 1.5. Setup nginx-rtmp configuration (with error handling)
+            try {
+                Log::channel('provisioning')->info("🔧 [VPS #{$this->vps->id}] Attempting nginx-rtmp setup");
+
+                // Try to install nginx-rtmp
+                $nginxRtmpResult = $sshService->execute('sudo apt-get install -y nginx libnginx-mod-rtmp');
+
+                if (strpos($nginxRtmpResult, 'E: ') === false) {
+                    $this->setupNginxRtmpProxy($sshService);
+                    Log::channel('provisioning')->info("✅ [VPS #{$this->vps->id}] Nginx-RTMP setup completed");
+                } else {
+                    Log::channel('provisioning')->warning("⚠️ [VPS #{$this->vps->id}] Nginx-RTMP package not available, skipping");
+                }
+            } catch (\Exception $e) {
+                Log::channel('provisioning')->warning("⚠️ [VPS #{$this->vps->id}] Nginx-RTMP setup failed: {$e->getMessage()}");
+                // Continue without nginx-rtmp - not critical for basic functionality
+            }
 
             // 2. Deploy Streaming Agent
             Log::channel('provisioning')->info("📁 [VPS #{$this->vps->id}] Deploying streaming agent");

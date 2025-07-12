@@ -162,7 +162,7 @@ class User extends Authenticatable
         $this->subscriptions()
             ->where('status', 'ACTIVE')
             ->where('ends_at', '<=', now())
-            ->update(['status' => 'EXPIRED']);
+            ->update(['status' => 'INACTIVE']);
 
         $activeSubscriptions = $this->subscriptions()
             ->where('status', 'ACTIVE')

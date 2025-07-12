@@ -134,7 +134,7 @@ class VpsServerManager extends Component
             $this->dispatch('vps-updated');
 
             // Reset form
-            $this->reset(['name', 'provider', 'ip_address', 'ssh_user', 'ssh_password', 'ssh_port', 'description']);
+            $this->reset(['name', 'ip_address', 'ssh_user', 'ssh_password', 'ssh_port', 'description']);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             // Re-throw validation exceptions to show field errors

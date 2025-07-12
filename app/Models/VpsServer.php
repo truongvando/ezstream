@@ -30,6 +30,12 @@ class VpsServer extends Model
         'ram_gb',
         'disk_gb',
         'bandwidth_gb',
+        'capabilities',
+        'max_concurrent_streams',
+        'current_streams',
+        'last_seen_at',
+        'last_provisioned_at',
+        'error_message',
     ];
 
     /**
@@ -51,6 +57,11 @@ class VpsServer extends Model
         'ssh_password' => 'encrypted',
         'ssh_port' => 'integer',
         'provisioned_at' => 'datetime',
+        'capabilities' => 'array',
+        'max_concurrent_streams' => 'integer',
+        'current_streams' => 'integer',
+        'last_seen_at' => 'datetime',
+        'last_provisioned_at' => 'datetime',
     ];
 
     /**

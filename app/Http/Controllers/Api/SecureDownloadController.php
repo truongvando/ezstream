@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\UserFile;
 use App\Services\GoogleDriveService;
+use App\Services\BunnyStorageService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -37,6 +38,8 @@ class SecureDownloadController extends Controller
             // Handle different storage types
             if ($userFile->disk === 'google_drive') {
                 return $this->downloadFromGoogleDrive($userFile);
+            } elseif ($userFile->disk === 'bunny_cdn') {
+                return $this->downloadFromBunnyCdn($userFile);
             } else {
                 return $this->downloadFromLocal($userFile);
             }
@@ -63,10 +66,31 @@ class SecureDownloadController extends Controller
         return redirect($response['download_link']);
     }
 
+    protected function downloadFromBunnyCdn(UserFile $userFile)
+    {
+        // For Bunny.net, redirect to CDN URL for direct download
+        $remotePath = $userFile->path; // This should be the Bunny.net remote path
+
+        Log::info("Redirecting to Bunny.net CDN", [
+            'file_id' => $userFile->id,
+            'remote_path' => $remotePath
+        ]);
+
+        $bunnyService = app(BunnyStorageService::class);
+        $result = $bunnyService->getDirectDownloadLink($remotePath);
+
+        if (!$result['success']) {
+            throw new \Exception('Cannot get Bunny.net download link: ' . ($result['error'] ?? 'Unknown error'));
+        }
+
+        // Return redirect to CDN URL for direct download
+        return redirect($result['download_link']);
+    }
+
     protected function downloadFromLocal(UserFile $userFile)
     {
         $filePath = Storage::disk('local')->path($userFile->path);
-        
+
         if (!file_exists($filePath)) {
             throw new \Exception('Local file not found');
         }
