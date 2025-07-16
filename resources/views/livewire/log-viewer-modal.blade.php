@@ -1,4 +1,4 @@
-<div>
+<div wire:poll.5s>
     <!-- Log Viewer Modal -->
     <x-modal-v2 wire:model.live="showModal" max-width="4xl">
         <div class="p-6">

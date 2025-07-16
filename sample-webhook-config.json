@@ -1,0 +1,36 @@
+{
+    "vps_id": 999,
+    "controller_url": "https:\/\/6b4ac0a44316.ngrok-free.app",
+    "auth_token": "48a1ec91e1142cda7985bf6b339710e7ea0a99ebe20ba7c53f5661c5044f01d9",
+    "webhook_endpoints": {
+        "vps_stats": "https:\/\/6b4ac0a44316.ngrok-free.app\/api\/webhook\/vps",
+        "stream_events": "https:\/\/6b4ac0a44316.ngrok-free.app\/api\/webhook\/stream",
+        "health_check": "https:\/\/6b4ac0a44316.ngrok-free.app\/api\/webhook\/health"
+    },
+    "intervals": {
+        "vps_stats": 45,
+        "stream_events": 22,
+        "health_check": 300
+    },
+    "rate_limits": {
+        "vps_stats": "1800\/min",
+        "stream_events": "3600\/min",
+        "health_check": "60\/min"
+    },
+    "batching": {
+        "enabled": true,
+        "max_batch_size": 50,
+        "batch_timeout": 5,
+        "compress": true
+    },
+    "retry": {
+        "max_attempts": 3,
+        "backoff_multiplier": 2,
+        "initial_delay": 1
+    },
+    "performance": {
+        "connection_pool_size": 10,
+        "request_timeout": 30,
+        "keep_alive": true
+    }
+}

@@ -5,7 +5,7 @@ namespace App\Livewire;
 use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\VpsServer;
-use App\Jobs\ProvisionVpsJob;
+use App\Jobs\ProvisionMultistreamVpsJob;
 use App\Services\SshService;
 use Illuminate\Support\Facades\Log;
 
@@ -122,8 +122,8 @@ class VpsServerManager extends Component
                 Log::info("VPS created successfully: {$server->name} (ID: {$server->id})");
 
                 // Dispatch provision job
-                ProvisionVpsJob::dispatch($server);
-                Log::info("ProvisionVpsJob dispatched for VPS ID: {$server->id}");
+                ProvisionMultistreamVpsJob::dispatch($server);
+                Log::info("ProvisionMultistreamVpsJob dispatched for VPS ID: {$server->id}");
 
                 session()->flash('message', 'VPS Server đã được thêm và đang được cài đặt tự động!');
             }

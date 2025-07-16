@@ -3,13 +3,15 @@
 namespace App\Jobs;
 
 use App\Models\StreamConfiguration;
+use App\Services\Stream\StreamManager;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Redis;
+use Predis\Client as PredisClient;
 
 class StopMultistreamJob implements ShouldQueue
 {
@@ -23,132 +25,125 @@ class StopMultistreamJob implements ShouldQueue
     public function __construct(StreamConfiguration $stream)
     {
         $this->stream = $stream;
-        Log::info("🛑 [Stream #{$this->stream->id}] Stop multistream job created");
+        Log::info("🛑 [Stream #{$this->stream->id}] New Redis-based Stop job created");
     }
 
     public function handle(): void
     {
-        Log::info("🛑 [Stream #{$this->stream->id}] Stopping multistream: {$this->stream->title}");
+        Log::info("🛑 [StopMultistreamJob-Redis] Job started for stream #{$this->stream->id}");
 
         try {
-            // Update stream status
-            $this->stream->update(['status' => 'STOPPING']);
+            $vpsId = $this->stream->vps_server_id;
 
-            // Check if stream has assigned VPS
-            if (!$this->stream->vps_server_id) {
-                Log::warning("⚠️ [Stream #{$this->stream->id}] No VPS assigned, marking as stopped");
+            // Nếu không có VPS ID, không thể gửi lệnh -> đánh dấu là đã dừng
+            if (!$vpsId) {
+                Log::warning("⚠️ [Stream #{$this->stream->id}] No VPS ID assigned. Marking as INACTIVE directly.");
                 $this->stream->update([
                     'status' => 'INACTIVE',
                     'last_stopped_at' => now(),
+                    'vps_server_id' => null,
                 ]);
                 return;
             }
 
-            $vps = $this->stream->vpsServer;
-            if (!$vps) {
-                Log::warning("⚠️ [Stream #{$this->stream->id}] VPS not found, marking as stopped");
-                $this->stream->update([
-                    'status' => 'INACTIVE',
-                    'last_stopped_at' => now(),
-                ]);
-                return;
-            }
+            // Tạo lệnh STOP
+            $redisCommand = [
+                'command' => 'STOP_STREAM',
+                'stream_id' => $this->stream->id,
+            ];
 
-            // Send stop request to VPS
-            $this->sendStreamStopRequest($vps);
+            // Gửi lệnh qua Redis với retry mechanism
+            $channel = "vps-commands:{$vpsId}";
+            $publishResult = $this->publishWithRetry($channel, $redisCommand);
 
-            // Update stream status
+            Log::info("✅ [Stream #{$this->stream->id}] Stop command published to Redis channel '{$channel}'", [
+                'publish_result' => $publishResult,
+                'subscribers' => $publishResult > 0 ? 'YES' : 'NO'
+            ]);
+
+            // Cập nhật trạng thái ngay lập tức. Agent sẽ không báo cáo lại trạng thái STOPPED.
+            // Việc này giúp giao diện phản hồi nhanh hơn.
             $this->stream->update([
                 'status' => 'INACTIVE',
                 'last_stopped_at' => now(),
-                'error_message' => null
+                'vps_server_id' => null, // Xóa vps_id khi stream dừng
+                'error_message' => null,
             ]);
 
-            // Decrement VPS current streams count
-            if ($vps->current_streams > 0) {
-                $vps->decrement('current_streams');
-            }
-
-            Log::info("✅ [Stream #{$this->stream->id}] Multistream stopped successfully");
-
         } catch (\Exception $e) {
-            Log::error("❌ [Stream #{$this->stream->id}] Stop multistream job failed", [
+            Log::error("❌ [Stream #{$this->stream->id}] StopMultistreamJob-Redis failed", [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
 
-            // Still mark as stopped even if VPS communication failed
+            // Quan trọng: Luôn cập nhật trạng thái để tránh bị treo ở STOPPING
+            // Nếu không gửi được lệnh stop, vẫn đánh dấu là INACTIVE vì stream có thể đã dừng
             $this->stream->update([
-                'status' => 'ERROR',
-                'error_message' => "Stop failed: {$e->getMessage()}",
+                'status' => 'INACTIVE', // Thay vì ERROR để tránh treo
+                'error_message' => "Stop command failed but marked as stopped: " . $e->getMessage(),
                 'last_stopped_at' => now(),
+                'vps_server_id' => null, // Xóa vps_id để giải phóng
             ]);
 
-            throw $e;
+            // Không throw exception để tránh job retry vô tận
+            Log::warning("⚠️ [Stream #{$this->stream->id}] Stop job completed with errors but stream marked as INACTIVE");
         }
     }
 
-    private function sendStreamStopRequest($vps): void
+    /**
+     * Publish Redis command with retry mechanism
+     */
+    private function publishWithRetry(string $channel, array $command, int $maxRetries = 3): int
     {
-        Log::info("📡 [Stream #{$this->stream->id}] Sending stop request to VPS {$vps->id}");
+        $lastException = null;
 
-        $apiUrl = "http://{$vps->ip_address}:9999/stream/stop";
-        
-        try {
-            $response = Http::timeout(30)
-                ->connectTimeout(10)
-                ->retry(3, 2000) // 3 retries with 2 second delay
-                ->post($apiUrl, [
-                    'stream_id' => $this->stream->id
+        for ($attempt = 1; $attempt <= $maxRetries; $attempt++) {
+            try {
+                // Tạo raw Redis connection với timeout settings
+                $redisConfig = config('database.redis.default');
+                $rawRedis = new PredisClient([
+                    'scheme' => 'tcp',
+                    'host' => $redisConfig['host'],
+                    'port' => $redisConfig['port'],
+                    'password' => $redisConfig['password'],
+                    'database' => $redisConfig['database'],
+                    'timeout' => 5.0, // Connection timeout
+                    'read_write_timeout' => 10.0, // Read/write timeout
                 ]);
 
-            if (!$response->successful()) {
-                throw new \Exception("VPS API request failed: HTTP {$response->status()} - {$response->body()}");
+                $publishResult = $rawRedis->publish($channel, json_encode($command));
+
+                Log::info("✅ [Stream #{$this->stream->id}] Redis publish successful on attempt {$attempt}");
+                return $publishResult;
+
+            } catch (\Exception $e) {
+                $lastException = $e;
+                Log::warning("⚠️ [Stream #{$this->stream->id}] Redis publish attempt {$attempt} failed: {$e->getMessage()}");
+
+                if ($attempt < $maxRetries) {
+                    // Wait before retry (exponential backoff)
+                    $waitTime = pow(2, $attempt - 1); // 1s, 2s, 4s...
+                    sleep($waitTime);
+                }
             }
-
-            $responseData = $response->json();
-            
-            if (isset($responseData['error'])) {
-                throw new \Exception("VPS returned error: {$responseData['error']}");
-            }
-
-            Log::info("✅ [Stream #{$this->stream->id}] VPS accepted stop request", [
-                'vps_response' => $responseData
-            ]);
-
-        } catch (\Exception $e) {
-            Log::error("❌ [Stream #{$this->stream->id}] Failed to send stop request to VPS", [
-                'vps_id' => $vps->id,
-                'vps_ip' => $vps->ip_address,
-                'api_url' => $apiUrl,
-                'error' => $e->getMessage()
-            ]);
-
-            // Don't throw exception here - we still want to mark stream as stopped
-            Log::warning("⚠️ [Stream #{$this->stream->id}] Continuing with stop despite VPS communication failure");
         }
+
+        // All attempts failed
+        throw new \Exception("Redis publish failed after {$maxRetries} attempts. Last error: " . $lastException->getMessage());
     }
 
     public function failed(\Throwable $exception): void
     {
-        Log::error("💥 [Stream #{$this->stream->id}] Stop multistream job failed permanently", [
+        Log::error("💥 [Stream #{$this->stream->id}] StopMultistreamJob-Redis failed permanently", [
             'error' => $exception->getMessage(),
-            'trace' => $exception->getTraceAsString()
         ]);
 
-        // Force stop the stream even if job failed
+        // Đảm bảo stream không bị treo ở trạng thái STOPPING
         $this->stream->update([
-            'status' => 'ERROR',
-            'error_message' => "Stop failed: {$exception->getMessage()}",
+            'status' => 'INACTIVE', // Thay vì ERROR để tránh treo
+            'error_message' => "Stop job failed after retries: " . $exception->getMessage(),
             'last_stopped_at' => now(),
+            'vps_server_id' => null, // Xóa vps_id để giải phóng
         ]);
-
-        // Decrement VPS stream count
-        if ($this->stream->vps_server_id) {
-            $vps = $this->stream->vpsServer;
-            if ($vps && $vps->current_streams > 0) {
-                $vps->decrement('current_streams');
-            }
-        }
     }
 }

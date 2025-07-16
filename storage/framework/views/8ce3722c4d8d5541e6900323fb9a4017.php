@@ -14,7 +14,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="<?php echo e(csrf_token()); ?>">
 
-        <title><?php echo e(config('app.name', 'VPS Live Stream Control')); ?></title>
+        <title><?php echo e(config('app.name', 'EZStream Live Stream Control')); ?></title>
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
@@ -116,5 +116,6 @@
         </div>
         <?php echo \Livewire\Mechanisms\FrontendAssets\FrontendAssets::scripts(); ?>
 
+        <?php echo $__env->yieldPushContent('scripts'); ?>
     </body>
-</html> <?php /**PATH D:\laragon\www\ezstream\resources\views/layouts/sidebar.blade.php ENDPATH**/ ?>
+</html><?php /**PATH D:\laragon\www\ezstream\resources\views/layouts/sidebar.blade.php ENDPATH**/ ?>

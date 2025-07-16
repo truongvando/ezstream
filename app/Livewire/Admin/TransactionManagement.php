@@ -6,14 +6,15 @@ use App\Models\Transaction;
 use App\Models\User;
 use Livewire\Component;
 use Livewire\WithPagination;
+use App\Models\Subscription;
 
 class TransactionManagement extends Component
 {
     use WithPagination;
 
     public $showEditModal = false;
-    public $editingTransaction;
-    public $status;
+    public ?Transaction $editingTransaction = null;
+    public $newStatus = '';
     
     // Filters
     public $filterUserId = '';
@@ -24,46 +25,63 @@ class TransactionManagement extends Component
     public $sortField = 'created_at';
     public $sortDirection = 'desc';
 
-    protected $rules = [
-        'status' => 'required|in:PENDING,COMPLETED,FAILED',
-    ];
-
-    public function edit(Transaction $transaction)
+    protected function rules()
+    {
+        return [
+            'newStatus' => 'required|in:PENDING,COMPLETED,FAILED,CANCELED',
+        ];
+    }
+    
+    public function editTransaction(Transaction $transaction)
     {
         $this->editingTransaction = $transaction;
-        $this->status = $transaction->status;
+        $this->newStatus = $transaction->status;
         $this->showEditModal = true;
     }
 
-    public function update()
+    public function updateTransaction()
     {
         $this->validate();
         
-        // Add logic to activate subscription if transaction is completed
-        if ($this->status === 'COMPLETED' && $this->editingTransaction->status !== 'COMPLETED') {
-            if ($this->editingTransaction->subscription) {
-                $this->editingTransaction->subscription->update(['status' => 'ACTIVE']);
+        $originalStatus = $this->editingTransaction->status;
+        $newStatus = $this->newStatus;
+
+        if ($originalStatus !== $newStatus) {
+            $subscription = $this->editingTransaction->subscription;
+            
+            if ($subscription) {
+                // Logic when manually completing a transaction
+                if ($newStatus === 'COMPLETED' && $originalStatus !== 'COMPLETED') {
+                     // Deactivate other active subscriptions of the user
+                    $subscription->user->subscriptions()
+                        ->where('status', 'ACTIVE')
+                        ->where('id', '!=', $subscription->id)
+                        ->update(['status' => 'CANCELED']);
+
+                    // Activate the new subscription
+                    $subscription->update([
+                        'status' => 'ACTIVE',
+                        'starts_at' => $subscription->starts_at ?? now(),
+                        'ends_at' => $subscription->ends_at ?? now()->addMonth(),
+                    ]);
+                }
+                // Logic when manually failing/canceling a transaction that was active
+                elseif (in_array($newStatus, ['FAILED', 'CANCELED']) && $subscription->status === 'ACTIVE') {
+                    $subscription->update(['status' => 'INACTIVE']);
+                }
             }
+             $this->editingTransaction->update(['status' => $newStatus]);
         }
         
-        $this->editingTransaction->update(['status' => $this->status]);
-        
         $this->showEditModal = false;
-        session()->flash('success', 'Transaction status updated.');
+        session()->flash('success', 'Trạng thái giao dịch đã được cập nhật.');
     }
     
     public function updatingFilterUserId() { $this->resetPage(); }
     public function updatingFilterStatus() { $this->resetPage(); }
 
-    public function updatingSearch()
-    {
-        $this->resetPage();
-    }
-
-    public function updatingStatusFilter()
-    {
-        $this->resetPage();
-    }
+    public function updatingSearch() { $this->resetPage(); }
+    public function updatingStatusFilter() { $this->resetPage(); }
 
     public function sortBy($field)
     {

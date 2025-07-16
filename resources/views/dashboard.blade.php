@@ -57,7 +57,7 @@
                     <div class="flex items-center justify-between">
                         <div>
                             <h1 class="text-3xl font-bold mb-2">Xin chào, {{ Auth::user()->name }}! 👋</h1>
-                            <p class="text-blue-100 text-lg">Quản lý streams và dịch vụ VPS của bạn tại đây</p>
+                            <p class="text-blue-100 text-lg">Quản lý streams và dịch vụ STREAM của bạn tại đây</p>
                         </div>
                         <div class="hidden md:block">
                             <div class="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center">
@@ -174,7 +174,7 @@
                             </div>
                         </div>
                         <div class="bg-purple-50 dark:bg-purple-900/20 px-6 py-3">
-                            <a href="{{ route('file.manager') }}" class="text-purple-600 dark:text-purple-400 text-sm font-semibold hover:text-purple-800 dark:hover:text-purple-300">
+                            <a href="{{ route('files.index') }}" class="text-purple-600 dark:text-purple-400 text-sm font-semibold hover:text-purple-800 dark:hover:text-purple-300">
                                 Quản lý files →
                             </a>
                         </div>
@@ -219,7 +219,7 @@
                             </a>
                             @endif
 
-                            <a href="{{ route('file.manager') }}" class="group bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white rounded-xl p-6 transition-all duration-300 hover:shadow-lg hover:scale-105">
+                            <a href="{{ route('files.index') }}" class="group bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-600 hover:to-cyan-700 text-white rounded-xl p-6 transition-all duration-300 hover:shadow-lg hover:scale-105">
                                 <div class="flex items-center space-x-4">
                                     <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
@@ -327,4 +327,6 @@
             @endif
         </div>
     </div>
+
+
 </x-app-layout>

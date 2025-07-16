@@ -131,7 +131,7 @@ setup_environment() {
     sed -i "s/CACHE_DRIVER=.*/CACHE_DRIVER=redis/" .env
     sed -i "s/QUEUE_CONNECTION=.*/QUEUE_CONNECTION=redis/" .env
     sed -i "s/SESSION_DRIVER=.*/SESSION_DRIVER=redis/" .env
-    sed -i "s/SESSION_LIFETIME=.*/SESSION_LIFETIME=10080/" .env
+    sed -i "s/SESSION_LIFETIME=.*/SESSION_LIFETIME=43200/" .env
     
     # Generate app key
     php artisan key:generate

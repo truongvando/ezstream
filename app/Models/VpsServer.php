@@ -36,6 +36,9 @@ class VpsServer extends Model
         'last_seen_at',
         'last_provisioned_at',
         'error_message',
+        'webhook_configured',
+        'webhook_url',
+        'last_webhook_setup',
     ];
 
     /**
@@ -62,6 +65,8 @@ class VpsServer extends Model
         'current_streams' => 'integer',
         'last_seen_at' => 'datetime',
         'last_provisioned_at' => 'datetime',
+        'webhook_configured' => 'boolean',
+        'last_webhook_setup' => 'datetime',
     ];
 
     /**

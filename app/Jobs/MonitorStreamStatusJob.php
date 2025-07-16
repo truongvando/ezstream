@@ -4,7 +4,8 @@ namespace App\Jobs;
 
 use App\Models\StreamConfiguration;
 use App\Models\VpsServer;
-use App\Services\SshService;
+use App\Services\Vps\VpsConnection;
+use App\Services\Vps\VpsMonitor;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -24,7 +25,7 @@ class MonitorStreamStatusJob implements ShouldQueue
     /**
      * Monitor all streams and update their real status
      */
-    public function handle(SshService $sshService): void
+    public function handle(VpsConnection $vpsConnection, VpsMonitor $vpsMonitor): void
     {
         Log::info("Starting stream status monitoring");
 
@@ -32,7 +33,7 @@ class MonitorStreamStatusJob implements ShouldQueue
         $streamingStreams = StreamConfiguration::whereIn('status', ['STREAMING', 'STARTING'])->get();
 
         foreach ($streamingStreams as $stream) {
-            $this->checkStreamStatus($stream, $sshService);
+            $this->checkStreamStatus($stream, $vpsConnection, $vpsMonitor);
         }
 
         Log::info("Stream status monitoring completed", [
@@ -40,7 +41,7 @@ class MonitorStreamStatusJob implements ShouldQueue
         ]);
     }
 
-    private function checkStreamStatus(StreamConfiguration $stream, SshService $sshService): void
+    private function checkStreamStatus(StreamConfiguration $stream, VpsConnection $vpsConnection, VpsMonitor $vpsMonitor): void
     {
         try {
             if (!$stream->vps_server_id) {
@@ -60,51 +61,35 @@ class MonitorStreamStatusJob implements ShouldQueue
                 return;
             }
 
-            if (!$sshService->connect($vps)) {
-                Log::warning("Cannot connect to stream VPS", [
+            // Check VPS health first
+            if (!$vpsMonitor->isHealthy($vps)) {
+                Log::warning("Stream VPS is not healthy", [
                     'stream_id' => $stream->id,
-                    'vps_ip' => $vps->ip_address
+                    'vps_id' => $vps->id
                 ]);
-                $stream->update(['status' => 'ERROR', 'error_message' => 'Cannot connect to VPS']);
+                $stream->update(['status' => 'ERROR', 'error_message' => 'VPS is not healthy']);
                 return;
             }
 
-            // Check if FFmpeg is actually running for this stream
-            $ffmpegCheck = $sshService->execute("ps aux | grep 'stream_{$stream->id}' | grep ffmpeg | grep -v grep | wc -l");
-            $isStreaming = trim($ffmpegCheck) > 0;
-
-            // Check if stream directory exists
-            $streamDir = "/tmp/stream_{$stream->id}";
-            $dirExists = $sshService->execute("[ -d '{$streamDir}' ] && echo 'YES' || echo 'NO'");
-            $hasDirctory = trim($dirExists) === 'YES';
-
-            // Check for failed jobs
-            $failedJobs = $sshService->execute("ls /opt/job-queue/failed/ | grep job_{$stream->id} | wc -l");
-            $hasFailedJobs = trim($failedJobs) > 0;
-
-            $sshService->disconnect();
-
-            // Determine real status
-            if ($isStreaming && $hasDirctory) {
-                // Actually streaming
-                if ($stream->status !== 'STREAMING') {
-                    Log::info("Stream status corrected to STREAMING", ['stream_id' => $stream->id]);
-                    $stream->update(['status' => 'STREAMING', 'error_message' => null]);
-                }
-            } else if ($hasFailedJobs) {
-                // Has failed jobs - likely download issues
-                Log::warning("Stream has failed jobs", ['stream_id' => $stream->id]);
-                $stream->update([
-                    'status' => 'ERROR', 
-                    'error_message' => 'Stream failed - check download URLs or file availability'
+            // Check if manager is running on VPS
+            if (!$vpsConnection->isManagerRunning($vps)) {
+                Log::warning("Stream manager not running on VPS", [
+                    'stream_id' => $stream->id,
+                    'vps_id' => $vps->id
                 ]);
-            } else if ($stream->status === 'STREAMING') {
-                // Claims to be streaming but isn't
-                Log::warning("Stream claims STREAMING but not actually streaming", ['stream_id' => $stream->id]);
-                $stream->update([
-                    'status' => 'ERROR',
-                    'error_message' => 'Stream process not found - may have crashed'
+                $stream->update(['status' => 'ERROR', 'error_message' => 'Stream manager not running on VPS']);
+                return;
+            }
+
+            // For streams older than 10 minutes without webhook updates, mark as potentially failed
+            if ($stream->updated_at->lt(now()->subMinutes(10)) && $stream->status === 'STREAMING') {
+                Log::warning("Stream has not been updated via webhook for 10+ minutes", [
+                    'stream_id' => $stream->id,
+                    'last_update' => $stream->updated_at
                 ]);
+
+                // Don't immediately mark as error, but log for investigation
+                // The webhook system should handle status updates
             }
 
         } catch (\Exception $e) {

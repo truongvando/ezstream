@@ -5,6 +5,9 @@ namespace App\Services;
 use FFMpeg\FFMpeg;
 use FFMpeg\FFProbe;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Http\UploadedFile;
+use App\Models\User;
+use App\Models\ServicePackage;
 
 class VideoValidationService
 {
@@ -82,4 +85,52 @@ class VideoValidationService
             return ['valid' => false, 'reason' => 'Could not analyze video file.'];
         }
     }
-} 
+
+    /**
+     * Validate uploaded video against user's package limits
+     */
+    public function validateVideoUpload(UploadedFile $file, User $user): array
+    {
+        // Admin bypass all restrictions
+        if ($user->hasRole('admin')) {
+            return ['valid' => true, 'reason' => 'Admin user - all restrictions bypassed'];
+        }
+
+        // Get user's current package
+        $package = $user->currentPackage();
+        if (!$package) {
+            return [
+                'valid' => false,
+                'reason' => 'Không có gói dịch vụ. Vui lòng đăng ký gói để upload video.'
+            ];
+        }
+
+        // Validate resolution against package limits
+        return $this->validateResolution($file->getRealPath(), $package->max_video_width, $package->max_video_height);
+    }
+
+    /**
+     * Get resolution name from dimensions
+     */
+    public function getResolutionName(?int $width, ?int $height): string
+    {
+        if (!$width || !$height) return 'Unknown';
+
+        if ($width >= 3840 && $height >= 2160) return '4K UHD';
+        if ($width >= 2560 && $height >= 1440) return '2K QHD';
+        if ($width >= 1920 && $height >= 1080) return 'Full HD 1080p';
+        if ($width >= 1280 && $height >= 720) return 'HD 720p';
+        if ($width >= 854 && $height >= 480) return 'SD 480p';
+        return 'Low Quality';
+    }
+
+    /**
+     * Get package resolution limit as human readable
+     */
+    public function getPackageResolutionLimit(?ServicePackage $package): string
+    {
+        if (!$package) return 'HD 720p'; // Default limit
+
+        return $this->getResolutionName($package->max_video_width, $package->max_video_height);
+    }
+}

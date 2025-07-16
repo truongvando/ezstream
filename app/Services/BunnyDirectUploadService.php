@@ -46,12 +46,7 @@ class BunnyDirectUploadService
                 'created_at' => now()
             ], $expiresAt);
 
-            Log::info("Generated direct upload URL", [
-                'user_id' => $userId,
-                'file_name' => $fileName,
-                'remote_path' => $remotePath,
-                'upload_token' => $uploadToken
-            ]);
+
 
             return [
                 'success' => true,
@@ -65,7 +60,6 @@ class BunnyDirectUploadService
             ];
 
         } catch (Exception $e) {
-            Log::error('Failed to generate Bunny.net upload URL: ' . $e->getMessage());
             return [
                 'success' => false,
                 'error' => $e->getMessage()

@@ -10,12 +10,17 @@ use App\Livewire\Admin\VpsMonitoring;
 use App\Livewire\ServicePackageManager;
 use App\Models\VpsServer;
 use App\Http\Controllers\VpsProvisionController;
-use App\Jobs\ProvisionVpsJob;
+use App\Jobs\ProvisionMultistreamVpsJob;
 
 
 
 use App\Http\Controllers\DashboardController;
 use App\Livewire\ServiceManager;
+use App\Livewire\Admin\VpsServerManagement as AdminVpsServerManagement;
+use App\Livewire\Dashboard;
+use App\Livewire\FileUpload;
+use App\Livewire\PaymentManager;
+use App\Livewire\TransactionHistory;
 
 // File Upload API Routes moved to api.php
 
@@ -192,7 +197,7 @@ Route::middleware(['auth', 'locale'])->group(function () {
     Route::get('/payments', ServiceManager::class)->name('user.payments');
 
     // Payment Manager (giữ lại cho thanh toán riêng biệt nếu cần)
-    Route::get('/payment/{subscription}', \App\Livewire\PaymentManager::class)->name('payment.manager');
+    Route::get('/payment/{subscription}', PaymentManager::class)->name('payment.show');
 
     // User Stream Manager
     Route::get('/streams', \App\Livewire\UserStreamManager::class)->name('user.stream.manager');
@@ -200,11 +205,11 @@ Route::middleware(['auth', 'locale'])->group(function () {
     // Alias routes for consistency
     Route::get('/user/streams', \App\Livewire\UserStreamManager::class)->name('user.streams');
     // File Upload routes
-    Route::get('/files', \App\Livewire\FileUpload::class)->name('files');
-    Route::get('/file-manager', \App\Livewire\FileUpload::class)->name('file.manager');
+    Route::get('/files', FileUpload::class)->name('files.index');
+    Route::post('/files/delete', [\App\Http\Controllers\FileController::class, 'delete'])->name('files.delete');
 
     // User file routes for consistency
-    Route::get('/user/files', \App\Livewire\FileUpload::class)->name('user.files');
+    Route::get('/user/files', [\App\Http\Controllers\FileController::class, 'index'])->name('user.files');
     Route::get('/packages-selection', ServiceManager::class)->name('packages');
 
     // Additional user routes from sidebar
@@ -226,7 +231,8 @@ Route::middleware(['auth', 'locale'])->group(function () {
         Route::get('/users', AdminUserManagement::class)->name('users');
         Route::get('/vps-servers', \App\Livewire\VpsServerManager::class)->name('vps-servers');
         Route::get('/vps-monitoring', VpsMonitoring::class)->name('vps-monitoring');
-        Route::get('/files', \App\Livewire\FileUpload::class)->name('files');
+        Route::get('/files', [\App\Http\Controllers\FileController::class, 'index'])->name('files');
+        Route::post('/files/delete', [\App\Http\Controllers\FileController::class, 'delete'])->name('files.delete');
         Route::get('/service-packages', ServicePackageManager::class)->name('service-packages');
         Route::get('/transactions', AdminTransactionManagement::class)->name('transactions');
         Route::get('/settings', AdminSettingsManager::class)->name('settings');
@@ -252,7 +258,7 @@ Route::middleware(['auth', 'locale'])->group(function () {
         $vps = VpsServer::create($validatedData + ['is_active' => true, 'status' => 'PENDING']);
         
         // Dispatch the job
-        ProvisionVpsJob::dispatch($vps)->onConnection('database'); // Ensure it uses the database queue
+        ProvisionMultistreamVpsJob::dispatch($vps)->onConnection('database'); // Ensure it uses the database queue
 
         session()->flash('message', "VPS '{$vps->name}' đã được thêm. Job cài đặt đã được gửi vào hàng đợi.");
 
@@ -274,7 +280,7 @@ Route::middleware(['auth', 'locale'])->group(function () {
     Route::get('/run-provision-job-directly/{vps}', function (VpsServer $vps) {
         echo "<!DOCTYPE html><body style='background:#111; color:#eee; font-family:monospace; padding:15px; white-space:pre-wrap;'>";
         try {
-            $job = new \App\Jobs\ProvisionVpsJob($vps);
+            $job = new \App\Jobs\ProvisionMultistreamVpsJob($vps);
             $sshService = new \App\Services\SshService();
             $job->handle($sshService);
             echo "✅ Job handle completed without exceptions.";
@@ -442,7 +448,7 @@ Route::middleware(['auth', 'locale'])->group(function () {
         ], 400);
     })->name('upload.stream');
     
-
+    Route::get('/user/transactions', TransactionHistory::class)->name('transactions.history');
 });
 
 // API Routes for VPS Communication (accessible via /api prefix)
@@ -453,17 +459,16 @@ Route::prefix('api')->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\
         Route::get('/secure-download/{token}', [\App\Http\Controllers\Api\SecureDownloadController::class, 'download'])
             ->middleware('throttle:30,1');
         
-        // Stream webhook for VPS status updates
-        Route::post('/stream-webhook', [\App\Http\Controllers\Api\StreamWebhookController::class, 'handle'])
-            ->middleware('throttle:60,1');
+        // Stream webhook moved to /api/webhook/stream in api.php
         
-        // VPS Stats Webhook Routes
-        Route::post('/vps-stats', [\App\Http\Controllers\Api\VpsStatsWebhookController::class, 'receiveStats'])
-            ->middleware('throttle:120,1');
-        
-        Route::get('/{vps}/auth-token', [\App\Http\Controllers\Api\VpsStatsWebhookController::class, 'getAuthToken'])
-            ->middleware('auth');
+        // VPS Stats Webhook moved to /api/webhook/vps in api.php
     });
+});
+
+// API Routes for Stream Progress
+Route::get('/api/stream/{streamId}/progress', [App\Http\Controllers\StreamProgressController::class, 'getProgress']);
+Route::middleware('auth')->group(function () {
+    Route::delete('/api/stream/{streamId}/progress', [App\Http\Controllers\StreamProgressController::class, 'clearProgress']);
 });
 
 require __DIR__.'/auth.php';

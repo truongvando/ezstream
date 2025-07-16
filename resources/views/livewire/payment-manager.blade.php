@@ -1,290 +1,183 @@
-<div class="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
-    <!-- Header Section -->
-    <div class="bg-white shadow-sm border-b">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-4">
-                    <div class="w-12 h-12 bg-gradient-to-r from-blue-600 to-indigo-600 rounded-full flex items-center justify-center">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
-                        </svg>
-                    </div>
-                    <div>
-                        <h1 class="text-2xl font-bold text-gray-900">Thanh Toán Đơn Hàng</h1>
-                        <p class="text-gray-600">Hoàn tất thanh toán để kích hoạt dịch vụ</p>
-                    </div>
-                </div>
-                <div class="flex items-center space-x-2">
-                    <div class="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
-                    <span class="text-sm text-gray-600">Bảo mật SSL</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
+<div class="bg-gray-50 dark:bg-gray-900" x-data="{
+    copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            let originalIcon = event.target.closest('button').innerHTML;
+            event.target.closest('button').innerHTML = `<svg class='w-4 h-4 text-green-500' xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='currentColor'><path fill-rule='evenodd' d='M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.052-.143z' clip-rule='evenodd' /></svg>`;
+            setTimeout(() => {
+                event.target.closest('button').innerHTML = originalIcon;
+            }, 2000);
+        });
+    }
+}">
     @if($transaction)
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <!-- Status Banner -->
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+            <!-- Polling Status Banner -->
             <div wire:poll.10s class="mb-8">
                 @if($subscription->status === 'ACTIVE')
-                    <div class="bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl p-6 text-white text-center">
-                        <div class="flex items-center justify-center mb-4">
-                            <div class="w-16 h-16 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-                                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    <div class="bg-green-100 dark:bg-green-900/50 border-l-4 border-green-500 text-green-800 dark:text-green-200 p-6 rounded-lg shadow-md">
+                        <div class="flex items-center">
+                            <div class="flex-shrink-0">
+                                <svg class="h-8 w-8 text-green-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd" />
                                 </svg>
                             </div>
-                        </div>
-                        <h2 class="text-2xl font-bold mb-2">🎉 Thanh Toán Thành Công!</h2>
-                        <p class="text-green-100 mb-4">Gói dịch vụ của bạn đã được kích hoạt thành công</p>
-                        <div class="inline-flex items-center px-6 py-3 bg-white bg-opacity-20 rounded-lg">
-                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                            </svg>
-                            <span>Chuyển hướng trong 3 giây...</span>
+                            <div class="ml-4">
+                                <h3 class="text-lg font-bold">🎉 Thanh Toán Thành Công!</h3>
+                                <div class="text-sm mt-1">
+                                    Gói dịch vụ của bạn đã được kích hoạt. Đang chuyển hướng về trang quản lý...
+                                </div>
+                            </div>
                         </div>
                         <script>
-                            setTimeout(() => {
-                                window.location.href = "{{ route('dashboard') }}";
-                            }, 3000);
+                            setTimeout(() => { window.location.href = "{{ route('dashboard') }}"; }, 3000);
                         </script>
                     </div>
                 @else
-                    <div class="bg-gradient-to-r from-yellow-400 to-orange-500 rounded-xl p-6 text-white text-center">
-                        <div class="flex items-center justify-center mb-4">
-                            <div class="w-16 h-16 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-                                <svg class="w-8 h-8 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    <div class="bg-blue-100 dark:bg-blue-900/50 border-l-4 border-blue-500 text-blue-800 dark:text-blue-200 p-6 rounded-lg shadow-md">
+                        <div class="flex items-center">
+                             <div class="flex-shrink-0">
+                                <svg class="h-8 w-8 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                             </div>
+                            <div class="ml-4">
+                                <h3 class="text-lg font-bold">⏳ Đang chờ thanh toán</h3>
+                                <div class="text-sm mt-1 flex items-center">
+                                    <span class="relative flex h-2 w-2 mr-2">
+                                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                      <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                    </span>
+                                    Hệ thống sẽ tự động xác nhận ngay khi nhận được chuyển khoản của bạn.
+                                </div>
+                            </div>
                         </div>
-                        <h2 class="text-2xl font-bold mb-2">⏳ Đang Chờ Thanh Toán</h2>
-                        <p class="text-yellow-100">Vui lòng quét mã QR hoặc chuyển khoản theo thông tin bên dưới</p>
                     </div>
                 @endif
             </div>
 
-            <div class="grid grid-cols-1 xl:grid-cols-3 gap-8">
-                <!-- QR Code Section -->
-                <div class="xl:col-span-2">
-                    <div class="bg-white rounded-2xl shadow-xl p-8 border border-gray-100">
-                        <div class="text-center mb-8">
-                            <h2 class="text-3xl font-bold text-gray-900 mb-4">Quét Mã QR Để Thanh Toán</h2>
-                            <p class="text-lg text-gray-600">Sử dụng ứng dụng ngân hàng của bạn để quét mã VietQR</p>
-                        </div>
-
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
+                <!-- Left Side: Payment Details -->
+                <div class="lg:col-span-3 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 sm:p-8">
+                    <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-2">Thực hiện thanh toán</h2>
+                    <p class="text-gray-600 dark:text-gray-300 mb-8">Sử dụng ứng dụng ngân hàng của bạn để quét mã hoặc chuyển khoản thủ công.</p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
                         <!-- QR Code -->
-                        <div class="flex justify-center mb-8">
-                            <div class="relative">
-                                <div class="bg-gradient-to-br from-blue-50 to-indigo-50 p-8 rounded-3xl shadow-inner">
-                                    <img src="{{ $qrCodeUrl }}" alt="VietQR Code" class="w-80 h-80 mx-auto rounded-2xl shadow-lg">
-                                </div>
-                                <div class="absolute -top-4 -right-4 bg-blue-600 text-white px-4 py-2 rounded-full text-sm font-semibold shadow-lg">
-                                    VietQR
-                                </div>
+                        <div class="text-center">
+                            <h3 class="font-semibold text-lg text-gray-800 dark:text-gray-200 mb-4">Quét mã VietQR</h3>
+                            <div class="max-w-xs mx-auto bg-white p-4 rounded-lg shadow-inner">
+                                <img src="{{ $qrCodeUrl }}" alt="VietQR Code" class="w-full h-auto rounded-md">
                             </div>
+                            <p class="text-xs text-gray-500 mt-3">Mã QR đã bao gồm số tiền và nội dung chuyển khoản.</p>
                         </div>
-
-                        <!-- Instructions -->
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                            <div class="text-center">
-                                <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <span class="text-2xl font-bold text-blue-600">1</span>
-                                </div>
-                                <h3 class="font-semibold text-gray-900 mb-2">Mở App Ngân Hàng</h3>
-                                <p class="text-sm text-gray-600">Mở ứng dụng ngân hàng hoặc ví điện tử của bạn</p>
-                            </div>
-                            <div class="text-center">
-                                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <span class="text-2xl font-bold text-green-600">2</span>
-                                </div>
-                                <h3 class="font-semibold text-gray-900 mb-2">Quét Mã QR</h3>
-                                <p class="text-sm text-gray-600">Sử dụng tính năng quét QR để thanh toán</p>
-                            </div>
-                            <div class="text-center">
-                                <div class="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <span class="text-2xl font-bold text-purple-600">3</span>
-                                </div>
-                                <h3 class="font-semibold text-gray-900 mb-2">Xác Nhận</h3>
-                                <p class="text-sm text-gray-600">Kiểm tra thông tin và xác nhận thanh toán</p>
-                            </div>
-                        </div>
-
+                        
                         <!-- Manual Transfer Info -->
-                        <div class="bg-gray-50 rounded-xl p-6 border border-gray-200">
-                            <h3 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                                <svg class="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                </svg>
-                                Hoặc Chuyển Khoản Thủ Công
-                            </h3>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Ngân hàng:</label>
-                                    <div class="bg-white px-4 py-3 rounded-lg border font-semibold text-gray-900">
-                                        Vietcombank (VCB)
-                                    </div>
+                        <div>
+                             <h3 class="font-semibold text-lg text-gray-800 dark:text-gray-200 mb-4">Thông tin chuyển khoản</h3>
+                             <div class="space-y-4">
+                                <div class="group">
+                                    <label class="text-sm font-medium text-gray-500 dark:text-gray-400">Ngân hàng</label>
+                                    <p class="text-base font-semibold text-gray-900 dark:text-white">Vietcombank (VCB)</p>
                                 </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Số tài khoản:</label>
-                                    <div class="bg-white px-4 py-3 rounded-lg border font-mono text-gray-900 flex items-center justify-between">
-                                        <span>0971000032314</span>
-                                        <button onclick="copyToClipboard('0971000032314')" class="text-blue-600 hover:text-blue-800">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                                            </svg>
+                                <div class="group">
+                                    <label class="text-sm font-medium text-gray-500 dark:text-gray-400">Chủ tài khoản</label>
+                                    <p class="text-base font-semibold text-gray-900 dark:text-white">TRUONG VAN DO</p>
+                                </div>
+                                <div class="group">
+                                    <label class="text-sm font-medium text-gray-500 dark:text-gray-400">Số tài khoản</label>
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-base font-mono font-semibold text-blue-600 dark:text-blue-400">0971000032314</p>
+                                        <button @click="copyToClipboard('0971000032314')" class="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 p-1 rounded-md -mr-1">
+                                           <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v3.042m-7.332 0c-.055.194-.084.4-.084.612v3.042m0 9.75H12.5a2.25 2.25 0 002.25-2.25V5.25c0-1.03-.842-1.875-1.875-1.875h-1.5c-1.033 0-1.875.845-1.875 1.875v10.5A2.25 2.25 0 007.5 21h6" /></svg>
                                         </button>
                                     </div>
                                 </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Chủ tài khoản:</label>
-                                    <div class="bg-white px-4 py-3 rounded-lg border font-semibold text-gray-900">
-                                        TRUONG VAN DO
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-1">Nội dung:</label>
-                                    <div class="bg-white px-4 py-3 rounded-lg border font-mono text-gray-900 flex items-center justify-between">
-                                        <span>{{ $transaction->payment_code }}</span>
-                                        <button onclick="copyToClipboard('{{ $transaction->payment_code }}')" class="text-blue-600 hover:text-blue-800">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                                            </svg>
+                                 <div class="group">
+                                    <label class="text-sm font-medium text-gray-500 dark:text-gray-400">Nội dung chuyển khoản</label>
+                                     <div class="flex items-center justify-between">
+                                        <p class="text-base font-mono font-semibold text-red-600 dark:text-red-400">{{ $transaction->payment_code }}</p>
+                                        <button @click="copyToClipboard('{{ $transaction->payment_code }}')" class="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 p-1 rounded-md -mr-1">
+                                            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v3.042m-7.332 0c-.055.194-.084.4-.084.612v3.042m0 9.75H12.5a2.25 2.25 0 002.25-2.25V5.25c0-1.03-.842-1.875-1.875-1.875h-1.5c-1.033 0-1.875.845-1.875 1.875v10.5A2.25 2.25 0 007.5 21h6" /></svg>
                                         </button>
                                     </div>
                                 </div>
-                            </div>
+                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Order Summary -->
-                <div class="xl:col-span-1">
-                    <div class="bg-white rounded-2xl shadow-xl p-8 border border-gray-100 sticky top-8">
-                        <h3 class="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-                            <svg class="w-6 h-6 mr-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                            </svg>
-                            Chi Tiết Đơn Hàng
-                        </h3>
-
-                        <!-- Package Info -->
-                        <div class="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 mb-6 border border-blue-100">
-                            <div class="flex items-center mb-4">
-                                <div class="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center mr-4">
-                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
-                                    </svg>
-                                </div>
-                                <div>
-                                    <h4 class="text-lg font-bold text-gray-900">{{ $subscription->servicePackage->name }}</h4>
-                                    <p class="text-sm text-gray-600">{{ $subscription->servicePackage->description }}</p>
-                                </div>
+                <!-- Right Side: Order Summary -->
+                <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 sm:p-8 sticky top-8">
+                    <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-6">Tóm tắt đơn hàng</h3>
+                    
+                    <div class="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mb-6">
+                        <div class="flex items-center">
+                            <div class="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center mr-4 flex-shrink-0">
+                                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
                             </div>
-                            
-                            <!-- Features -->
-                            <div class="space-y-3">
-                                <div class="flex items-center text-sm">
-                                    <svg class="w-4 h-4 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                                    </svg>
-                                    <span class="text-gray-700">{{ $subscription->servicePackage->max_streams }} streams đồng thời</span>
-                                </div>
-                                <div class="flex items-center text-sm">
-                                    <svg class="w-4 h-4 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                                    </svg>
-                                    <span class="text-gray-700">Chất lượng tối đa: {{ $subscription->servicePackage->max_quality }}</span>
-                                </div>
-                                <div class="flex items-center text-sm">
-                                    <svg class="w-4 h-4 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                                    </svg>
-                                    <span class="text-gray-700">Lưu trữ: {{ $subscription->servicePackage->storage_limit_gb ? $subscription->servicePackage->storage_limit_gb . ' GB' : 'Không giới hạn' }}</span>
-                                </div>
+                            <div>
+                                <h4 class="font-bold text-lg text-gray-900 dark:text-white">{{ $subscription->servicePackage->name }}</h4>
+                                <p class="text-sm text-gray-600 dark:text-gray-300">{{ $subscription->servicePackage->description }}</p>
                             </div>
                         </div>
-
-                        <!-- Transaction Details -->
-                        <div class="space-y-4 mb-6">
-                            <div class="flex justify-between items-center py-3 border-b border-gray-100">
-                                <span class="text-gray-600">Mã giao dịch:</span>
-                                <span class="font-mono bg-gray-100 px-3 py-1 rounded-lg text-sm">{{ $transaction->payment_code }}</span>
+                        <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600 space-y-2 text-sm">
+                            <div class="flex items-center text-gray-700 dark:text-gray-300">
+                                <svg class="w-4 h-4 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span>{{ $subscription->servicePackage->max_streams }} luồng đồng thời</span>
                             </div>
-                            <div class="flex justify-between items-center py-3 border-b border-gray-100">
-                                <span class="text-gray-600">Ngày tạo:</span>
-                                <span class="font-medium">{{ $transaction->created_at->format('d/m/Y H:i') }}</span>
+                             <div class="flex items-center text-gray-700 dark:text-gray-300">
+                                <svg class="w-4 h-4 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span>Chất lượng tối đa: {{ $subscription->servicePackage->video_resolution }}p</span>
                             </div>
-                            <div class="flex justify-between items-center py-3 border-b border-gray-100">
-                                <span class="text-gray-600">Phương thức:</span>
-                                <span class="font-medium">Chuyển khoản ngân hàng</span>
+                             <div class="flex items-center text-gray-700 dark:text-gray-300">
+                                <svg class="w-4 h-4 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                                <span>Lưu trữ: {{ $subscription->servicePackage->storage_limit_gb ? $subscription->servicePackage->storage_limit_gb . ' GB' : 'Không giới hạn' }}</span>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- Total Amount -->
-                        <div class="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-6 border border-green-200">
-                            <div class="flex justify-between items-center">
-                                <span class="text-lg font-semibold text-gray-900">Tổng thanh toán:</span>
-                                <div class="text-right">
-                                    <div class="text-3xl font-bold text-green-600">
-                                        {{ number_format($transaction->amount, 0, ',', '.') }}
-                                    </div>
-                                    <div class="text-sm text-gray-600">VND</div>
-                                </div>
+                    <div class="space-y-4 text-sm">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600 dark:text-gray-300">Mã đơn hàng:</span>
+                            <span class="font-mono text-gray-800 dark:text-gray-100 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md">{{ $transaction->payment_code }}</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-600 dark:text-gray-300">Ngày tạo:</span>
+                            <span class="font-medium text-gray-800 dark:text-gray-100">{{ $transaction->created_at->format('d/m/Y H:i') }}</span>
+                        </div>
+                         <div class="flex justify-between items-center">
+                            <span class="text-gray-600 dark:text-gray-300">Phương thức:</span>
+                            <span class="font-medium text-gray-800 dark:text-gray-100">Chuyển khoản Ngân hàng</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-lg font-semibold text-gray-800 dark:text-gray-100">Tổng cộng:</span>
+                            <div class="text-right">
+                                <p class="text-3xl font-bold text-blue-600 dark:text-blue-400">{{ number_format($transaction->amount, 0, ',', '.') }} <span class="text-xl">VNĐ</span></p>
                             </div>
                         </div>
+                    </div>
 
-                        <!-- Security Notice -->
-                        <div class="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                            <div class="flex items-start">
-                                <svg class="w-5 h-5 text-blue-600 mr-2 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
-                                </svg>
-                                <div>
-                                    <h4 class="text-sm font-semibold text-blue-900 mb-1">Thanh toán an toàn</h4>
-                                    <p class="text-xs text-blue-700">Giao dịch được bảo mật bằng công nghệ SSL và được xác minh tự động trong vòng 1-5 phút.</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Support -->
-                        <div class="mt-6 text-center">
-                            <p class="text-sm text-gray-600 mb-2">Cần hỗ trợ?</p>
-                            <button class="text-blue-600 hover:text-blue-800 text-sm font-medium">
-                                Liên hệ hỗ trợ
-                            </button>
-                        </div>
+                    <div class="mt-8 text-center text-xs text-gray-500">
+                        <p>Giao dịch được xử lý tự động. Nếu có vấn đề, vui lòng liên hệ hỗ trợ.</p>
                     </div>
                 </div>
             </div>
         </div>
     @else
-        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
-            <div class="bg-white rounded-2xl shadow-xl p-12">
-                <div class="w-24 h-24 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <svg class="w-12 h-12 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z"/>
-                    </svg>
+        <div class="flex items-center justify-center min-h-[calc(100vh-10rem)]">
+            <div class="text-center max-w-lg mx-auto p-8">
+                 <div class="w-24 h-24 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z"/></svg>
                 </div>
-                <h2 class="text-2xl font-bold text-gray-900 mb-4">Không Tìm Thấy Thông Tin Thanh Toán</h2>
-                <p class="text-gray-600 mb-8">Có vẻ như đơn hàng này không tồn tại hoặc đã được xử lý.</p>
-                <a href="{{ route('packages') }}" class="inline-flex items-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg">
-                    Quay lại chọn gói
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Không tìm thấy đơn hàng</h2>
+                <p class="text-gray-600 dark:text-gray-300 mb-8">Đơn hàng này không tồn tại hoặc đã được xử lý. Vui lòng kiểm tra lại.</p>
+                <a href="{{ route('packages') }}" class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg shadow-md transition-transform transform hover:scale-105">
+                    Quay lại trang chọn gói
                 </a>
             </div>
         </div>
     @endif
 </div>
-
-<script>
-function copyToClipboard(text) {
-    navigator.clipboard.writeText(text).then(function() {
-        // Show success message
-        const originalText = event.target.closest('button').innerHTML;
-        event.target.closest('button').innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
-        setTimeout(() => {
-            event.target.closest('button').innerHTML = originalText;
-        }, 2000);
-    });
-}
-</script>

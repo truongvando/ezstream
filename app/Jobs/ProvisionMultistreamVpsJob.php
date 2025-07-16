@@ -17,72 +17,71 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     public $tries = 1;
-    public $timeout = 600; // 10 minutes for multistream setup
+    public $timeout = 600; // 10 minutes for provision
 
     public VpsServer $vps;
 
     public function __construct(VpsServer $vps)
     {
         $this->vps = $vps;
-        Log::info("✅ [VPS #{$this->vps->id}] Multistream provision job created");
+        Log::info("✅ [VPS #{$this->vps->id}] Provisioning job created for new Redis Agent architecture");
     }
 
     public function handle(SshService $sshService): void
     {
-        Log::info("🚀 [VPS #{$this->vps->id}] Starting multistream provision");
+        Log::info("🚀 [VPS #{$this->vps->id}] Starting provision for Redis Agent");
 
         try {
-            // Update status to provisioning
             $this->vps->update([
                 'status' => 'PROVISIONING',
-                'status_message' => 'Setting up multistream capabilities...'
+                'status_message' => 'Setting up base system and Redis Agent...'
             ]);
 
-            // Connect to VPS
             if (!$sshService->connect($this->vps)) {
                 throw new \Exception('Failed to connect to VPS via SSH');
             }
 
             Log::info("✅ [VPS #{$this->vps->id}] SSH connection successful");
 
-            // 1. Upload and run provision script
-            $this->uploadProvisionScript($sshService);
-            $this->runProvisionScript($sshService);
+            // 1. Upload and run the main provision script (installs nginx, ffmpeg, etc.)
+            $this->uploadAndRunProvisionScript($sshService);
 
-            // 2. Upload multistream manager
-            $this->uploadMultistreamManager($sshService);
+            // 2. Upload and set up the new Redis Agent
+            $this->uploadAndSetupRedisAgent($sshService);
 
-            // 3. Start multistream manager service
-            $this->startMultistreamManager($sshService);
+            // 3. Setup log rotation for the agent
+            $this->setupLogrotate($sshService);
 
-            // 4. Verify services are running
-            $this->verifyServices($sshService);
+            // 3. Verify services and dependencies
+            $this->verifyBaseServices($sshService);
+            $this->verifyPythonDependencies($sshService);
 
-            // 5. Update VPS status with multistream capabilities
+            // 4. Update VPS status
             $maxStreams = $this->calculateMaxStreams($sshService);
             
             $this->vps->update([
                 'status' => 'ACTIVE',
                 'last_provisioned_at' => now(),
-                'status_message' => 'Multistream ready',
-                'capabilities' => json_encode(['multistream', 'nginx-rtmp', 'concurrent']),
+                'status_message' => 'Provisioned with Redis Agent',
+                'capabilities' => json_encode(['multistream', 'nginx-rtmp', 'redis-agent']),
                 'max_concurrent_streams' => $maxStreams,
                 'current_streams' => 0,
+                'webhook_configured' => false, // No longer using webhooks
             ]);
 
-            Log::info("🎉 [VPS #{$this->vps->id}] Multistream provision completed successfully", [
+            Log::info("🎉 [VPS #{$this->vps->id}] Redis Agent provision completed successfully", [
                 'max_streams' => $maxStreams
             ]);
 
         } catch (\Exception $e) {
-            Log::error("❌ [VPS #{$this->vps->id}] Multistream provision failed", [
+            Log::error("❌ [VPS #{$this->vps->id}] Redis Agent provision failed", [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => Str::limit($e->getTraceAsString(), 2000)
             ]);
 
             $this->vps->update([
                 'status' => 'FAILED',
-                'status_message' => 'Provision failed: ' . $e->getMessage(),
+                'status_message' => 'Provision failed: ' . Str::limit($e->getMessage(), 250),
                 'error_message' => $e->getMessage(),
             ]);
 
@@ -92,98 +91,141 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         }
     }
 
-    private function uploadProvisionScript(SshService $sshService): void
+    private function uploadAndRunProvisionScript(SshService $sshService): void
     {
-        Log::info("📦 [VPS #{$this->vps->id}] Uploading provision script");
+        Log::info("📦 [VPS #{$this->vps->id}] Uploading and running base provision script (provision-vps.sh)");
 
-        $localScript = storage_path('app/multistream/provision-vps.sh');
-        $remoteScript = '/tmp/provision-multistream.sh';
+        $localScript = storage_path('app/ezstream-agent/provision-vps.sh');
+        $remoteScript = '/tmp/provision-vps.sh';
 
         if (!file_exists($localScript)) {
-            throw new \Exception('Multistream provision script not found');
+            throw new \Exception('Base provision script (provision-vps.sh) not found');
         }
 
         if (!$sshService->uploadFile($localScript, $remoteScript)) {
             throw new \Exception('Failed to upload provision script');
         }
 
-        // Make executable
         $sshService->execute("chmod +x {$remoteScript}");
         
-        Log::info("✅ [VPS #{$this->vps->id}] Provision script uploaded");
-    }
-
-    private function runProvisionScript(SshService $sshService): void
-    {
-        Log::info("🔧 [VPS #{$this->vps->id}] Running provision script");
-
-        $controllerUrl = config('app.url');
-        $authToken = $this->generateAuthToken();
-        
-        $command = "/tmp/provision-multistream.sh {$this->vps->id} {$controllerUrl} {$authToken}";
-        
-        // Run with timeout
-        $result = $sshService->execute($command, 300); // 5 minute timeout
+        $result = $sshService->execute($remoteScript, 300); // 5 minute timeout
         
         if (strpos($result, 'PROVISION COMPLETE') === false) {
-            Log::error("❌ [VPS #{$this->vps->id}] Provision script failed", ['output' => $result]);
-            throw new \Exception('Provision script execution failed');
+            Log::error("❌ [VPS #{$this->vps->id}] Base provision script failed", ['output' => $result]);
+            throw new \Exception('Base provision script execution failed');
         }
 
-        Log::info("✅ [VPS #{$this->vps->id}] Provision script completed");
+        Log::info("✅ [VPS #{$this->vps->id}] Base provision script completed successfully");
     }
 
-    private function uploadMultistreamManager(SshService $sshService): void
+    private function uploadAndSetupRedisAgent(SshService $sshService): void
     {
-        Log::info("📦 [VPS #{$this->vps->id}] Uploading multistream manager");
+        Log::info("📦 [VPS #{$this->vps->id}] Uploading and setting up Redis Agent");
 
-        $localManager = storage_path('app/multistream/manager.py');
-        $remoteManager = '/opt/multistream/manager.py';
+        // 1. Create remote directory
+        $remoteDir = '/opt/ezstream-agent';
+        $sshService->execute("mkdir -p {$remoteDir}");
 
-        if (!file_exists($localManager)) {
-            throw new \Exception('Multistream manager not found');
+        // 2. Upload the agent script
+        $localAgentPath = storage_path('app/ezstream-agent/agent.py');
+        $remoteAgentPath = "{$remoteDir}/agent.py";
+        if (!file_exists($localAgentPath)) {
+            throw new \Exception('Redis Agent script (agent.py) not found');
         }
-
-        if (!$sshService->uploadFile($localManager, $remoteManager)) {
-            throw new \Exception('Failed to upload multistream manager');
+        if (!$sshService->uploadFile($localAgentPath, $remoteAgentPath)) {
+            throw new \Exception('Failed to upload Redis Agent script');
         }
+        $sshService->execute("chmod +x {$remoteAgentPath}");
 
-        // Make executable
-        $sshService->execute("chmod +x {$remoteManager}");
+        // 3. Get Redis connection details from Laravel's config
+        $redisHost = config('database.redis.default.host', '127.0.0.1');
+        $redisPort = config('database.redis.default.port', 6379);
+        $redisPassword = config('database.redis.default.password', null);
+        $redisPasswordCmd = $redisPassword ? "'{$redisPassword}'" : '';
+
+        // 4. Create systemd service file on the VPS
+        $serviceName = 'ezstream-agent.service';
+        $serviceContent = $this->generateAgentSystemdService($remoteAgentPath, $redisHost, $redisPort, $redisPasswordCmd);
         
-        Log::info("✅ [VPS #{$this->vps->id}] Multistream manager uploaded");
-    }
+        // Use a heredoc to safely write the multi-line content
+        $sshService->execute("cat > /etc/systemd/system/{$serviceName} << 'EOF'\n{$serviceContent}\nEOF");
 
-    private function startMultistreamManager(SshService $sshService): void
-    {
-        Log::info("🚀 [VPS #{$this->vps->id}] Starting multistream manager service");
-
-        // Enable and start the service
+        // 5. Enable and start the service
         $sshService->execute('systemctl daemon-reload');
-        $sshService->execute('systemctl enable multistream-manager');
-        $sshService->execute('systemctl start multistream-manager');
+        $sshService->execute("systemctl enable {$serviceName}");
+        $sshService->execute("systemctl restart {$serviceName}");
 
-        // Wait a moment for service to start
+        // Wait a moment and check status
         sleep(5);
-
-        // Check service status
-        $status = $sshService->execute('systemctl is-active multistream-manager');
-        
+        $status = $sshService->execute("systemctl is-active {$serviceName}");
         if (trim($status) !== 'active') {
-            $serviceLog = $sshService->execute('journalctl -u multistream-manager --no-pager -l');
-            Log::error("❌ [VPS #{$this->vps->id}] Multistream manager failed to start", [
+            $serviceLog = $sshService->execute("journalctl -u {$serviceName} --no-pager -n 50");
+            Log::error("❌ [VPS #{$this->vps->id}] Redis Agent service failed to start", [
                 'status' => $status,
                 'log' => $serviceLog
             ]);
-            throw new \Exception('Multistream manager service failed to start');
+            throw new \Exception('Redis Agent service failed to start. Check journalctl logs on the VPS.');
         }
+        
+        Log::info("✅ [VPS #{$this->vps->id}] Redis Agent service started successfully");
+    }
+    
+    private function generateAgentSystemdService(string $agentPath, string $redisHost, int $redisPort, string $redisPassword): string
+    {
+        // Check if venv exists, use it if available
+        $pythonCmd = "/usr/bin/python3";
+        $venvPath = "/opt/ezstream-venv";
 
-        Log::info("✅ [VPS #{$this->vps->id}] Multistream manager service started");
+        // Create ExecStartPre to check and activate venv if needed
+        $execStartPre = "";
+        $command = "{$pythonCmd} {$agentPath} {$this->vps->id} {$redisHost} {$redisPort} {$redisPassword}";
+
+        // If venv exists, use it
+        $venvCheck = "test -d {$venvPath}";
+        $venvCommand = "{$venvPath}/bin/python {$agentPath} {$this->vps->id} {$redisHost} {$redisPort} {$redisPassword}";
+
+        return "[Unit]
+Description=EZStream Redis Agent v2.0
+After=network.target nginx.service
+Requires=nginx.service
+
+[Service]
+Type=simple
+User=root
+ExecStartPre=/bin/bash -c 'if {$venvCheck}; then echo \"Using venv\"; else echo \"Using system python\"; fi'
+ExecStart=/bin/bash -c 'if {$venvCheck}; then {$venvCommand}; else {$command}; fi'
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+Environment=PYTHONPATH=/opt/ezstream-agent
+
+[Install]
+WantedBy=multi-user.target";
     }
 
-    private function verifyServices(SshService $sshService): void
+    private function setupLogrotate(SshService $sshService): void
     {
-        Log::info("🔍 [VPS #{$this->vps->id}] Verifying services");
+        Log::info("📜 [VPS #{$this->vps->id}] Setting up log rotation for agent");
+        $logrotateConfig = <<<CONF
+ /var/log/ezstream-agent.log {
+     daily
+     rotate 7
+     compress
+     delaycompress
+     missingok
+     notifempty
+     create 0644 root root
+ }
+ CONF;
+        // Use a heredoc to safely write the multi-line content
+        $sshService->execute("cat > /etc/logrotate.d/ezstream-agent << 'EOF'\n{$logrotateConfig}\nEOF");
+        Log::info("✅ [VPS #{$this->vps->id}] Logrotate configured successfully");
+    }
+
+    private function verifyBaseServices(SshService $sshService): void
+    {
+        Log::info("🔍 [VPS #{$this->vps->id}] Verifying base services (Nginx, RTMP)");
 
         // Check nginx
         $nginxStatus = $sshService->execute('systemctl is-active nginx');
@@ -196,20 +238,59 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         if (empty(trim($rtmpPort))) {
             throw new \Exception('RTMP port 1935 is not listening');
         }
+        
+        Log::info("✅ [VPS #{$this->vps->id}] Base services verified");
+    }
 
-        // Check API port
-        $apiPort = $sshService->execute('ss -tulpn | grep :9999');
-        if (empty(trim($apiPort))) {
-            throw new \Exception('API port 9999 is not listening');
+    private function verifyPythonDependencies(SshService $sshService): void
+    {
+        Log::info("🐍 [VPS #{$this->vps->id}] Verifying Python dependencies for agent");
+
+        // Test Python 3 availability
+        $pythonVersion = $sshService->execute('python3 --version');
+        if (empty(trim($pythonVersion))) {
+            throw new \Exception('Python 3 is not installed or not accessible');
+        }
+        Log::info("✅ [VPS #{$this->vps->id}] Python version: " . trim($pythonVersion));
+
+        // Test required Python packages
+        $requiredPackages = ['redis', 'psutil', 'requests', 'flask'];
+
+        foreach ($requiredPackages as $package) {
+            $testResult = $sshService->execute("python3 -c 'import {$package}; print(\"{$package} OK\")'");
+            if (strpos($testResult, "{$package} OK") === false) {
+                Log::warning("❌ [VPS #{$this->vps->id}] Python package {$package} not found, attempting to install...");
+
+                // Try to install the missing package
+                $installResult = $sshService->execute("pip3 install {$package} --break-system-packages");
+
+                // Test again
+                $retestResult = $sshService->execute("python3 -c 'import {$package}; print(\"{$package} OK\")'");
+                if (strpos($retestResult, "{$package} OK") === false) {
+                    throw new \Exception("Failed to install Python package: {$package}");
+                }
+
+                Log::info("✅ [VPS #{$this->vps->id}] Python package {$package} installed successfully");
+            } else {
+                Log::info("✅ [VPS #{$this->vps->id}] Python package {$package} is available");
+            }
         }
 
-        // Test health endpoint
-        $healthCheck = $sshService->execute('curl -s http://localhost:8080/health');
-        if (strpos($healthCheck, 'Ready') === false) {
-            throw new \Exception('Health check failed');
+        // Test agent.py syntax
+        $agentPath = '/opt/ezstream-agent/agent.py';
+        $syntaxCheck = $sshService->execute("python3 -m py_compile {$agentPath}");
+        if (!empty(trim($syntaxCheck))) {
+            Log::warning("⚠️ [VPS #{$this->vps->id}] Agent syntax check output: " . trim($syntaxCheck));
         }
 
-        Log::info("✅ [VPS #{$this->vps->id}] All services verified");
+        // Test agent imports
+        $importTest = $sshService->execute("cd /opt/ezstream-agent && python3 -c 'import sys; sys.path.insert(0, \".\"); import agent; print(\"Agent imports OK\")'");
+        if (strpos($importTest, 'Agent imports OK') === false) {
+            Log::warning("⚠️ [VPS #{$this->vps->id}] Agent import test failed: " . trim($importTest));
+            // Don't throw exception here as it might be due to missing runtime arguments
+        }
+
+        Log::info("✅ [VPS #{$this->vps->id}] Python dependencies verified");
     }
 
     private function calculateMaxStreams(SshService $sshService): int
@@ -226,7 +307,7 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
             $maxByCpu = max(1, intval($cpuCores * 0.8 / 0.15));
             $maxByRam = max(1, intval($ramGB * 0.8 / 0.2));
             
-            $maxStreams = min($maxByCpu, $maxByRam, 10); // Hard limit of 10
+            $maxStreams = min($maxByCpu, $maxByRam, 20); // Hard limit of 20 for Redis agent
             
             Log::info("📊 [VPS #{$this->vps->id}] Calculated capacity", [
                 'cpu_cores' => $cpuCores,
@@ -244,22 +325,15 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         }
     }
 
-    private function generateAuthToken(): string
-    {
-        // Generate a secure token for VPS authentication
-        return Str::random(64);
-    }
-
     public function failed(\Throwable $exception): void
     {
-        Log::error("💥 [VPS #{$this->vps->id}] Multistream provision job failed", [
+        Log::error("💥 [VPS #{$this->vps->id}] Redis Agent provision job failed in failed() method", [
             'error' => $exception->getMessage(),
-            'trace' => $exception->getTraceAsString()
         ]);
 
         $this->vps->update([
             'status' => 'FAILED',
-            'status_message' => 'Provision failed: ' . $exception->getMessage(),
+            'status_message' => 'Provision failed: ' . Str::limit($exception->getMessage(), 250),
             'error_message' => $exception->getMessage(),
         ]);
     }

@@ -24,6 +24,11 @@ class ServiceManager extends Component
 
     public function mount()
     {
+        $this->loadInitialData();
+    }
+
+    private function loadInitialData()
+    {
         $user = Auth::user();
         
         // ✅ Lấy 1 gói active duy nhất (ưu tiên gói hết hạn xa nhất)
@@ -78,68 +83,53 @@ class ServiceManager extends Component
             $user = Auth::user();
             $package = ServicePackage::findOrFail($packageId);
             
-            // ✅ BUSINESS LOGIC: Chỉ cho phép 1 giao dịch PENDING tại 1 thời điểm
-            $pendingSubscription = $user->subscriptions()
-                ->whereIn('status', ['PENDING_PAYMENT', 'PENDING'])
-                ->exists();
-
-            if ($pendingSubscription) {
+            $pendingTransaction = $user->transactions()->where('status', 'PENDING')->first();
+            if ($pendingTransaction) {
                 session()->flash('error', 'Bạn đã có một giao dịch đang chờ xử lý. Vui lòng hoàn tất hoặc hủy giao dịch đó trước khi tạo mới.');
-                return;
+                // Redirect to the existing payment page
+                return $this->redirectRoute('payment.show', ['subscription' => $pendingTransaction->subscription_id]);
             }
 
-            // ✅ BUSINESS LOGIC: Logic cho Nâng cấp / Mua mới
-            $isUpgrade = false;
             $amountToPay = $package->price;
             $description = "Thanh toán cho gói {$package->name}";
 
             if ($this->activeSubscription) {
-                // Nếu gói mới có giá bằng hoặc thấp hơn -> không cho phép
                 if ($package->price <= $this->activeSubscription->servicePackage->price) {
                     session()->flash('error', 'Bạn chỉ có thể nâng cấp lên gói có giá trị cao hơn gói hiện tại.');
                     return;
                 }
-                $isUpgrade = true;
-
-                // TÍNH TOÁN CHI PHÍ NÂNG CẤP
                 $proration = (new ProrationService())->calculate($this->activeSubscription, $package);
                 $amountToPay = $proration['final_amount'];
-                
                 $creditFormatted = number_format($proration['credit'], 0, ',', '.');
                 $newPriceFormatted = number_format($proration['new_price'], 0, ',', '.');
-
                 $description = "Nâng cấp lên gói {$package->name}. Chi phí: {$newPriceFormatted}đ (đã trừ {$creditFormatted}đ từ gói cũ)";
             }
 
-            // Tạo subscription và transaction
             $subscription = $user->subscriptions()->create([
                 'service_package_id' => $package->id,
                 'status' => 'PENDING_PAYMENT',
-                // starts_at và ends_at sẽ được set khi thanh toán thành công
             ]);
             
-            // ✅ PAYMENT CODE THEO SỐ STREAMS - Chỉ chữ và số vì bank QR không giữ dấu đặc biệt
-            // Format: STREAM50001, STREAM100002 (không dấu đặc biệt)
-            $paymentCode = 'STREAM' . $package->max_streams . str_pad($subscription->id, 3, '0', STR_PAD_LEFT);
+            $paymentCode = 'EZS' . str_pad($subscription->id, 6, '0', STR_PAD_LEFT);
             
-            $this->paymentTransaction = $subscription->transactions()->create([
+            $subscription->transactions()->create([
                 'user_id' => $user->id,
                 'payment_code' => $paymentCode,
-                'amount' => $amountToPay, // SỬ DỤNG SỐ TIỀN ĐÃ TÍNH
+                'amount' => $amountToPay,
                 'currency' => 'VND',
                 'payment_gateway' => 'VIETQR_VCB',
                 'status' => 'PENDING',
-                'description' => $description, // SỬ DỤNG MÔ TẢ CHI TIẾT
+                'description' => $description,
             ]);
 
-            $this->selectedPackage = $package;
-            $this->generateQrCodeUrl();
-            $this->activeTab = 'payment';
-            
-            session()->flash('success', $isUpgrade ? 'Đã tạo yêu cầu nâng cấp!' : 'Đã tạo đơn hàng thành công!');
+            session()->flash('success', 'Đã tạo đơn hàng thành công! Đang chuyển đến trang thanh toán...');
+
+            // Redirect to the dedicated payment page
+            return $this->redirectRoute('payment.show', ['subscription' => $subscription->id]);
             
         } catch (\Exception $e) {
-            session()->flash('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+            \Log::error('Error selecting package: ' . $e->getMessage());
+            session()->flash('error', 'Có lỗi xảy ra khi xử lý yêu cầu của bạn.');
         }
     }
 
@@ -278,15 +268,10 @@ class ServiceManager extends Component
 
     public function render()
     {
-        $user = Auth::user();
-        $transactions = $user->transactions()
-            ->with('subscription.servicePackage')
-            ->latest()
-            ->paginate(10);
+        // Refresh data on render to catch external changes (e.g., payment completed)
+        $this->loadInitialData();
 
-        return view('livewire.service-manager', [
-            'transactions' => $transactions
-        ])->layout('layouts.sidebar');
+        return view('livewire.service-manager')->layout('layouts.sidebar');
     }
 
     // ✅ MANUAL CHECK - User có thể nhấn nút để check ngay

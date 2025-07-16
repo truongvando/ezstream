@@ -160,8 +160,10 @@ class BunnyStorageService
      */
     public function getDirectDownloadLink($remotePath)
     {
-        $cdnUrl = "{$this->cdnUrl}/{$remotePath}";
-        
+        // URL encode the path to handle spaces and special characters
+        $encodedPath = implode('/', array_map('rawurlencode', explode('/', $remotePath)));
+        $cdnUrl = "{$this->cdnUrl}/{$encodedPath}";
+
         return [
             'success' => true,
             'download_link' => $cdnUrl,

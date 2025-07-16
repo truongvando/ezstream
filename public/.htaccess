@@ -1,9 +1,13 @@
 # PHP Upload Limits for Admin
 php_value upload_max_filesize 20480M
-php_value post_max_size 20480M  
+php_value post_max_size 20480M
 php_value max_execution_time 7200
 php_value memory_limit 4096M
 php_value max_input_vars 10000
+
+# Apache Upload Limits
+LimitRequestBody 21474836480
+# 20GB = 20 * 1024 * 1024 * 1024 = 21474836480 bytes
 
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>

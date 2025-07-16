@@ -8,11 +8,12 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use App\UserRole;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -70,6 +71,18 @@ class User extends Authenticatable
     }
 
     /**
+     * Check if user has specific role
+     */
+    public function hasRole(string $role): bool
+    {
+        return match($role) {
+            'admin' => $this->role === UserRole::ADMIN,
+            'user' => $this->role === UserRole::USER,
+            default => false
+        };
+    }
+
+    /**
      * Get the stream configurations for the user.
      */
     public function streamConfigurations()
@@ -99,6 +112,19 @@ class User extends Authenticatable
     public function files(): HasMany
     {
         return $this->hasMany(UserFile::class);
+    }
+
+    /**
+     * Get user's current active package
+     */
+    public function currentPackage()
+    {
+        $activeSubscription = $this->subscriptions()
+            ->where('status', 'ACTIVE')
+            ->where('ends_at', '>', now())
+            ->first();
+
+        return $activeSubscription ? $activeSubscription->servicePackage : null;
     }
 
     /**
@@ -216,5 +242,16 @@ class User extends Authenticatable
 
         $totalStreams = $activeSubscriptions->sum('servicePackage.max_streams');
         return "{$activeSubscriptions->count()} gói ({$totalStreams} streams)";
+    }
+
+    /**
+     * Get the URL to the user's Gravatar.
+     *
+     * @return string
+     */
+    public function gravatar($size = 80): string
+    {
+        $hash = md5(strtolower(trim($this->email)));
+        return "https://www.gravatar.com/avatar/$hash?s=$size&d=mp";
     }
 }

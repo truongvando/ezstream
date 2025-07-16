@@ -6,6 +6,7 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 use App\Models\VpsServer;
 use App\Jobs\SyncVpsStatsJob;
+use App\Jobs\SyncStreamStatusJob;
 use App\Jobs\CheckBankTransactionsJob;
 
 class Kernel extends ConsoleKernel
@@ -15,50 +16,52 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        $schedule->command('vps:sync-stats')->everyMinute();
+        // 🚀 SCHEDULING - Redis-first approach
 
-        $schedule->call(function () {
-            VpsServer::where('status', 'ACTIVE')->each(function ($vps) {
-                SyncVpsStatsJob::dispatch($vps);
-            });
-        })->everyFiveMinutes();
+        // ⚡ Bank check
+        $schedule->command('bank:check-transactions')
+                 ->everyMinute()
+                 ->withoutOverlapping()
+                 ->runInBackground();
 
-        // ✅ Bank check mỗi phút (Laravel minimum interval)
-        $schedule->call(function () {
-            CheckBankTransactionsJob::dispatch();
-        })->everyMinute(); // Laravel không support < 1 minute
-        
-        // ✅ Check expiring subscriptions - gửi email thông báo
+        // 📧 Subscription checks
         $schedule->command('subscriptions:check-expiring --days=3')
-                 ->dailyAt('09:00') // 9h sáng hàng ngày
+                 ->dailyAt('09:00')
                  ->withoutOverlapping();
 
-        // ✅ Monitor stream status every 5 minutes
-        $schedule->job(new \App\Jobs\MonitorStreamStatusJob)
-                 ->everyFiveMinutes()
-                 ->withoutOverlapping();
-                 
         $schedule->command('subscriptions:check-expiring --days=1')
-                 ->dailyAt('09:00') // Nhắc lại khi còn 1 ngày
+                 ->dailyAt('09:00')
                  ->withoutOverlapping();
-        
-        // Dọn dẹp VPS tự động lúc 2h sáng hàng ngày
+
+        // 🧹 VPS cleanup
         $schedule->command('vps:cleanup')
                  ->dailyAt('02:00')
                  ->withoutOverlapping()
-                 ->runInBackground()
-                 ->emailOutputOnFailure('admin@example.com');
+                 ->runInBackground();
         
-        // Kiểm tra disk usage khẩn cấp mỗi 4 tiếng
         $schedule->command('vps:cleanup --force')
                  ->cron('0 */4 * * *')
                  ->withoutOverlapping();
 
-        // Kiểm tra trạng thái streams và dọn dẹp zombie processes
-        $schedule->command('streams:verify-status')
+        // ✅ Check scheduled streams
+        $schedule->command('streams:check-scheduled')
+                 ->everyMinute()
+                 ->withoutOverlapping()
+                 ->runInBackground();
+
+        // 🔧 Cleanup hanging streams
+        $schedule->command('streams:force-stop-hanging --timeout=300')
                  ->everyFiveMinutes()
                  ->withoutOverlapping()
                  ->runInBackground();
+
+        // 🩺 Redis health check
+        $schedule->command('redis:health-check --connection=queue --fix')
+                 ->everyTenMinutes()
+                 ->withoutOverlapping()
+                 ->runInBackground();
+
+        $schedule->command('vps:update-capacity')->everyFiveMinutes();
     }
 
     /**

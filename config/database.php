@@ -143,7 +143,7 @@ return [
 
     'redis' => [
 
-        'client' => env('REDIS_CLIENT', 'phpredis'),
+        'client' => env('REDIS_CLIENT', 'predis'),
 
         'options' => [
             'cluster' => env('REDIS_CLUSTER', 'redis'),
@@ -158,6 +158,8 @@ return [
             'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),
             'database' => env('REDIS_DB', '0'),
+            'timeout' => 30.0, // Tăng connection timeout cho subscription
+            'read_write_timeout' => 0, // 0 = infinite cho subscription
         ],
 
         'cache' => [
@@ -167,6 +169,32 @@ return [
             'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),
             'database' => env('REDIS_CACHE_DB', '1'),
+        ],
+
+        // 🔥 NEW: Dedicated connection for Pub/Sub
+        'pubsub' => [
+            'url' => env('REDIS_URL'),
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'username' => env('REDIS_USERNAME'),
+            'password' => env('REDIS_PASSWORD'),
+            'port' => env('REDIS_PORT', '6379'),
+            'database' => env('REDIS_PUBSUB_DB', '0'), // Thay đổi từ '2' thành '0'
+            'read_write_timeout' => 0, // No timeout for pub/sub
+            'persistent' => true,
+        ],
+
+        // 🚀 NEW: Dedicated connection for Queue with better error handling
+        'queue' => [
+            'url' => env('REDIS_URL'),
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'username' => env('REDIS_USERNAME'),
+            'password' => env('REDIS_PASSWORD'),
+            'port' => env('REDIS_PORT', '6379'),
+            'database' => env('REDIS_QUEUE_DB', '0'), // Use same database as default
+            'timeout' => 5.0, // Connection timeout
+            'read_write_timeout' => 30.0, // Longer timeout for queue operations
+            'persistent' => false, // Don't use persistent connections for queue
+            'retry_interval' => 100, // Retry interval in milliseconds
         ],
 
     ],

@@ -1,4 +1,4 @@
-<div>
+<div wire:poll.5s>
     <!-- Header với nút Thêm -->
     <div class="flex justify-between items-center mb-6">
         <div>

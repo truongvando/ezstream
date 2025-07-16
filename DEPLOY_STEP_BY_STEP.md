@@ -173,8 +173,8 @@ GOOGLE_DRIVE_CLIENT_SECRET=
 GOOGLE_DRIVE_REFRESH_TOKEN=
 GOOGLE_DRIVE_FOLDER_ID=
 
-# Session settings
-SESSION_LIFETIME=10080
+# Session settings - 30 ngày
+SESSION_LIFETIME=43200
 SESSION_EXPIRE_ON_CLOSE=false
 SESSION_ENCRYPT=false
 SESSION_COOKIE=vps_live_stream_session
@@ -309,17 +309,17 @@ sudo nano /etc/supervisor/conf.d/vps-live-stream-worker.conf
 
 **Nội dung file:**
 ```ini
-[program:vps-live-stream-worker]
+[program:laravel-worker]
 process_name=%(program_name)s_%(process_num)02d
-command=php /var/www/vps-live-stream/artisan queue:work redis --sleep=3 --tries=3 --max-time=3600
+command=php /www/wwwroot/ezstream.pro/artisan queue:work --sleep=3 --tries=3 --max-time=3600
 autostart=true
 autorestart=true
 stopasgroup=true
 killasgroup=true
-user=www-data
+user=www
 numprocs=4
 redirect_stderr=true
-stdout_logfile=/var/www/vps-live-stream/storage/logs/worker.log
+stdout_logfile=/www/wwwroot/ezstream.pro/storage/logs/worker.log
 stopwaitsecs=3600
 ```
 

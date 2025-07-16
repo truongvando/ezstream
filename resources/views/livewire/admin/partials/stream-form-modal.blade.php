@@ -1,5 +1,5 @@
 <!-- Add/Edit Stream Modal -->
-<x-modal-v2 wire:model.live="showCreateModal" max-width="2xl">
+<x-modal-v2 wire:model.live="showCreateModal" max-width="2xl" x-show="$wire.showCreateModal">
     <div class="p-6">
         <h2 class="text-2xl font-bold mb-4 text-gray-900 dark:text-white">{{ $editingStream ? 'Chỉnh Sửa Stream' : 'Tạo Stream Mới' }}</h2>
         
@@ -189,10 +189,10 @@
 </x-modal-v2>
 
 <!-- Edit Stream Modal -->
-<x-modal-v2 wire:model.live="showEditModal" max-width="2xl">
+<x-modal-v2 wire:model.live="showEditModal" max-width="2xl" x-show="$wire.showEditModal">
     <div class="p-6">
         <h2 class="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Chỉnh Sửa Stream</h2>
-        
+
         <form wire:submit.prevent="update" class="space-y-6">
             <!-- User Selection (Admin only) -->
             @if(auth()->user()->isAdmin())

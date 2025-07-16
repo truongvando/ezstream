@@ -60,6 +60,13 @@ return [
             'report' => false,
         ],
 
+        'bunny_cdn' => [
+            'driver' => 'local', // Placeholder driver
+            'storage_zone' => env('BUNNY_STORAGE_ZONE', 'ezstream'),
+            'api_key' => env('BUNNY_ACCESS_KEY'),
+            'pull_zone' => env('BUNNY_CDN_URL', 'https://ezstream.b-cdn.net'),
+        ],
+
     ],
 
     /*
