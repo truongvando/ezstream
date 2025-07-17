@@ -28,6 +28,18 @@ class CheckBankTransactionsJob implements ShouldQueue
      */
     public function handle(): void
     {
+        // 1. Huỷ các giao dịch chờ quá 15 phút
+        $expiredTransactions = Transaction::where('status', 'PENDING')
+            ->where('created_at', '<', now()->subMinutes(15))
+            ->get();
+        foreach ($expiredTransactions as $transaction) {
+            $transaction->update(['status' => 'CANCELLED']);
+            Log::info('Auto-cancelled pending transaction quá hạn 15 phút', [
+                'transaction_id' => $transaction->id,
+                'created_at' => $transaction->created_at,
+            ]);
+        }
+
         // ✅ EARLY EXIT - Không call API nếu không có pending
         $pendingTransactions = Transaction::where('status', 'PENDING')
             ->pluck('payment_code', 'id');

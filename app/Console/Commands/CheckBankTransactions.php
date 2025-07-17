@@ -9,13 +9,13 @@ use Illuminate\Support\Facades\Log;
 class CheckBankTransactions extends Command
 {
     protected $signature = 'bank:check-transactions';
-    protected $description = 'Check bank transactions every 10 seconds for 1 minute';
+    protected $description = 'Check bank transactions every 15 seconds for 1.5 minutes';
 
     public function handle()
     {
-        $this->info('🏦 Starting bank transaction checks (10s intervals)...');
+        $this->info('🏦 Starting bank transaction checks (15s intervals)...');
         
-        // Run 6 times with 10-second intervals = 1 minute total
+        // Run 6 times với 15s interval = 1.5 phút
         for ($i = 0; $i < 6; $i++) {
             try {
                 $this->line("Check #" . ($i + 1) . "/6 at " . now()->format('H:i:s'));
@@ -25,7 +25,7 @@ class CheckBankTransactions extends Command
                 
                 // Wait 10 seconds before next check (except last iteration)
                 if ($i < 5) {
-                    sleep(10);
+                    sleep(15);
                 }
                 
             } catch (\Exception $e) {
