@@ -70,7 +70,7 @@ class BunnyDirectUploadService
     /**
      * Confirm upload completion and create database record
      */
-    public function confirmUpload($uploadToken, $actualFileSize, $mimeType)
+    public function confirmUpload($uploadToken, $actualFileSize, $mimeType, $autoDeleteAfterStream = false)
     {
         try {
             // Get upload metadata from cache
@@ -110,7 +110,9 @@ class BunnyDirectUploadService
                 'original_name' => $uploadData['file_name'],
                 'mime_type' => $mimeType,
                 'size' => $actualFileSize,
-                'status' => 'ready'
+                'status' => 'ready',
+                'auto_delete_after_stream' => $autoDeleteAfterStream,
+                'scheduled_deletion_at' => $autoDeleteAfterStream ? now()->addDays(1) : null
             ]);
 
             // Clean up upload token

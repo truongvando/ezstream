@@ -12,7 +12,7 @@
     @if($transaction)
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <!-- Polling Status Banner -->
-            <div wire:poll.10s class="mb-8">
+            <div wire:poll.5s="checkPaymentStatus" class="mb-8">
                 @if($subscription->status === 'ACTIVE')
                     <div class="bg-green-100 dark:bg-green-900/50 border-l-4 border-green-500 text-green-800 dark:text-green-200 p-6 rounded-lg shadow-md">
                         <div class="flex items-center">
@@ -95,8 +95,8 @@
                                  <div class="group">
                                     <label class="text-sm font-medium text-gray-500 dark:text-gray-400">Nội dung chuyển khoản</label>
                                      <div class="flex items-center justify-between">
-                                        <p class="text-base font-mono font-semibold text-red-600 dark:text-red-400">{{ $transaction->payment_code }}</p>
-                                        <button @click="copyToClipboard('{{ $transaction->payment_code }}')" class="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 p-1 rounded-md -mr-1">
+                                        <p class="text-base font-mono font-semibold text-red-600 dark:text-red-400">{{ $this->paymentCode }}</p>
+                                        <button @click="copyToClipboard('{{ $this->paymentCode }}')" class="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 p-1 rounded-md -mr-1">
                                             <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v3.042m-7.332 0c-.055.194-.084.4-.084.612v3.042m0 9.75H12.5a2.25 2.25 0 002.25-2.25V5.25c0-1.03-.842-1.875-1.875-1.875h-1.5c-1.033 0-1.875.845-1.875 1.875v10.5A2.25 2.25 0 007.5 21h6" /></svg>
                                         </button>
                                     </div>
@@ -139,7 +139,7 @@
                     <div class="space-y-4 text-sm">
                         <div class="flex justify-between items-center">
                             <span class="text-gray-600 dark:text-gray-300">Mã đơn hàng:</span>
-                            <span class="font-mono text-gray-800 dark:text-gray-100 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md">{{ $transaction->payment_code }}</span>
+                            <span class="font-mono text-gray-800 dark:text-gray-100 bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded-md">{{ $this->paymentCode }}</span>
                         </div>
                         <div class="flex justify-between items-center">
                             <span class="text-gray-600 dark:text-gray-300">Ngày tạo:</span>
@@ -160,8 +160,19 @@
                         </div>
                     </div>
 
-                    <div class="mt-8 text-center text-xs text-gray-500">
-                        <p>Giao dịch được xử lý tự động. Nếu có vấn đề, vui lòng liên hệ hỗ trợ.</p>
+                    <!-- Manual Check Button -->
+                    <div class="mt-6">
+                        <button wire:click="checkPaymentStatus"
+                                class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-3 px-4 rounded-lg shadow-md transition-all duration-200 transform hover:scale-105 flex items-center justify-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                            Kiểm tra thanh toán
+                        </button>
+                    </div>
+
+                    <div class="mt-6 text-center text-xs text-gray-500">
+                        <p>Hệ thống tự động kiểm tra mỗi 5 giây. Bạn cũng có thể nhấn nút trên để kiểm tra ngay.</p>
                     </div>
                 </div>
             </div>

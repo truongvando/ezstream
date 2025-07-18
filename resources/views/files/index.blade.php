@@ -55,11 +55,17 @@
                                 @else
                                     @php
                                         $package = auth()->user()->currentPackage();
-                                        if ($package) {
-                                            $videoService = app(\App\Services\VideoValidationService::class);
-                                            $maxRes = $videoService->getPackageResolutionLimit($package);
+                                        if ($package && $package->max_video_width && $package->max_video_height) {
+                                            // Simple resolution name logic without service
+                                            $width = $package->max_video_width;
+                                            $height = $package->max_video_height;
+                                            if ($width >= 3840 && $height >= 2160) $maxRes = '4K UHD';
+                                            elseif ($width >= 2560 && $height >= 1440) $maxRes = '2K QHD';
+                                            elseif ($width >= 1920 && $height >= 1080) $maxRes = 'Full HD 1080p';
+                                            elseif ($width >= 1280 && $height >= 720) $maxRes = 'HD 720p';
+                                            else $maxRes = 'SD 480p';
                                         } else {
-                                            $maxRes = 'Chưa có gói dịch vụ';
+                                            $maxRes = 'HD 720p'; // Default
                                         }
                                     @endphp
                                     (Tối đa {{ number_format($maxFileSize / 1024 / 1024 / 1024, 0) }}GB, chất lượng {{ $maxRes }})

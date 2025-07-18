@@ -32,7 +32,10 @@ class StreamConfiguration extends Model
         'scheduled_at',
         'playlist_order',
         'user_file_id',
-        'keep_files_after_stop',
+        'keep_files_on_agent',
+        'is_quick_stream',
+        'auto_delete_from_cdn',
+        'error_message',
     ];
 
     protected $casts = [
@@ -41,7 +44,9 @@ class StreamConfiguration extends Model
         'last_status_update' => 'datetime',
         'scheduled_at' => 'datetime',
         'loop' => 'boolean',
-        'keep_files_after_stop' => 'boolean',
+        'keep_files_on_agent' => 'boolean',
+        'is_quick_stream' => 'boolean',
+        'auto_delete_from_cdn' => 'boolean',
         'video_source_path' => 'array', // Cast JSON to array automatically
         'push_urls' => 'array',
     ];

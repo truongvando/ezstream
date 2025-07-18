@@ -14,158 +14,41 @@ use Illuminate\Support\Facades\Redis;
 use Livewire\Component;
 use Livewire\WithPagination;
 
-class UserStreamManager extends Component
+class UserStreamManager extends BaseStreamManager
 {
-    use WithPagination;
-
-    protected $listeners = ['refreshComponent' => '$refresh'];
-
-    public function mount()
+    // Override abstract methods for user permissions
+    protected function canManageAllStreams(): bool
     {
-        $this->cleanupHangingStreams();
+        return false; // Users can only manage their own streams
+    }
+
+    protected function canForceStop(): bool
+    {
+        return false; // Users cannot force stop streams
+    }
+
+    protected function requiresSubscription(): bool
+    {
+        return true; // Users need active subscription
+    }
+
+    protected function getLayoutName(): string
+    {
+        return 'layouts.sidebar';
     }
 
     /**
-     * Cleanup streams that are stuck in STOPPING status
+     * Refresh streams method for polling
      */
-    private function cleanupHangingStreams()
+    public function refreshStreams()
     {
-        try {
-            $timeout = 300; // 5 minutes
-            $hangingStreams = StreamConfiguration::where('status', 'STOPPING')
-                ->where('user_id', Auth::id()) // Only user's own streams
-                ->where('updated_at', '<', now()->subSeconds($timeout))
-                ->get();
-
-            foreach ($hangingStreams as $stream) {
-                $stuckDuration = now()->diffInSeconds($stream->updated_at);
-
-                Log::warning("🔧 [UserStreamManager] Auto-fixing hanging stream #{$stream->id} for user #{$stream->user_id} stuck for {$stuckDuration}s");
-
-                $stream->update([
-                    'status' => 'INACTIVE',
-                    'last_stopped_at' => now(),
-                    'vps_server_id' => null,
-                    'error_message' => "Auto-fixed: was stuck in STOPPING status for {$stuckDuration}s",
-                ]);
-
-                // Decrement VPS stream count if needed
-                if ($stream->vps_server_id) {
-                    $vps = $stream->vpsServer;
-                    if ($vps && $vps->current_streams > 0) {
-                        $vps->decrement('current_streams');
-                    }
-                }
-            }
-
-            if ($hangingStreams->count() > 0) {
-                session()->flash('message', "Đã tự động sửa {$hangingStreams->count()} stream bị treo.");
-            }
-
-        } catch (\Exception $e) {
-            Log::error("❌ [UserStreamManager] Failed to cleanup hanging streams: {$e->getMessage()}");
-        }
+        // This method is called by wire:poll.2s="refreshStreams"
+        // Just refresh the component
+        $this->render();
     }
 
-    public $showCreateModal = false;
-    public $showEditModal = false;
-    public $showDeleteModal = false;
-    public $editingStream;
-    public $deletingStream;
-
-    // Filter properties
-    public $filterStatus = '';
-
-    // Form fields
-    public $title, $description, $user_file_ids = [], $platform = 'youtube';
-    public $rtmp_url, $stream_key;
-    
-    // New feature fields
-    public $loop = false;
-    public $enable_schedule = false;
-    public $scheduled_at;
-    public $scheduled_end;
-    public $playlist_order = 'sequential'; // 'sequential' or 'random'
-    public $keep_files_after_stop = false; // Keep downloaded files when stream stops
-
-    protected function rules()
-    {
-        return [
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'user_file_ids' => 'required|array|min:1',
-            'user_file_ids.*' => 'exists:user_files,id',
-            'platform' => 'required|string',
-            'stream_key' => 'required|string',
-            'rtmp_url' => 'required_if:platform,custom|nullable|url',
-            'loop' => 'boolean',
-            'scheduled_at' => 'nullable|date',
-            'playlist_order' => 'required|in:sequential,random',
-        ];
-    }
-    
-    public function create()
-    {
-        Log::info('UserStreamManager::create() method called');
-        
-        $user = Auth::user();
-        
-        // Admin có thể tạo stream mà không cần kiểm tra subscription
-        if (!$user->isAdmin()) {
-            // Check if user has active subscription
-            $activeSubscription = $user->subscriptions()->where('status', 'ACTIVE')->first();
-            if (!$activeSubscription) {
-                session()->flash('error', 'Bạn cần có gói dịch vụ đang hoạt động để tạo stream. Vui lòng mua gói dịch vụ trước.');
-                return redirect()->route('billing.manager');
-            }
-        }
-        
-        $this->reset(['title', 'description', 'user_file_ids', 'platform', 'rtmp_url', 'stream_key', 'playlist_order']);
-        $this->user_file_ids = [];
-        $this->platform = 'youtube';
-        $this->playlist_order = 'sequential';
-        $this->showCreateModal = true;
-        Log::info('showCreateModal set to true: ' . ($this->showCreateModal ? 'true' : 'false'));
-    }
-
-    public function updatedPlatform()
-    {
-        $this->rtmp_url = $this->getPlatformUrl($this->platform);
-    }
-
-    protected function getPlatformUrl($platform)
-    {
-        $platforms = [
-            'youtube' => 'rtmp://a.rtmp.youtube.com/live2',
-            'custom' => ''
-        ];
-
-        return $platforms[$platform] ?? '';
-    }
-
-    protected function getPlatformBackupUrl($platform)
-    {
-        $backupPlatforms = [
-            'youtube' => 'rtmp://b.rtmp.youtube.com/live2',
-            'custom' => '' // No backup for custom
-        ];
-
-        return $backupPlatforms[$platform] ?? '';
-    }
-
-    protected function detectPlatformFromUrl($url)
-    {
-        if (str_contains($url, 'youtube.com')) return 'youtube';
-        return 'custom';
-    }
-
-    public function getPlatforms()
-    {
-        return [
-            'youtube' => '📺 YouTube Live',
-            'custom' => '⚙️ Custom RTMP'
-        ];
-    }
+    // All common properties and methods are now inherited from BaseStreamManager
+    // Common methods inherited from BaseStreamManager
 
     public function store()
     {
@@ -306,35 +189,7 @@ class UserStreamManager extends Component
         $this->showEditModal = false;
     }
 
-    public function confirmDelete(StreamConfiguration $stream)
-    {
-        if ($stream->user_id !== Auth::id()) {
-            abort(403);
-        }
-        $this->deletingStream = $stream;
-        $this->showDeleteModal = true;
-    }
-
-    public function delete()
-    {
-        if ($this->deletingStream->user_id !== Auth::id()) {
-            abort(403);
-        }
-
-        // If stream is running, stop it first
-        if ($this->deletingStream->status === 'STREAMING') {
-            \App\Jobs\StopMultistreamJob::dispatch($this->deletingStream);
-        }
-
-        // Send cleanup command to VPS to remove downloaded files
-        if ($this->deletingStream->vps_server_id) {
-            \App\Jobs\CleanupStreamFilesJob::dispatch($this->deletingStream);
-        }
-
-        $this->deletingStream->delete();
-        $this->showDeleteModal = false;
-        session()->flash('success', 'Stream đã được xóa. Tất cả file liên quan cũng đã được dọn dẹp.');
-    }
+    // confirmDelete and delete methods inherited from BaseStreamManager
 
     public function startStream($stream)
     {
@@ -409,11 +264,137 @@ class UserStreamManager extends Component
         session()->flash('message', 'Lệnh dừng stream đã được gửi đi.');
     }
 
+    // openQuickStreamModal and updateQuickPlatformUrl methods inherited from BaseStreamManager
+
+    public function selectUploadedFile($fileId)
+    {
+        if (!in_array($fileId, $this->quickSelectedFiles)) {
+            $this->quickSelectedFiles[] = $fileId;
+        }
+        $this->dispatch('refreshComponent');
+    }
+
+    public function createQuickStream()
+    {
+        Log::info('🚀 [QuickStream] Starting createQuickStream', [
+            'quickTitle' => $this->quickTitle,
+            'quickPlatform' => $this->quickPlatform,
+            'quickSelectedFiles' => $this->quickSelectedFiles,
+            'video_source_id' => $this->video_source_id,
+        ]);
+
+        $this->validate([
+            'quickTitle' => 'required|string|max:255',
+            'quickDescription' => 'nullable|string',
+            'quickPlatform' => 'required|string',
+            'quickRtmpUrl' => 'required_if:quickPlatform,custom|nullable|url',
+            'quickStreamKey' => 'required|string',
+        ]);
+
+        $user = Auth::user();
+        $userFiles = collect();
+
+        // Check if we have uploaded file (from quick upload)
+        if (!empty($this->video_source_id)) {
+            $uploadedFile = $user->files()->where('id', $this->video_source_id)->first();
+            if ($uploadedFile) {
+                $userFiles->push($uploadedFile);
+            }
+        }
+
+        // Check if we have selected files from library
+        if (!empty($this->quickSelectedFiles)) {
+            $libraryFiles = $user->files()->whereIn('id', $this->quickSelectedFiles)->get();
+            $userFiles = $userFiles->merge($libraryFiles);
+        }
+
+        // Validate that we have at least one file
+        if ($userFiles->isEmpty()) {
+            session()->flash('error', 'Vui lòng chọn ít nhất một video hoặc upload file mới.');
+            return;
+        }
+
+        // Mark files for auto-deletion
+        foreach ($userFiles as $userFile) {
+            $userFile->update([
+                'auto_delete_after_stream' => true,
+                'scheduled_deletion_at' => now()->addDays(1) // Grace period
+            ]);
+        }
+
+        // Prepare file list for stream
+        $fileList = [];
+        foreach ($userFiles as $index => $userFile) {
+            $fileList[] = [
+                'file_id' => $userFile->id,
+                'filename' => $userFile->original_name,
+                'order' => $index + 1
+            ];
+        }
+
+        // Get platform URLs
+        $rtmpUrl = $this->quickPlatform === 'custom' ? $this->quickRtmpUrl : $this->getPlatformUrl($this->quickPlatform);
+        $backupRtmpUrl = $this->getPlatformBackupUrl($this->quickPlatform);
+
+        // Create quick stream configuration
+        $stream = $userFiles->first()->user->streamConfigurations()->create([
+            'title' => $this->quickTitle,
+            'description' => $this->quickDescription,
+            'video_source_path' => $fileList,
+            'rtmp_url' => $rtmpUrl,
+            'rtmp_backup_url' => $backupRtmpUrl,
+            'stream_key' => $this->quickStreamKey,
+            'status' => 'INACTIVE',
+            'loop' => $this->quickLoop,
+            'playlist_order' => 'sequential',
+            'is_quick_stream' => true,
+            'user_file_id' => $userFiles->first()->id
+        ]);
+
+        // Immediately dispatch the job to start the stream
+        StartMultistreamJob::dispatch($stream);
+
+        Log::info("User Quick Stream created and job dispatched", [
+            'stream_id' => $stream->id,
+            'user_id' => $userFiles->first()->user_id
+        ]);
+
+        $this->showQuickStreamModal = false;
+        $this->resetQuickStreamForm();
+
+        session()->flash('message', '🚀 Quick Stream đã được tạo và lệnh bắt đầu đã được gửi đi!');
+    }
+
+    public $quickUploadedFileId = null;
+
+    private function getQuickUploadedFileId()
+    {
+        // Return the file ID set by JavaScript
+        return $this->quickUploadedFileId;
+    }
+
+    protected function resetQuickStreamForm()
+    {
+        $this->quickTitle = '';
+        $this->quickDescription = '';
+        $this->quickPlatform = 'youtube';
+        $this->quickRtmpUrl = '';
+        $this->quickStreamKey = '';
+        $this->quickLoop = false;
+        $this->quickPlaylistOrder = 'sequential';
+        $this->quickEnableSchedule = false;
+        $this->quickScheduledAt = '';
+        $this->quickScheduledEnd = '';
+        $this->quickSelectedFiles = [];
+        $this->video_source_id = null;
+    }
+
     public function closeModal()
     {
         $this->showCreateModal = false;
         $this->showEditModal = false;
         $this->showDeleteModal = false;
+        $this->showQuickStreamModal = false;
         $this->reset();
     }
 
@@ -470,25 +451,24 @@ class UserStreamManager extends Component
 
     public function render()
     {
-        $streams = Auth::user()->streamConfigurations()->with('vpsServer')->paginate(10);
-        $userFiles = Auth::user()->files()->where('status', 'ready')->get();
+        $streams = $this->getStreamsQuery()->latest()->paginate(10);
 
-        // Add real-time progress to each stream
-        foreach ($streams as $stream) {
-            if (in_array($stream->status, ['STARTING', 'STREAMING'])) {
-                $progress = $this->getStreamProgress($stream->id);
-                if ($progress) {
-                    $stream->progress_data = $progress;
-                }
+        // Polling for progress updates
+        $streams->each(function ($stream) {
+            if (in_array($stream->status, ['STARTING', 'STOPPING'])) {
+                $progressData = $this->getStreamProgress($stream->id);
+                $stream->progress_data = $progressData;
             }
-        }
+        });
+
+        $userFiles = $this->getUserFiles();
 
         return view('livewire.user-stream-manager', [
             'streams' => $streams,
             'userFiles' => $userFiles,
             'platforms' => $this->getPlatforms(),
             'isAdmin' => false, // User manager is not admin
-        ])->layout('layouts.sidebar')
+        ])->layout($this->getLayoutName())
           ->slot('header', '<h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Quản lý Stream</h1>');
     }
 }

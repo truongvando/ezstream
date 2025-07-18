@@ -13,20 +13,30 @@
                 </p>
             </div>
             
-            @if(!isset($isAdmin) || $isAdmin !== true)
-            <button wire:click="create" 
-                    class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors duration-200">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
-                </svg>
-                Tạo Stream Mới
-            </button>
-            @endif
+            <div class="flex space-x-3">
+                <!-- Quick Stream Button -->
+                <button wire:click="openQuickStreamModal"
+                        class="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors duration-200">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                    </svg>
+                    🚀 Quick Stream
+                </button>
+
+                <!-- Regular Stream Button -->
+                <button wire:click="create"
+                        class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors duration-200">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                    </svg>
+                    Tạo Stream Mới
+                </button>
+            </div>
         </div>
 
         <!-- Filters -->
         <div class="flex flex-wrap gap-4 mb-6">
-            @if(auth()->user()->isAdmin() && isset($users))
+            @if(isset($isAdmin) && $isAdmin && isset($users))
             <div class="flex-1 min-w-48">
                 <select wire:model="filterUserId"
                         class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100">
@@ -61,9 +71,16 @@
                 <div class="p-4 border-b border-gray-200 dark:border-gray-600">
                     <div class="flex items-start justify-between">
                         <div class="flex-1 min-w-0">
-                            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
-                                {{ $stream->title }}
-                            </h3>
+                            <div class="flex items-center space-x-2">
+                                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
+                                    {{ $stream->title }}
+                                </h3>
+                                @if($stream->is_quick_stream)
+                                    <span class="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-800 dark:text-purple-100">
+                                        ⚡️ Quick
+                                    </span>
+                                @endif
+                            </div>
                             @if($stream->description)
                             <p class="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
                                 {{ $stream->description }}

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use App\Services\BunnyDirectUploadService;
 use App\Services\VideoValidationService;
 use App\Models\UserFile;
@@ -25,19 +26,43 @@ class FileUploadController extends Controller
     public function generateUploadUrl(Request $request)
     {
         $user = Auth::user();
+        if (!$user) {
+            Log::error('FileUpload: User not authenticated');
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
 
-        // 1. Basic validation
-        $request->validate([
-            'filename' => 'required|string|max:255',
-            'content_type' => 'required|string',
-            'size' => 'required|integer|min:1',
-            'width' => 'required|integer|min:1',
-            'height' => 'required|integer|min:1',
+        Log::info('FileUpload: Generate upload URL request', [
+            'user_id' => $user->id,
+            'request_data' => $request->all()
         ]);
+
+        try {
+            // 1. Basic validation - width, height optional
+            $validated = $request->validate([
+                'filename' => 'required|string|max:255',
+                'content_type' => 'required|string',
+                'size' => 'required|integer|min:1',
+                'width' => 'nullable|integer|min:1',
+                'height' => 'nullable|integer|min:1',
+            ]);
+
+            Log::info('FileUpload: Validation passed', ['validated_data' => $validated]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            Log::error('FileUpload: Validation failed', [
+                'errors' => $e->errors(),
+                'request_data' => $request->all()
+            ]);
+            return response()->json([
+                'error' => 'Validation failed',
+                'details' => $e->errors()
+            ], 400);
+        }
 
         try {
             // 2. Check file format - Only MP4
             if ($request->content_type !== 'video/mp4') {
+                Log::error('FileUpload: Invalid content type', ['content_type' => $request->content_type]);
                 return response()->json([
                     'error' => 'Chỉ hỗ trợ file MP4. Vui lòng chuyển đổi video sang định dạng MP4 trước khi upload.'
                 ], 400);
@@ -47,49 +72,107 @@ class FileUploadController extends Controller
             $maxSize = $user->hasRole('admin') ? 10737418240 : 10737418240; // 10GB for both
             if ($request->size > $maxSize) {
                 $maxSizeGB = $maxSize / 1024 / 1024 / 1024;
+                Log::error('FileUpload: File too large', ['size' => $request->size, 'max_size' => $maxSize]);
                 return response()->json([
                     'error' => "File quá lớn. Tối đa {$maxSizeGB}GB."
                 ], 400);
             }
 
+            Log::info('FileUpload: Basic checks passed', ['content_type' => $request->content_type, 'size' => $request->size]);
+
             // 4. Check video resolution for non-admin users
             if (!$user->hasRole('admin')) {
-                // Validate dimensions are provided
+                Log::info('FileUpload: Checking dimensions', [
+                    'width' => $request->width,
+                    'height' => $request->height,
+                    'width_type' => gettype($request->width),
+                    'height_type' => gettype($request->height),
+                    'width_empty' => empty($request->width),
+                    'height_empty' => empty($request->height)
+                ]);
+
+                // Require dimensions for video files
                 if (!$request->width || !$request->height) {
+                    Log::error('FileUpload: Missing dimensions', [
+                        'width' => $request->width,
+                        'height' => $request->height
+                    ]);
                     return response()->json([
-                        'error' => 'Không thể đọc thông tin video. Vui lòng thử lại.'
+                        'error' => 'Không thể đọc thông tin video. File có thể bị lỗi hoặc không hợp lệ.'
                     ], 400);
                 }
-
-                $package = $user->currentPackage();
-                if (!$package) {
+                try {
+                    $package = $user->currentPackage();
+                    Log::info('FileUpload: Package check', [
+                        'package' => $package ? $package->toArray() : null,
+                        'has_package' => !!$package
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error('FileUpload: Error getting currentPackage', [
+                        'user_id' => $user->id,
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
+                    ]);
                     return response()->json([
-                        'error' => 'Không có gói dịch vụ. Vui lòng đăng ký gói để upload video.'
+                        'error' => 'Lỗi hệ thống khi kiểm tra gói dịch vụ.'
+                    ], 500);
+                }
+
+                if (!$package) {
+                    Log::error('FileUpload: No package found for user', ['user_id' => $user->id]);
+                    return response()->json([
+                        'error' => '❌ Không thể upload video',
+                        'reason' => 'Chưa có gói dịch vụ',
+                        'details' => [
+                            'message' => 'Tài khoản của bạn chưa có gói dịch vụ nào được kích hoạt'
+                        ],
+                        'solutions' => [
+                            '📦 Đăng ký gói dịch vụ phù hợp với nhu cầu',
+                            '💳 Thanh toán để kích hoạt gói đã chọn',
+                            '📞 Liên hệ support nếu đã thanh toán nhưng chưa được kích hoạt'
+                        ]
                     ], 400);
                 }
 
                 // Check if package has resolution limits
-                if (!$package->max_video_width || !$package->max_video_height) {
-                    return response()->json([
-                        'error' => 'Gói dịch vụ chưa được cấu hình đúng. Vui lòng liên hệ admin.'
-                    ], 400);
-                }
+                if ($package->max_video_width && $package->max_video_height) {
+                    // Check resolution - Support both landscape and portrait orientations
+                    $maxWidth = $package->max_video_width;
+                    $maxHeight = $package->max_video_height;
 
-                // Check resolution - Support both landscape and portrait orientations
-                $maxWidth = $package->max_video_width;
-                $maxHeight = $package->max_video_height;
+                    // Check if video exceeds limits in both orientations
+                    $landscapeValid = ($request->width <= $maxWidth && $request->height <= $maxHeight);
+                    $portraitValid = ($request->width <= $maxHeight && $request->height <= $maxWidth);
 
-                // Check if video exceeds limits in both orientations
-                $landscapeValid = ($request->width <= $maxWidth && $request->height <= $maxHeight);
-                $portraitValid = ($request->width <= $maxHeight && $request->height <= $maxWidth);
+                    if (!$landscapeValid && !$portraitValid) {
+                        $currentRes = $this->getResolutionName($request->width, $request->height);
+                        $maxRes = $this->getResolutionName($maxWidth, $maxHeight);
 
-                if (!$landscapeValid && !$portraitValid) {
-                    $currentRes = $this->getResolutionName($request->width, $request->height);
-                    $maxRes = $this->getResolutionName($maxWidth, $maxHeight);
+                        Log::error('FileUpload: Resolution exceeds package limits', [
+                            'user_id' => $user->id,
+                            'package_name' => $package->name,
+                            'video_resolution' => "{$request->width}x{$request->height}",
+                            'package_limit' => "{$maxWidth}x{$maxHeight}",
+                            'current_res_name' => $currentRes,
+                            'max_res_name' => $maxRes
+                        ]);
 
-                    return response()->json([
-                        'error' => "Video có độ phân giải {$currentRes} ({$request->width}x{$request->height}) vượt quá giới hạn gói {$maxRes} ({$maxWidth}x{$maxHeight}). Gói này hỗ trợ cả video ngang và dọc trong giới hạn này. Vui lòng nâng cấp gói hoặc giảm chất lượng video."
-                    ], 400);
+                        return response()->json([
+                            'error' => "❌ Video không thể upload",
+                            'reason' => "Độ phân giải vượt quá giới hạn gói",
+                            'details' => [
+                                'video_resolution' => "{$request->width}x{$request->height} ({$currentRes})",
+                                'package_name' => $package->name,
+                                'package_limit' => "{$maxWidth}x{$maxHeight} ({$maxRes})",
+                                'supported_orientations' => "Cả video ngang và dọc đều được hỗ trợ trong giới hạn này"
+                            ],
+                            'solutions' => [
+                                "🔧 Giảm chất lượng video xuống {$maxRes} hoặc thấp hơn",
+                                "📈 Nâng cấp lên gói cao hơn để hỗ trợ {$currentRes}",
+                                "✂️ Sử dụng phần mềm như HandBrake để resize video"
+                            ]
+                        ], 400);
+                    }
                 }
             }
 
@@ -100,8 +183,33 @@ class FileUploadController extends Controller
                 $storageLimit = $package ? $package->storage_limit_gb * 1024 * 1024 * 1024 : 5 * 1024 * 1024 * 1024;
 
                 if (($storageUsage + $request->size) > $storageLimit) {
+                    $storageUsedGB = round($storageUsage / 1024 / 1024 / 1024, 2);
+                    $storageLimitGB = round($storageLimit / 1024 / 1024 / 1024, 2);
+                    $fileSizeGB = round($request->size / 1024 / 1024 / 1024, 2);
+                    $remainingGB = round(($storageLimit - $storageUsage) / 1024 / 1024 / 1024, 2);
+
+                    Log::error('FileUpload: Storage limit exceeded', [
+                        'user_id' => $user->id,
+                        'storage_used_gb' => $storageUsedGB,
+                        'storage_limit_gb' => $storageLimitGB,
+                        'file_size_gb' => $fileSizeGB,
+                        'remaining_gb' => $remainingGB
+                    ]);
+
                     return response()->json([
-                        'error' => 'Không đủ dung lượng lưu trữ. Vui lòng nâng cấp gói hoặc xóa bớt file.'
+                        'error' => '❌ Không thể upload video',
+                        'reason' => 'Vượt quá giới hạn dung lượng lưu trữ',
+                        'details' => [
+                            'storage_used' => "{$storageUsedGB}GB / {$storageLimitGB}GB",
+                            'file_size' => "{$fileSizeGB}GB",
+                            'remaining_space' => "{$remainingGB}GB",
+                            'package_name' => $package->name ?? 'Không xác định'
+                        ],
+                        'solutions' => [
+                            "🗑️ Xóa bớt {$fileSizeGB}GB file cũ để có đủ dung lượng",
+                            "📈 Nâng cấp lên gói có dung lượng lưu trữ cao hơn",
+                            "📁 Kiểm tra và xóa các file không cần thiết"
+                        ]
                     ], 400);
                 }
             }
@@ -138,6 +246,7 @@ class FileUploadController extends Controller
             'upload_token' => 'required|string',
             'size' => 'required|integer|min:1',
             'content_type' => 'required|string',
+            'auto_delete_after_stream' => 'boolean',
         ]);
 
         try {
@@ -145,7 +254,8 @@ class FileUploadController extends Controller
             $result = $this->bunnyService->confirmUpload(
                 $request->upload_token,
                 $request->size,
-                $request->content_type
+                $request->content_type,
+                $request->boolean('auto_delete_after_stream', false)
             );
 
             if (!$result['success']) {

@@ -19,6 +19,8 @@ class UserFile extends Model
         'mime_type',
         'size',
         'status',
+        'auto_delete_after_stream',
+        'scheduled_deletion_at',
         'status_message',
         'source_url',
         'google_drive_file_id',
@@ -34,6 +36,8 @@ class UserFile extends Model
 
     protected $casts = [
         'downloaded_at' => 'datetime',
+        'scheduled_deletion_at' => 'datetime',
+        'auto_delete_after_stream' => 'boolean',
         'storage_locations' => 'array',
     ];
 

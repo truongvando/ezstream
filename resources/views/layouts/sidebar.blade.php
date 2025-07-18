@@ -14,7 +14,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
 
-        <title>{{ config('app.name', 'EZStream Live Stream Control') }}</title>
+        <title>{{ config('app.name', 'EZStream Control') }}</title>
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
@@ -86,7 +86,11 @@
                             <x-flash-message />
                         </div>
                         <div class="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-                            {{ $slot }}
+                            @if(isset($slot))
+                                {{ $slot }}
+                            @else
+                                @yield('content')
+                            @endif
                         </div>
                     </div>
                 </main>

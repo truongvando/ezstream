@@ -28,21 +28,24 @@ class CheckBankTransactionsJob implements ShouldQueue
      */
     public function handle(): void
     {
-        // 1. Huỷ các giao dịch chờ quá 15 phút
-        $expiredTransactions = Transaction::where('status', 'PENDING')
+        // 1. Hủy các giao dịch chờ quá 15 phút
+        $expiredCount = Transaction::where('status', 'PENDING')
             ->where('created_at', '<', now()->subMinutes(15))
-            ->get();
-        foreach ($expiredTransactions as $transaction) {
-            $transaction->update(['status' => 'CANCELLED']);
-            Log::info('Auto-cancelled pending transaction quá hạn 15 phút', [
-                'transaction_id' => $transaction->id,
-                'created_at' => $transaction->created_at,
-            ]);
+            ->update(['status' => 'CANCELLED']);
+
+        if ($expiredCount > 0) {
+            Log::info("Auto-cancelled {$expiredCount} pending transactions quá hạn 15 phút");
         }
 
-        // ✅ EARLY EXIT - Không call API nếu không có pending
+        // 2. Check API bank cho các giao dịch pending còn lại
         $pendingTransactions = Transaction::where('status', 'PENDING')
-            ->pluck('payment_code', 'id');
+            ->whereNotNull('subscription_id')
+            ->get()
+            ->mapWithKeys(function($transaction) {
+                // Generate payment code: EZS + subscription_id padded to 6 digits
+                $paymentCode = 'EZS' . str_pad($transaction->subscription_id, 6, '0', STR_PAD_LEFT);
+                return [$transaction->id => $paymentCode];
+            });
 
         if ($pendingTransactions->isEmpty()) {
             Log::info('No pending transactions to check - skipping API call');
@@ -57,169 +60,126 @@ class CheckBankTransactionsJob implements ShouldQueue
 
             if (!$apiUrl) {
                 Log::error('Payment API endpoint is not configured.');
+                echo "❌ Payment API endpoint is not configured.\n";
                 return;
             }
 
-            Log::info("Checking bank transactions", [
-                'api_url' => $apiUrl,
-                'pending_transactions_count' => $pendingTransactions->count(),
-                'pending_codes' => $pendingTransactions->values()->toArray()
-            ]);
+            Log::info("🌐 Calling bank API: {$apiUrl}");
+            echo "🌐 Calling bank API: {$apiUrl}\n";
 
             $response = Http::get($apiUrl);
 
-            if (!$response->successful() || $response->json('status') !== 'success') {
-                Log::error('Failed to fetch bank transactions from API.', ['response' => $response->body()]);
+            if (!$response->successful()) {
+                Log::error('Failed to fetch bank transactions from API.', [
+                    'status' => $response->status(),
+                    'response' => $response->body()
+                ]);
+                echo "❌ API call failed with status: " . $response->status() . "\n";
+                echo "Response: " . $response->body() . "\n";
                 return;
             }
 
-            $bankTransactions = $response->json('transactions');
+            $responseData = $response->json();
+            if (!$responseData || ($responseData['status'] ?? null) !== 'success') {
+                Log::error('Invalid API response format', ['response' => $response->body()]);
+                echo "❌ Invalid API response format\n";
+                echo "Response: " . $response->body() . "\n";
+                return;
+            }
 
-            $processedCount = 0;
+            echo "✅ API call successful\n";
+
+            $bankTransactions = $response->json('transactions');
             $matchedCount = 0;
 
+            echo "📦 Found " . count($bankTransactions) . " bank transactions\n";
+            echo "🔍 Looking for payment codes: " . implode(', ', $pendingTransactions->values()->toArray()) . "\n";
+
             foreach ($bankTransactions as $bankTx) {
-                $processedCount++;
-                
-                // ✅ SIMPLE EXACT MATCHING - Vì payment_code format đơn giản: HD000003
-                $description = strtoupper($bankTx['description']); // Normalize case
-                
-                Log::info("Processing bank transaction", [
-                    'transactionID' => $bankTx['transactionID'],
-                    'amount' => $bankTx['amount'],
-                    'description' => $description
-                ]);
-                
+                $description = strtoupper($bankTx['description']);
+                echo "🏦 Bank transaction: {$description} - Amount: " . ($bankTx['amount'] ?? 'N/A') . "\n";
+
                 // Check if the description contains any of our pending payment codes
                 foreach ($pendingTransactions as $id => $code) {
                     $normalizedCode = strtoupper($code);
-                    
-                    // ✅ SIMPLE STRING MATCHING - Vì HD000003 format đơn giản không trùng với gì khác
+
                     if (str_contains($description, $normalizedCode)) {
-                        Log::info("Payment code matched", [
-                            'transaction_id' => $id,
-                            'code' => $normalizedCode,
-                            'description' => $description,
-                            'bank_amount' => $bankTx['amount']
-                        ]);
-                        
+                        echo "✅ Found matching payment code: {$normalizedCode}\n";
+
                         // Get the transaction to verify amount
                         $transaction = Transaction::find($id);
                         if (!$transaction) {
-                            Log::warning("Transaction not found", ['id' => $id]);
+                            echo "❌ Transaction {$id} not found\n";
                             continue;
                         }
-                        
-                        // Verify amount matches (allow small differences due to rounding)
+
+                        // Verify amount matches
                         $expectedAmount = (float) $transaction->amount;
-                        $receivedAmount = (float) $bankTx['amount'];
-                        $amountDifference = abs($expectedAmount - $receivedAmount);
-                        
-                        if ($amountDifference > 1) { // Allow 1 VND difference
-                            Log::warning("Amount mismatch", [
-                                'transaction_id' => $id,
-                                'expected' => $expectedAmount,
-                                'received' => $receivedAmount,
-                                'difference' => $amountDifference
-                            ]);
+                        $receivedAmount = (float) ($bankTx['amount'] ?? 0);
+
+                        echo "💰 Amount check: Expected {$expectedAmount}, Received {$receivedAmount}\n";
+
+                        if (abs($expectedAmount - $receivedAmount) > 1) {
+                            echo "❌ Amount mismatch (difference: " . abs($expectedAmount - $receivedAmount) . ")\n";
                             continue;
                         }
-                        
+
                         // Mark transaction as completed
                         $transaction->update([
                             'status' => 'COMPLETED',
-                            'gateway_transaction_id' => $bankTx['transactionID'],
+                            'gateway_transaction_id' => $bankTx['transactionID'] ?? null,
                         ]);
-                        
+
+                        echo "✅ Transaction {$id} marked as COMPLETED\n";
+
                         // Activate the subscription
                         $subscription = $transaction->subscription;
+                        $subscription->load('servicePackage'); // Load relationship
                         if ($subscription) {
+                            // 🔥 CRITICAL FIX: Deactivate old subscriptions before activating new one
                             $user = $subscription->user;
-                            
-                            try {
-                                // ✅ UPGRADE LOGIC - Hủy tất cả các gói ACTIVE khác của user này
-                                $user->subscriptions()
-                                    ->where('status', 'ACTIVE')
-                                    ->where('id', '!=', $subscription->id) // Không hủy chính gói vừa mua
-                                    ->update(['status' => 'CANCELED']);
+                            $oldSubscriptions = $user->subscriptions()
+                                ->where('status', 'ACTIVE')
+                                ->where('id', '!=', $subscription->id)
+                                ->with('servicePackage')
+                                ->get();
 
-                                Log::info("Canceled old active subscriptions for user", ['user_id' => $user->id]);
-
-                                // Activate new subscription
-                                $subscription->update([
-                                    'status' => 'ACTIVE',
-                                    'starts_at' => now(),
-                                    'ends_at' => now()->addMonth(), // ✅ FIX: Default 1 month duration
-                                    'payment_transaction_id' => $transaction->id, // ✅ FIX: Set payment transaction ID
-                                ]);
-                                
-                                // ✅ Verify update was successful
-                                $subscription->refresh();
-                                if ($subscription->payment_transaction_id !== $transaction->id) {
-                                    Log::error("Failed to set payment_transaction_id", [
-                                        'subscription_id' => $subscription->id,
-                                        'transaction_id' => $transaction->id,
-                                        'actual_payment_transaction_id' => $subscription->payment_transaction_id
-                                    ]);
-                                }
-                                
-                                Log::info("Subscription activated", [
-                                    'subscription_id' => $subscription->id,
-                                    'user_id' => $user->id,
-                                    'package' => $subscription->servicePackage->name ?? 'Unknown',
-                                    'payment_transaction_id' => $subscription->payment_transaction_id
-                                ]);
-                                
-                                // Send notification to user
-                                $this->sendPaymentSuccessNotification($transaction, $subscription);
-                                
-                            } catch (\Exception $e) {
-                                Log::error("Error activating subscription", [
-                                    'subscription_id' => $subscription->id,
-                                    'transaction_id' => $transaction->id,
-                                    'error' => $e->getMessage(),
-                                    'trace' => $e->getTraceAsString()
-                                ]);
+                            foreach ($oldSubscriptions as $oldSub) {
+                                $oldSub->update(['status' => 'INACTIVE']);
+                                echo "🔄 Deactivated old subscription {$oldSub->id} (package: {$oldSub->servicePackage->name})\n";
                             }
+
+                            // Now activate the new subscription
+                            $subscription->update([
+                                'status' => 'ACTIVE',
+                                'starts_at' => now(),
+                                'ends_at' => now()->addMonth(),
+                            ]);
+
+                            echo "✅ Subscription {$subscription->id} activated (package: {$subscription->servicePackage->name})\n";
+
+                            Log::info("Transaction completed and subscription activated", [
+                                'transaction_id' => $id,
+                                'subscription_id' => $subscription->id,
+                                'payment_code' => $normalizedCode,
+                                'old_subscriptions_deactivated' => $oldSubscriptions->count()
+                            ]);
                         }
-                        
+
                         $matchedCount++;
-                        
-                        // Remove from pending list to avoid duplicate processing
-                        $pendingTransactions->forget($id);
-                        
-                        Log::info("Transaction completed successfully", [
-                            'transaction_id' => $id,
-                            'payment_code' => $normalizedCode,
-                            'amount' => $receivedAmount
-                        ]);
-                        
-                        break; // Found match, move to next bank transaction
+                        break;
                     }
                 }
             }
 
             Log::info("Bank transaction check completed", [
-                'processed_count' => $processedCount,
-                'matched_count' => $matchedCount,
-                'remaining_pending' => $pendingTransactions->count()
+                'cancelled_transactions' => $expiredCount,
+                'matched_transactions' => $matchedCount,
+                'remaining_pending' => $pendingTransactions->count() - $matchedCount
             ]);
 
         } catch (\Exception $e) {
-            Log::error('Error checking bank transactions: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString()
-            ]);
+            Log::error('Error checking bank transactions: ' . $e->getMessage());
         }
-    }
-
-    protected function sendPaymentSuccessNotification(Transaction $transaction, \App\Models\Subscription $subscription): void
-    {
-        // Implement the logic to send a payment success notification to the user
-        // This is a placeholder and should be replaced with the actual implementation
-        Log::info("Payment success notification sent to user", [
-            'transaction_id' => $transaction->id,
-            'subscription_id' => $subscription->id,
-            'user_id' => $transaction->user->id
-        ]);
     }
 }

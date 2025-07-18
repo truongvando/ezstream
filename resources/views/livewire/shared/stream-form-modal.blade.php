@@ -151,22 +151,22 @@
 
                         <!-- Keep Files Option -->
                         <div class="flex items-start p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600 hover:border-green-300 dark:hover:border-green-500 transition-colors">
-                            <input type="checkbox" wire:model.defer="keep_files_after_stop" id="keep_files_checkbox"
+                            <input type="checkbox" wire:model.defer="keep_files_on_agent" id="keep_files_checkbox"
                                    class="mt-1 h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded">
                             <label for="keep_files_checkbox" class="ml-4 flex-1 cursor-pointer">
                                 <div class="flex items-center">
                                     <span class="text-2xl mr-2">💾</span>
                                     <div>
-                                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Giữ file sau khi dừng stream</span>
+                                        <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Giữ file trên VPS agent</span>
                                         <div class="text-xs text-gray-500 dark:text-gray-400 mt-1 space-y-1">
-                                            <p>✅ <strong>Bật:</strong> File được giữ lại để stream nhanh hơn lần sau</p>
-                                            <p>🗑️ <strong>Tắt:</strong> File tự động xóa để tiết kiệm dung lượng VPS</p>
+                                            <p>✅ <strong>Bật:</strong> File được giữ lại trên VPS để stream nhanh hơn lần sau</p>
+                                            <p>🗑️ <strong>Tắt:</strong> File tự động xóa khỏi VPS để tiết kiệm dung lượng</p>
                                             <p class="text-amber-600 dark:text-amber-400">
                                                 <span class="inline-flex items-center">
                                                     <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                                         <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
                                                     </svg>
-                                                    <strong>Lưu ý:</strong> Khi xóa stream, tất cả file sẽ bị xóa vĩnh viễn
+                                                    <strong>Lưu ý:</strong> File trên CDN vẫn được giữ, chỉ xóa trên VPS
                                                 </span>
                                             </p>
                                         </div>

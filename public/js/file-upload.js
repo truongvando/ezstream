@@ -1,6 +1,18 @@
+// Global file upload handler - can be called from anywhere
+window.handleFileUpload = null;
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🚀 File upload script loaded');
+    initializeFileUpload();
+});
 
+// Also initialize when Livewire navigates (for SPA-like behavior)
+document.addEventListener('livewire:navigated', function() {
+    console.log('🔄 Livewire navigated, reinitializing file upload');
+    initializeFileUpload();
+});
+
+function initializeFileUpload() {
     const fileInput = document.getElementById('file-input');
     const uploadForm = document.getElementById('upload-form');
     const uploadProgress = document.getElementById('upload-progress');
@@ -16,7 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     if (!fileInput || !uploadForm) {
-        console.error('❌ Upload form elements not found on this page');
+        console.warn('⚠️ Upload form elements not found on this page');
         return;
     }
 
@@ -71,10 +83,21 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         console.log('🚀 Starting upload:', file.name, 'Size:', formatFileSize(file.size));
+        
+        // Call custom start handler if it exists
+        if (typeof window.uploadStartHandler === 'function') {
+            window.uploadStartHandler();
+        }
+
+        // Show progress early
+        showProgress();
+        updateProgress('🔬 Đang đọc thông tin video...', 2);
 
         try {
-            // Show progress
-            showProgress();
+            // Get video dimensions
+            const dimensions = await getVideoDimensions(file);
+            console.log('🖼️ Video dimensions:', dimensions);
+
             updateProgress('📋 Đang tạo URL upload...', 5);
 
             // Step 1: Generate upload URL
@@ -87,15 +110,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 credentials: 'same-origin',
                 body: JSON.stringify({
-                    file_name: file.name,
-                    file_size: file.size,
-                    mime_type: file.type
+                    filename: file.name,
+                    size: file.size,
+                    content_type: file.type,
+                    width: dimensions.width,
+                    height: dimensions.height,
                 })
             });
 
             if (!uploadUrlResponse.ok) {
-                const errorData = await uploadUrlResponse.json().catch(() => ({}));
-                throw new Error(errorData.message || `HTTP ${uploadUrlResponse.status}: ${uploadUrlResponse.statusText}`);
+                const errorData = await uploadUrlResponse.json().catch(() => ({ error: `Lỗi không xác định. Vui lòng thử lại.` }));
+
+                // Handle detailed error response
+                if (errorData.reason && errorData.details && errorData.solutions) {
+                    showDetailedError(errorData);
+                    return;
+                }
+
+                throw new Error(errorData.error || `HTTP ${uploadUrlResponse.status}: ${uploadUrlResponse.statusText}`);
             }
 
             const uploadUrlData = await uploadUrlResponse.json();
@@ -122,8 +154,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 credentials: 'same-origin',
                 body: JSON.stringify({
                     upload_token: uploadUrlData.upload_token,
-                    file_size: file.size,
-                    mime_type: file.type
+                    size: file.size,
+                    content_type: file.type
                 })
             });
 
@@ -141,11 +173,17 @@ document.addEventListener('DOMContentLoaded', function() {
             // Success!
             updateProgress('🎉 Upload hoàn tất!', 100);
             
-            // Notify Livewire component
-            if (window.Livewire) {
+            // Notify Livewire component or call custom success handler
+            if (typeof window.uploadSuccessHandler === 'function') {
+                window.uploadSuccessHandler({
+                    file_name: file.name,
+                    file_id: confirmData.file.id,
+                    file_size: file.size
+                });
+            } else if (window.Livewire) {
                 window.Livewire.dispatch('fileUploaded', {
                     file_name: file.name,
-                    file_id: confirmData.file_id,
+                    file_id: confirmData.file.id, // Sửa lại đường dẫn
                     file_size: file.size
                 });
             }
@@ -158,8 +196,66 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (error) {
             console.error('Upload failed:', error);
             updateProgress('❌ Lỗi: ' + error.message, 0);
+            
+            // Call custom error handler
+            if (typeof window.uploadErrorHandler === 'function') {
+                window.uploadErrorHandler();
+            }
+
             setTimeout(resetForm, 3000);
         }
+    }
+
+    function showDetailedError(errorData) {
+        const progressContainer = document.getElementById('upload-progress');
+
+        progressContainer.innerHTML = `
+            <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+                <div class="flex items-start">
+                    <div class="flex-shrink-0">
+                        <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <div class="ml-3 flex-1">
+                        <h3 class="text-lg font-medium text-red-800 dark:text-red-200">
+                            ${errorData.error}
+                        </h3>
+                        <p class="mt-1 text-sm text-red-700 dark:text-red-300">
+                            <strong>Lý do:</strong> ${errorData.reason}
+                        </p>
+
+                        <div class="mt-4">
+                            <h4 class="text-sm font-medium text-red-800 dark:text-red-200">Chi tiết:</h4>
+                            <ul class="mt-2 text-sm text-red-700 dark:text-red-300 space-y-1">
+                                ${Object.entries(errorData.details).map(([key, value]) =>
+                                    `<li><strong>${key.replace(/_/g, ' ')}:</strong> ${value}</li>`
+                                ).join('')}
+                            </ul>
+                        </div>
+
+                        <div class="mt-4">
+                            <h4 class="text-sm font-medium text-red-800 dark:text-red-200">Giải pháp:</h4>
+                            <ul class="mt-2 text-sm text-red-700 dark:text-red-300 space-y-1">
+                                ${errorData.solutions.map(solution => `<li>• ${solution}</li>`).join('')}
+                            </ul>
+                        </div>
+
+                        <div class="mt-6">
+                            <button onclick="resetForm()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-md text-sm font-medium">
+                                Thử lại
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Auto reset after 10 seconds
+        if (typeof window.uploadErrorHandler === 'function') {
+            window.uploadErrorHandler();
+        }
+        setTimeout(resetForm, 10000);
     }
 
     async function uploadToBunny(file, uploadData) {
@@ -232,4 +328,30 @@ document.addEventListener('DOMContentLoaded', function() {
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
-});
+    
+    function getVideoDimensions(file) {
+        return new Promise((resolve, reject) => {
+            const video = document.createElement('video');
+            video.preload = 'metadata';
+
+            video.onloadedmetadata = function() {
+                window.URL.revokeObjectURL(video.src);
+                resolve({
+                    width: video.videoWidth,
+                    height: video.videoHeight
+                });
+            };
+
+            video.onerror = function() {
+                reject(new Error('Không thể đọc metadata của file video. File có thể bị lỗi.'));
+            };
+
+            video.src = window.URL.createObjectURL(file);
+        });
+    }
+
+    // Expose handleFileUpload globally so it can be called from other scripts
+    window.handleFileUpload = handleFileUpload;
+
+    console.log('🌍 handleFileUpload exposed globally');
+}

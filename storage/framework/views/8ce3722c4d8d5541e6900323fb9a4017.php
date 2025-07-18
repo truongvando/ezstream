@@ -14,7 +14,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="<?php echo e(csrf_token()); ?>">
 
-        <title><?php echo e(config('app.name', 'EZStream Live Stream Control')); ?></title>
+        <title><?php echo e(config('app.name', 'EZStream Control')); ?></title>
 
         <!-- Fonts -->
         <link rel="preconnect" href="https://fonts.bunny.net">
@@ -107,8 +107,12 @@
 <?php endif; ?>
                         </div>
                         <div class="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-                            <?php echo e($slot); ?>
+                            <?php if(isset($slot)): ?>
+                                <?php echo e($slot); ?>
 
+                            <?php else: ?>
+                                <?php echo $__env->yieldContent('content'); ?>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </main>

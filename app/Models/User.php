@@ -115,16 +115,32 @@ class User extends Authenticatable
     }
 
     /**
-     * Get user's current active package
+     * Get user's current active package (highest limits if multiple)
      */
     public function currentPackage()
     {
-        $activeSubscription = $this->subscriptions()
+        $activeSubscriptions = $this->subscriptions()
             ->where('status', 'ACTIVE')
             ->where('ends_at', '>', now())
-            ->first();
+            ->with('servicePackage')
+            ->get();
 
-        return $activeSubscription ? $activeSubscription->servicePackage : null;
+        if ($activeSubscriptions->isEmpty()) {
+            return null;
+        }
+
+        // If only one subscription, return it
+        if ($activeSubscriptions->count() === 1) {
+            return $activeSubscriptions->first()->servicePackage;
+        }
+
+        // If multiple subscriptions, return the one with highest video resolution limits
+        $bestSubscription = $activeSubscriptions->sortByDesc(function ($subscription) {
+            $package = $subscription->servicePackage;
+            return ($package->max_video_width ?? 0) * ($package->max_video_height ?? 0);
+        })->first();
+
+        return $bestSubscription->servicePackage;
     }
 
     /**

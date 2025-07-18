@@ -2,6 +2,11 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Api\StreamController;
+use App\Http\Controllers\Api\SecureDownloadController;
+use App\Http\Controllers\Api\DirectUploadController;
+use App\Http\Controllers\Api\WebhookController;
+use App\Http\Controllers\FileUploadController;
 
 /*
 |--------------------------------------------------------------------------
@@ -14,14 +19,25 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::middleware(['web', 'auth'])->get('/user', function (Request $request) {
+Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
 });
 
-// File Upload Routes - Use session auth, no CSRF in API routes
+Route::get('/stream/{streamId}/progress', [StreamController::class, 'getStreamProgress']);
+
+Route::middleware(['signed', 'throttle:60,1'])->group(function () {
+    Route::get('/secure-download/{userFile}', [SecureDownloadController::class, 'download'])->name('secure-download');
+});
+
+Route::post('/direct-upload/initiate', [DirectUploadController::class, 'initiate']);
+Route::post('/direct-upload/complete', [DirectUploadController::class, 'complete']);
+
+Route::post('/vps/webhook/{token}', [WebhookController::class, 'handleVpsWebhook']);
+
+// Stateful API routes for uploads from the web app
 Route::middleware(['web', 'auth'])->group(function () {
-    Route::post('/generate-upload-url', [\App\Http\Controllers\FileUploadController::class, 'generateUploadUrl']);
-    Route::post('/confirm-upload', [\App\Http\Controllers\FileUploadController::class, 'confirmUpload']);
+    Route::post('/generate-upload-url', [FileUploadController::class, 'generateUploadUrl']);
+    Route::post('/confirm-upload', [FileUploadController::class, 'confirmUpload']);
 });
 
 // 🔥 NEW UNIFIED WEBHOOK ENDPOINTS

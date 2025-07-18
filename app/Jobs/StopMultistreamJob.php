@@ -70,6 +70,12 @@ class StopMultistreamJob implements ShouldQueue
                 'error_message' => null,
             ]);
 
+            // Trigger auto-deletion for quick streams
+            if ($this->stream->is_quick_stream && $this->stream->auto_delete_from_cdn) {
+                Log::info("🗑️ [Stream #{$this->stream->id}] Dispatching auto-deletion job for quick stream");
+                \App\Jobs\AutoDeleteStreamFilesJob::dispatch($this->stream)->delay(now()->addMinutes(2));
+            }
+
         } catch (\Exception $e) {
             Log::error("❌ [Stream #{$this->stream->id}] StopMultistreamJob-Redis failed", [
                 'error' => $e->getMessage(),

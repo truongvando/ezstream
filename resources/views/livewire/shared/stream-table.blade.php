@@ -132,36 +132,51 @@
 
                             <!-- Status -->
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                    @switch($stream->status)
-                                        @case('STREAMING') bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 @break
-                                        @case('STARTING') bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 @break
-                                        @case('STOPPING') bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 @break
-                                        @case('STOPPED') bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200 @break
-                                        @case('ERROR') bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 @break
-                                        @case('INACTIVE') bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200 @break
-                                        @default bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
-                                    @endswitch
-                                ">
-                                    <div class="w-1.5 h-1.5 rounded-full mr-1.5
+                                <div class="flex flex-col">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
                                         @switch($stream->status)
-                                            @case('STREAMING') bg-green-400 @break
-                                            @case('STARTING') bg-yellow-400 animate-pulse @break
-                                            @case('STOPPING') bg-orange-400 animate-pulse @break
-                                            @case('ERROR') bg-red-400 @break
-                                            @default bg-gray-400
+                                            @case('STREAMING') bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 @break
+                                            @case('STARTING') bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 @break
+                                            @case('STOPPING') bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200 @break
+                                            @case('STOPPED') bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200 @break
+                                            @case('ERROR') bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 @break
+                                            @case('INACTIVE') bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200 @break
+                                            @default bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200
                                         @endswitch
-                                    "></div>
-                                    @switch($stream->status)
-                                        @case('STREAMING') Đang phát @break
-                                        @case('STARTING') Đang khởi động @break
-                                        @case('STOPPING') Đang dừng @break
-                                        @case('STOPPED') Đã dừng @break
-                                        @case('ERROR') Lỗi @break
-                                        @case('INACTIVE') Chưa hoạt động @break
-                                        @default {{ $stream->status }}
-                                    @endswitch
-                                </span>
+                                    ">
+                                        <div class="w-1.5 h-1.5 rounded-full mr-1.5
+                                            @switch($stream->status)
+                                                @case('STREAMING') bg-green-400 @break
+                                                @case('STARTING') bg-yellow-400 animate-pulse @break
+                                                @case('STOPPING') bg-orange-400 animate-pulse @break
+                                                @case('ERROR') bg-red-400 @break
+                                                @default bg-gray-400
+                                            @endswitch
+                                        "></div>
+                                        @switch($stream->status)
+                                            @case('STREAMING') Đang phát @break
+                                            @case('STARTING') Đang khởi động @break
+                                            @case('STOPPING') Đang dừng @break
+                                            @case('STOPPED') Đã dừng @break
+                                            @case('ERROR') Lỗi @break
+                                            @case('INACTIVE') Chưa hoạt động @break
+                                            @default {{ $stream->status }}
+                                        @endswitch
+                                    </span>
+
+                                    @if($stream->status === 'ERROR' && $stream->error_message)
+                                        <div class="mt-1 text-xs text-red-600 dark:text-red-400 max-w-xs">
+                                            <div class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-2">
+                                                <div class="flex items-start">
+                                                    <svg class="w-3 h-3 text-red-500 mt-0.5 mr-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                                    </svg>
+                                                    <span class="text-xs leading-tight">{{ Str::limit($stream->error_message, 100) }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endif
+                                </div>
                             </td>
 
                             <!-- Server -->

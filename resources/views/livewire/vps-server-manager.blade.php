@@ -32,7 +32,6 @@
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Tên</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">IP Address</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">System Load</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Provision Status</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">SSH User</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">SSH Port</th>
@@ -48,30 +47,6 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                                 {{ $server->ip_address }}
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                                @if($server->latestStat)
-                                    <div class="flex items-center mb-1">
-                                        <span class="w-10 font-bold">CPU:</span>
-                                        <span class="font-mono">{{ number_format($server->latestStat->cpu_usage_percent, 1) }}%</span>
-                                    </div>
-                                    <div class="flex items-center mb-1">
-                                        <span class="w-10">RAM:</span>
-                                        <div class="w-full bg-gray-200 rounded-full h-4 dark:bg-gray-700">
-                                            <div class="bg-blue-600 h-4 rounded-full" style="width: {{ $server->latestStat->ram_usage_percent }}%"></div>
-                                        </div>
-                                        <span class="ml-2 text-xs font-medium">{{ number_format($server->latestStat->ram_usage_percent, 0) }}%</span>
-                                    </div>
-                                    <div class="flex items-center">
-                                        <span class="w-10">Disk:</span>
-                                        <div class="w-full bg-gray-200 rounded-full h-4 dark:bg-gray-700">
-                                            <div class="bg-indigo-600 h-4 rounded-full" style="width: {{ $server->latestStat->disk_usage_percent }}%"></div>
-                                        </div>
-                                        <span class="ml-2 text-xs font-medium">{{ number_format($server->latestStat->disk_usage_percent, 0) }}%</span>
-                                    </div>
-                                @else
-                                    <span class="text-gray-400">No data</span>
-                                @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
@@ -123,7 +98,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="8" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 text-center">
+                            <td colspan="7" class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300 text-center">
                                 Chưa có VPS server nào được thêm.
                             </td>
                         </tr>

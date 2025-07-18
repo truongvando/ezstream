@@ -16,11 +16,20 @@ use App\Jobs\ProvisionMultistreamVpsJob;
 
 use App\Http\Controllers\DashboardController;
 use App\Livewire\ServiceManager;
-use App\Livewire\Admin\VpsServerManagement as AdminVpsServerManagement;
+use App\Livewire\VpsServerManager;
 use App\Livewire\Dashboard;
 use App\Livewire\FileUpload;
 use App\Livewire\PaymentManager;
 use App\Livewire\TransactionHistory;
+use App\Livewire\UserStreamManager;
+
+
+// Admin Components
+use App\Livewire\Admin\Blog\PostList;
+use App\Livewire\Admin\Blog\PostForm;
+
+// Public Blog Controller
+use App\Http\Controllers\BlogController;
 
 // File Upload API Routes moved to api.php
 
@@ -72,6 +81,11 @@ Route::get('/', function () {
 
     return view('welcome', compact('stats'));
 })->name('welcome');
+
+// Public Blog Routes
+Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');
+Route::get('/blog/{post:slug}', [BlogController::class, 'show'])->name('blog.show');
+
 
 // Simple test route
 Route::get('/test', function () {
@@ -229,13 +243,32 @@ Route::middleware(['auth', 'locale'])->group(function () {
         Route::get('/dashboard', AdminDashboard::class)->name('dashboard');
         Route::get('/streams', AdminStreamManager::class)->name('streams');
         Route::get('/users', AdminUserManagement::class)->name('users');
-        Route::get('/vps-servers', \App\Livewire\VpsServerManager::class)->name('vps-servers');
+        Route::get('/vps-servers', VpsServerManager::class)->name('vps-servers');
         Route::get('/vps-monitoring', VpsMonitoring::class)->name('vps-monitoring');
         Route::get('/files', [\App\Http\Controllers\FileController::class, 'index'])->name('files');
         Route::post('/files/delete', [\App\Http\Controllers\FileController::class, 'delete'])->name('files.delete');
         Route::get('/service-packages', ServicePackageManager::class)->name('service-packages');
         Route::get('/transactions', AdminTransactionManagement::class)->name('transactions');
         Route::get('/settings', AdminSettingsManager::class)->name('settings');
+        
+        // Admin Blog Routes
+        Route::get('/blog', PostList::class)->name('blog.index');
+        Route::get('/blog/create', PostForm::class)->name('blog.create');
+        Route::get('/blog/{postId}/edit', PostForm::class)->name('blog.edit');
+
+        // Test route for debugging
+        Route::get('/blog/test-create', function() {
+            return 'Test route works! PostForm class: ' . (class_exists(\App\Livewire\Admin\Blog\PostForm::class) ? 'EXISTS' : 'NOT FOUND');
+        })->name('blog.test');
+
+        // Test PostForm component directly
+        Route::get('/blog/test-component', \App\Livewire\Admin\Blog\PostForm::class)->name('blog.test.component');
+    });
+
+    // Public blog routes
+    Route::prefix('blog')->name('blog.')->group(function () {
+        Route::get('/', [BlogController::class, 'index'])->name('index'); // blog.index
+        Route::get('/{post:slug}', [BlogController::class, 'show'])->name('show'); // blog.show
     });
 
     // Safe VPS Creation Routes
