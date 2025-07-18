@@ -55,6 +55,12 @@ class Kernel extends ConsoleKernel
                  ->withoutOverlapping()
                  ->runInBackground();
 
+        // 🔄 Sync stream status with VPS reality
+        $schedule->job(new SyncStreamStatusJob())
+                 ->everyThreeMinutes()
+                 ->withoutOverlapping()
+                 ->runInBackground();
+
         // 🩺 Redis health check
         $schedule->command('redis:health-check --connection=queue --fix')
                  ->everyTenMinutes()

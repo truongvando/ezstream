@@ -22,7 +22,10 @@ abstract class BaseStreamManager extends Component
 {
     use WithPagination;
 
-    protected $listeners = ['refreshComponent' => '$refresh'];
+    protected $listeners = [
+        'refreshComponent' => '$refresh',
+        'refreshStreams' => '$refresh'
+    ];
 
     // Modals
     public $showCreateModal = false;
@@ -38,9 +41,13 @@ abstract class BaseStreamManager extends Component
     public $filterStatus = '';
     public $filterUserId = ''; // Only used by admin
 
+    // Pagination
+    public $streamsPerPage = 9;
+
     // Form fields
     public $title, $description, $user_file_ids = [], $platform = 'youtube';
     public $rtmp_url, $stream_key;
+    public $userFiles = []; // Holds the list of files for the modals
 
     // Advanced fields
     public $loop = false;
@@ -72,50 +79,88 @@ abstract class BaseStreamManager extends Component
     }
 
     /**
-     * Cleanup streams that are stuck in STOPPING status
+     * Enhanced refresh method with status sync
+     */
+    public function refreshStreams()
+    {
+        // Auto-fix hanging streams on each refresh
+        $this->cleanupHangingStreams();
+
+        // Force component re-render
+        $this->render();
+    }
+
+    /**
+     * Enhanced cleanup for streams stuck in various states
      */
     private function cleanupHangingStreams()
     {
         try {
-            $timeout = 300; // 5 minutes
-            $query = StreamConfiguration::where('status', 'STOPPING')
-                ->where('updated_at', '<', now()->subSeconds($timeout));
+            $fixedCount = 0;
 
-            // Apply user filter if not admin
-            if (!$this->canManageAllStreams()) {
-                $query->where('user_id', Auth::id());
-            }
+            // Fix streams stuck in STOPPING (5 minutes)
+            $fixedCount += $this->fixStuckStreams('STOPPING', 5, 'INACTIVE', 'Auto-fixed: stuck in STOPPING');
 
-            $hangingStreams = $query->get();
+            // Fix streams stuck in STARTING for too long (15 minutes)
+            $fixedCount += $this->fixStuckStreams('STARTING', 15, 'ERROR', 'Auto-fixed: stuck in STARTING for too long');
 
-            foreach ($hangingStreams as $stream) {
-                $stuckDuration = now()->diffInSeconds($stream->updated_at);
-
-                Log::warning("🔧 [BaseStreamManager] Auto-fixing hanging stream #{$stream->id} for user #{$stream->user_id} stuck for {$stuckDuration}s");
-
-                $stream->update([
-                    'status' => 'INACTIVE',
-                    'last_stopped_at' => now(),
-                    'vps_server_id' => null,
-                    'error_message' => "Auto-fixed: was stuck in STOPPING status for {$stuckDuration}s",
-                ]);
-
-                // Decrement VPS stream count if needed
-                if ($stream->vps_server_id) {
-                    $vps = $stream->vpsServer;
-                    if ($vps && $vps->current_streams > 0) {
-                        $vps->decrement('current_streams');
-                    }
-                }
-            }
-
-            if ($hangingStreams->count() > 0) {
-                session()->flash('message', "Đã tự động sửa {$hangingStreams->count()} stream bị treo.");
+            if ($fixedCount > 0) {
+                Log::info("🔧 [BaseStreamManager] Auto-fixed {$fixedCount} hanging streams");
+                session()->flash('message', "Đã tự động sửa {$fixedCount} stream bị treo.");
             }
 
         } catch (\Exception $e) {
             Log::error("❌ [BaseStreamManager] Failed to cleanup hanging streams: {$e->getMessage()}");
         }
+    }
+
+    /**
+     * Fix streams stuck in a specific status
+     */
+    private function fixStuckStreams(string $status, int $minutesThreshold, string $newStatus, string $errorMessage): int
+    {
+        $query = StreamConfiguration::where('status', $status);
+
+        if ($status === 'STARTING') {
+            $query->where('last_started_at', '<', now()->subMinutes($minutesThreshold));
+        } else {
+            $query->where('updated_at', '<', now()->subMinutes($minutesThreshold));
+        }
+
+        if (!$this->canManageAllStreams()) {
+            $query->where('user_id', Auth::id());
+        }
+
+        $stuckStreams = $query->get();
+        $fixedCount = 0;
+
+        foreach ($stuckStreams as $stream) {
+            $timeField = $status === 'STARTING' ? 'last_started_at' : 'updated_at';
+            $stuckDuration = now()->diffInMinutes($stream->$timeField);
+
+            Log::warning("🔧 [BaseStreamManager] Auto-fixing stream #{$stream->id} stuck in {$status} for {$stuckDuration} minutes");
+
+            $updateData = [
+                'status' => $newStatus,
+                'vps_server_id' => null,
+                'error_message' => "{$errorMessage} ({$stuckDuration} minutes)",
+            ];
+
+            if ($newStatus === 'INACTIVE') {
+                $updateData['last_stopped_at'] = now();
+            }
+
+            $stream->update($updateData);
+
+            // Decrement VPS stream count if needed
+            if ($stream->vps_server_id && $stream->vpsServer) {
+                $stream->vpsServer->decrement('current_streams');
+            }
+
+            $fixedCount++;
+        }
+
+        return $fixedCount;
     }
 
     protected function rules()

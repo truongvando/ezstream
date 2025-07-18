@@ -1,4 +1,4 @@
-<div wire:poll.2s="refreshStreams">
+<div wire:poll.5s="refreshStreams">
     @if(isset($isAdmin) && $isAdmin)
         <!-- Admin layout without extra wrapper -->
         @include('livewire.shared.stream-cards')

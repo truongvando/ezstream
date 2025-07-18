@@ -13,41 +13,45 @@
              });
          }
      })"
-     class="quick-stream-modal fixed inset-0 z-50 overflow-y-auto">
-    <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="$wire.showQuickStreamModal = false"></div>
+     class="quick-stream-modal fixed inset-0 z-50 overflow-y-auto px-4 py-6 sm:px-0">
+    
+    <div class="fixed inset-0 transform transition-all" @click="$wire.showQuickStreamModal = false">
+        <div class="absolute inset-0 bg-gray-500 dark:bg-gray-900 opacity-75"></div>
+    </div>
 
-        <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
-            <div class="bg-white dark:bg-gray-800 px-6 py-4">
-                <div class="flex items-center justify-between mb-4">
+    
+    <div class="mb-6 bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-xl transform transition-all sm:w-full sm:max-w-4xl sm:mx-auto max-h-[90vh] flex flex-col">
+            <!-- Header -->
+            <div class="bg-white dark:bg-gray-800 px-6 py-4 flex-shrink-0">
+                <div class="flex items-center justify-between">
                     <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">🚀 Quick Stream - Tạo & Stream Ngay</h3>
                     <button @click="$wire.showQuickStreamModal = false" class="text-gray-400 hover:text-gray-600">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 </div>
+            </div>
 
-                <!-- Auto-Delete Warning -->
-                <div class="mb-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-                    <div class="flex">
-                        <svg class="h-5 w-5 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
-                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-                        </svg>
-                        <div class="ml-3">
-                            <h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">⚠️ Lưu ý về Quick Stream</h3>
-                            <div class="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
-                                <ul class="list-disc list-inside space-y-1">
-                                    <li><strong>Video sẽ bị xóa vĩnh viễn</strong> sau khi stream kết thúc</li>
-                                    <li>Phù hợp cho stream <strong>một lần duy nhất</strong> và tiết kiệm dung lượng</li>
-                                </ul>
+            <!-- Form Body (Scrollable) -->
+            <div class="flex-grow overflow-y-auto">
+                <form wire:submit.prevent="createQuickStream" class="p-6">
+                    <!-- Auto-Delete Warning -->
+                    <div class="mb-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+                        <div class="flex">
+                            <svg class="h-5 w-5 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                            <div class="ml-3">
+                                <h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">⚠️ Lưu ý về Quick Stream</h3>
+                                <div class="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                                    <ul class="list-disc list-inside space-y-1">
+                                        <li><strong>Video sẽ bị xóa vĩnh viễn</strong> sau khi stream kết thúc</li>
+                                        <li>Phù hợp cho stream <strong>một lần duy nhất</strong> và tiết kiệm dung lượng</li>
+                                    </ul>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Reuse existing stream form -->
-                <form wire:submit.prevent="createQuickStream" @submit="console.log('🚀 Form submitted!')"
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <!-- Left Column: Stream Info & Platform -->
                         <div class="space-y-4">
@@ -151,26 +155,29 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                                     
                                     <!-- Library Selection -->
                                     <div x-show="videoSource === 'library'" x-transition>
-                                        <div class="max-h-52 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg">
+                                        <div class="border border-gray-300 dark:border-gray-600 rounded-lg">
                                             <!--[if BLOCK]><![endif]--><?php if(isset($userFiles) && count($userFiles) > 0): ?>
-                                                <div class="p-2 bg-gray-50 dark:bg-gray-700 text-xs text-gray-600 dark:text-gray-400">
+                                                <div class="p-2 bg-gray-50 dark:bg-gray-700 text-xs text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-600">
                                                     Đã chọn: <span x-text="$wire.quickSelectedFiles.length"></span> file(s)
                                                 </div>
-                                                <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $userFiles; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $file): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                                <label class="quick-stream-file-label flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors"
-                                                       @click="console.log('📋 File label clicked for file:', <?php echo e($file->id); ?>)">
-                                                    <input type="checkbox"
-                                                           wire:model.live="quickSelectedFiles"
-                                                           value="<?php echo e($file->id); ?>"
-                                                           class="quick-stream-checkbox form-checkbox h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
-                                                           @change="console.log('✅ Checkbox changed, selected files:', $wire.quickSelectedFiles)"
-                                                           @click.stop="console.log('📋 Direct checkbox click for file:', <?php echo e($file->id); ?>)">
-                                                    <div class="ml-3 flex-1">
-                                                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100"><?php echo e($file->original_name); ?></p>
-                                                        <p class="text-xs text-gray-500"><?php echo e(number_format($file->size / 1024 / 1024, 1)); ?>MB • <?php echo e($file->created_at->format('d/m/Y')); ?></p>
-                                                    </div>
-                                                </label>
-                                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                                                <!-- Scrollable file list with fixed height -->
+                                                <div class="max-h-48 overflow-y-auto">
+                                                    <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $userFiles; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $file): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                    <label class="quick-stream-file-label flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors"
+                                                           @click="console.log('📋 File label clicked for file:', <?php echo e($file->id); ?>)">
+                                                        <input type="checkbox"
+                                                               wire:model.live="quickSelectedFiles"
+                                                               value="<?php echo e($file->id); ?>"
+                                                               class="quick-stream-checkbox form-checkbox h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
+                                                               @change="console.log('✅ Checkbox changed, selected files:', $wire.quickSelectedFiles)"
+                                                               @click.stop="console.log('📋 Direct checkbox click for file:', <?php echo e($file->id); ?>)">
+                                                        <div class="ml-3 flex-1">
+                                                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100"><?php echo e($file->original_name); ?></p>
+                                                            <p class="text-xs text-gray-500"><?php echo e(number_format($file->size / 1024 / 1024, 1)); ?>MB • <?php echo e($file->created_at->format('d/m/Y')); ?></p>
+                                                        </div>
+                                                    </label>
+                                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
+                                                </div>
                                             <?php else: ?>
                                                 <div class="p-6 text-center text-gray-500">
                                                     <p class="text-sm">Chưa có video nào trong thư viện.</p>
@@ -220,13 +227,27 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             </div>
                         </div>
                     </div>
-
-                    <!-- Actions -->
-                    <div class="mt-6 flex justify-end space-x-3 border-t pt-4">
-                        <button type="button" @click="$wire.showQuickStreamModal = false" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">Hủy</button>
-                        <button id="quickStreamSubmitButton" type="submit" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-md transition-opacity" @click="console.log('🚀 Submit button clicked!')">🚀 Tạo & Stream Ngay</button>
-                    </div>
                 </form>
+            </div>
+
+            <!-- Footer -->
+            <div class="bg-gray-50 dark:bg-gray-900 flex justify-end space-x-3 border-t pt-4 p-6 flex-shrink-0">
+                <button type="button" @click="$wire.showQuickStreamModal = false" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">Hủy</button>
+                <button id="quickStreamSubmitButton"
+                        wire:click="createQuickStream"
+                        wire:loading.attr="disabled"
+                        wire:loading.class="opacity-50 cursor-not-allowed"
+                        type="button"
+                        class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-md transition-all duration-200">
+                    <span wire:loading.remove wire:target="createQuickStream">🚀 Tạo & Stream Ngay</span>
+                    <span wire:loading wire:target="createQuickStream" class="flex items-center">
+                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Đang tạo...
+                    </span>
+                </button>
             </div>
         </div>
     </div>
@@ -261,6 +282,53 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
 .quick-stream-modal {
     z-index: 9999 !important;
 }
+
+/* Custom scrollbar styling for file list */
+.max-h-48::-webkit-scrollbar,
+.max-h-64::-webkit-scrollbar {
+    width: 6px;
+}
+
+.max-h-48::-webkit-scrollbar-track,
+.max-h-64::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 3px;
+}
+
+.max-h-48::-webkit-scrollbar-thumb,
+.max-h-64::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 3px;
+}
+
+.max-h-48::-webkit-scrollbar-thumb:hover,
+.max-h-64::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+/* Dark mode scrollbar */
+.dark .max-h-48::-webkit-scrollbar-track,
+.dark .max-h-64::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.dark .max-h-48::-webkit-scrollbar-thumb,
+.dark .max-h-64::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.dark .max-h-48::-webkit-scrollbar-thumb:hover,
+.dark .max-h-64::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+/* Ensure modal is properly centered and positioned */
+.quick-stream-modal {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+}
 </style>
 <?php $__env->stopPush(); ?>
 
@@ -281,6 +349,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log('🎯 Modal focused');
             }
         }, 100);
+    });
+
+    // Debug Quick Stream creation
+    document.addEventListener('click', function(e) {
+        if (e.target.id === 'quickStreamSubmitButton' || e.target.closest('#quickStreamSubmitButton')) {
+            console.log('🚀 Quick Stream button clicked!', {
+                quickTitle: window.Livewire.find(document.querySelector('[wire\\:id]').getAttribute('wire:id')).get('quickTitle'),
+                quickPlatform: window.Livewire.find(document.querySelector('[wire\\:id]').getAttribute('wire:id')).get('quickPlatform'),
+                quickStreamKey: window.Livewire.find(document.querySelector('[wire\\:id]').getAttribute('wire:id')).get('quickStreamKey'),
+                quickSelectedFiles: window.Livewire.find(document.querySelector('[wire\\:id]').getAttribute('wire:id')).get('quickSelectedFiles'),
+                video_source_id: window.Livewire.find(document.querySelector('[wire\\:id]').getAttribute('wire:id')).get('video_source_id')
+            });
+        }
     });
 
     // Debug checkbox interactions with more detail

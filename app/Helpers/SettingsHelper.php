@@ -1,20 +1,26 @@
 <?php
 
-use App\Models\Setting;
-use Illuminate\Support\Facades\Cache;
+namespace App\Helpers;
 
-if (! function_exists('setting')) {
+class SettingsHelper
+{
     /**
-     * Get the value of a setting.
+     * Format bytes to a human-readable format (KB, MB, GB, etc.).
      *
-     * @param string $key
-     * @param mixed $default
-     * @return mixed
+     * @param int $bytes
+     * @param int $precision
+     * @return string
      */
-    function setting($key, $default = null)
+    public static function formatBytes($bytes, $precision = 2)
     {
-        return Cache::rememberForever('setting.'.$key, function () use ($key, $default) {
-            return Setting::where('key', $key)->first()?->value ?? $default;
-        });
+        $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+
+        $bytes = max($bytes, 0);
+        $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+        $pow = min($pow, count($units) - 1);
+
+        $bytes /= (1 << (10 * $pow));
+
+        return round($bytes, $precision) . ' ' . $units[$pow];
     }
 } 

@@ -263,27 +263,73 @@ class StreamStatusListener extends Command
     {
         $vpsId = $data['vps_id'] ?? null;
         $activeStreams = $data['active_streams'] ?? [];
-        
+
         $this->info("💓 [Heartbeat] Received from VPS #{$vpsId} with " . count($activeStreams) . " active streams.");
 
-        foreach ($activeStreams as $streamInfo) {
-            if (isset($streamInfo['stream_id'])) {
-                StreamConfiguration::where('id', $streamInfo['stream_id'])
-                                   ->where('status', 'STREAMING')
-                                   ->update(['last_status_update' => now()]);
+        // Get all active stream IDs from heartbeat
+        $heartbeatStreamIds = collect($activeStreams)->pluck('stream_id')->filter()->toArray();
+
+        if (!empty($heartbeatStreamIds)) {
+            $this->info("🔄 [Heartbeat] Syncing status for streams: " . implode(', ', $heartbeatStreamIds));
+
+            // 1. Update streams that are confirmed STREAMING by heartbeat
+            foreach ($activeStreams as $streamInfo) {
+                if (isset($streamInfo['stream_id'])) {
+                    $streamId = $streamInfo['stream_id'];
+                    $stream = StreamConfiguration::find($streamId);
+
+                    if ($stream) {
+                        $oldStatus = $stream->status;
+
+                        // Sync status based on heartbeat - this is the source of truth
+                        if (in_array($oldStatus, ['STARTING', 'INACTIVE', 'ERROR'])) {
+                            $this->info("✅ [Heartbeat] Syncing stream #{$streamId}: {$oldStatus} → STREAMING");
+                            $stream->update([
+                                'status' => 'STREAMING',
+                                'last_status_update' => now(),
+                                'vps_server_id' => $vpsId,
+                                'error_message' => null,
+                                'last_started_at' => $stream->last_started_at ?: now()
+                            ]);
+
+                            // Create progress update for UI
+                            StreamProgressService::createStageProgress($streamId, 'streaming', 'Stream đang phát trực tiếp! (Synced by heartbeat)');
+                        } else {
+                            // Just update timestamp for already STREAMING streams
+                            $stream->update(['last_status_update' => now()]);
+                        }
+                    }
+                }
             }
         }
 
-        // Optional: Detect stale streams
-        $staleStreams = StreamConfiguration::where('vps_server_id', $vpsId)
-            ->where('status', 'STREAMING')
-            ->where('last_status_update', '<', now()->subMinutes(5))
-            ->get();
+        // 2. Detect streams that should be STREAMING but are not in heartbeat
+        $dbStreamingStreams = StreamConfiguration::where('vps_server_id', $vpsId)
+            ->whereIn('status', ['STREAMING', 'STARTING'])
+            ->pluck('id')
+            ->toArray();
 
-        foreach ($staleStreams as $stream) {
-            $this->warn("[Heartbeat] Detected stale stream #{$stream->id} on VPS {$vpsId}");
-            $stream->update(['status' => 'ERROR', 'error_message' => 'Stream heartbeat timeout']);
-            if ($stream->vpsServer) $stream->vpsServer->decrement('current_streams');
+        $missingStreams = array_diff($dbStreamingStreams, $heartbeatStreamIds);
+
+        foreach ($missingStreams as $streamId) {
+            $stream = StreamConfiguration::find($streamId);
+            if ($stream) {
+                $timeSinceUpdate = $stream->last_status_update ? now()->diffInMinutes($stream->last_status_update) : 999;
+
+                // Only mark as stale if it's been more than 3 minutes without heartbeat
+                if ($timeSinceUpdate > 3) {
+                    $this->warn("⚠️ [Heartbeat] Stream #{$streamId} missing from heartbeat for {$timeSinceUpdate} minutes, marking as ERROR");
+                    $stream->update([
+                        'status' => 'ERROR',
+                        'error_message' => "Stream missing from VPS heartbeat for {$timeSinceUpdate} minutes",
+                        'vps_server_id' => null
+                    ]);
+
+                    if ($stream->vpsServer) {
+                        $stream->vpsServer->decrement('current_streams');
+                    }
+                }
+            }
         }
     }
 }

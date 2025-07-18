@@ -193,15 +193,16 @@ class UserStreamManager extends BaseStreamManager
 
     public function startStream($stream)
     {
-        // Handle both StreamConfiguration object and ID
-        if (is_numeric($stream)) {
-            $streamId = $stream;
-            $stream = StreamConfiguration::find($streamId);
-            if (!$stream) {
-                error_log("❌ Stream not found: {$streamId}");
-                session()->flash('error', 'Stream không tồn tại.');
-                return;
-            }
+        // Handle array, ID, or model object
+        if (is_array($stream)) {
+            $stream = StreamConfiguration::find($stream['id']);
+        } elseif (is_numeric($stream)) {
+            $stream = StreamConfiguration::find($stream);
+        }
+
+        if (!$stream) {
+            session()->flash('error', 'Stream không tồn tại.');
+            return;
         }
 
         // Log to both Laravel log and error_log for debugging
@@ -276,13 +277,15 @@ class UserStreamManager extends BaseStreamManager
 
     public function createQuickStream()
     {
-        Log::info('🚀 [QuickStream] Starting createQuickStream', [
-            'quickTitle' => $this->quickTitle,
-            'quickPlatform' => $this->quickPlatform,
-            'quickSelectedFiles' => $this->quickSelectedFiles,
-            'video_source_id' => $this->video_source_id,
-        ]);
+        try {
+            Log::info('🚀 [QuickStream] Starting createQuickStream', [
+                'quickTitle' => $this->quickTitle,
+                'quickPlatform' => $this->quickPlatform,
+                'quickSelectedFiles' => $this->quickSelectedFiles,
+                'video_source_id' => $this->video_source_id,
+            ]);
 
+        // First validate basic fields
         $this->validate([
             'quickTitle' => 'required|string|max:255',
             'quickDescription' => 'nullable|string',
@@ -299,6 +302,7 @@ class UserStreamManager extends BaseStreamManager
             $uploadedFile = $user->files()->where('id', $this->video_source_id)->first();
             if ($uploadedFile) {
                 $userFiles->push($uploadedFile);
+                Log::info('🎬 [QuickStream] Found uploaded file', ['file_id' => $uploadedFile->id, 'name' => $uploadedFile->original_name]);
             }
         }
 
@@ -306,10 +310,15 @@ class UserStreamManager extends BaseStreamManager
         if (!empty($this->quickSelectedFiles)) {
             $libraryFiles = $user->files()->whereIn('id', $this->quickSelectedFiles)->get();
             $userFiles = $userFiles->merge($libraryFiles);
+            Log::info('🎬 [QuickStream] Found library files', ['file_count' => $libraryFiles->count(), 'file_ids' => $this->quickSelectedFiles]);
         }
 
         // Validate that we have at least one file
         if ($userFiles->isEmpty()) {
+            Log::warning('🎬 [QuickStream] No files selected', [
+                'video_source_id' => $this->video_source_id,
+                'quickSelectedFiles' => $this->quickSelectedFiles
+            ]);
             session()->flash('error', 'Vui lòng chọn ít nhất một video hoặc upload file mới.');
             return;
         }
@@ -344,28 +353,74 @@ class UserStreamManager extends BaseStreamManager
             'rtmp_url' => $rtmpUrl,
             'rtmp_backup_url' => $backupRtmpUrl,
             'stream_key' => $this->quickStreamKey,
-            'status' => 'INACTIVE',
+            'status' => 'STARTING', // Set to STARTING immediately for Quick Stream
             'loop' => $this->quickLoop,
             'playlist_order' => 'sequential',
             'is_quick_stream' => true,
-            'user_file_id' => $userFiles->first()->id
+            'user_file_id' => $userFiles->first()->id,
+            'last_started_at' => now()
+        ]);
+
+        Log::info("🎬 [QuickStream] Stream created successfully", [
+            'stream_id' => $stream->id,
+            'title' => $stream->title,
+            'status' => $stream->status,
+            'file_count' => count($fileList)
         ]);
 
         // Immediately dispatch the job to start the stream
         StartMultistreamJob::dispatch($stream);
 
-        Log::info("User Quick Stream created and job dispatched", [
+        Log::info("✅ [QuickStream] Stream created and start job dispatched", [
             'stream_id' => $stream->id,
-            'user_id' => $userFiles->first()->user_id
+            'user_id' => $userFiles->first()->user_id,
+            'title' => $stream->title,
+            'platform' => $this->quickPlatform
         ]);
 
         $this->showQuickStreamModal = false;
         $this->resetQuickStreamForm();
 
-        session()->flash('message', '🚀 Quick Stream đã được tạo và lệnh bắt đầu đã được gửi đi!');
+        session()->flash('message', '🚀 Quick Stream "' . $stream->title . '" đã được tạo và đang bắt đầu stream! Vui lòng kiểm tra trạng thái trong danh sách streams.');
+
+        // Refresh the streams list to show the new stream
+        $this->dispatch('refreshStreams');
+
+        } catch (\Exception $e) {
+            Log::error('❌ [QuickStream] Failed to create quick stream', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'quickTitle' => $this->quickTitle,
+                'quickPlatform' => $this->quickPlatform
+            ]);
+
+            session()->flash('error', 'Có lỗi xảy ra khi tạo Quick Stream: ' . $e->getMessage());
+        }
     }
 
-    public $quickUploadedFileId = null;
+    protected function detectPlatformFromUrl($url)
+    {
+        if (str_contains($url, 'youtube.com')) return 'youtube';
+        return 'custom';
+    }
+
+    protected function getPlatformUrl($platform)
+    {
+        $platforms = [
+            'youtube' => 'rtmp://a.rtmp.youtube.com/live2',
+            'custom' => ''
+        ];
+        return $platforms[$platform] ?? '';
+    }
+
+    protected function getPlatformBackupUrl($platform)
+    {
+        $backupPlatforms = [
+            'youtube' => 'rtmp://b.rtmp.youtube.com/live2',
+            'custom' => ''
+        ];
+        return $backupPlatforms[$platform] ?? '';
+    }
 
     private function getQuickUploadedFileId()
     {
@@ -451,24 +506,14 @@ class UserStreamManager extends BaseStreamManager
 
     public function render()
     {
-        $streams = $this->getStreamsQuery()->latest()->paginate(10);
+        $query = $this->getStreamsQuery();
+        $streams = $query->paginate($this->streamsPerPage);
 
-        // Polling for progress updates
-        $streams->each(function ($stream) {
-            if (in_array($stream->status, ['STARTING', 'STOPPING'])) {
-                $progressData = $this->getStreamProgress($stream->id);
-                $stream->progress_data = $progressData;
-            }
-        });
-
-        $userFiles = $this->getUserFiles();
+        // Load files into the public property for the modals to use.
+        $this->userFiles = $this->getUserFiles();
 
         return view('livewire.user-stream-manager', [
             'streams' => $streams,
-            'userFiles' => $userFiles,
-            'platforms' => $this->getPlatforms(),
-            'isAdmin' => false, // User manager is not admin
-        ])->layout($this->getLayoutName())
-          ->slot('header', '<h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">Quản lý Stream</h1>');
+        ])->layout($this->getLayoutName());
     }
 }

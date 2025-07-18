@@ -94,6 +94,9 @@
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                                     <div class="w-2 h-2 bg-green-400 rounded-full mr-1 animate-pulse"></div>
                                     Đang phát
+                                    @if($stream->last_status_update && $stream->last_status_update->diffInMinutes() < 2)
+                                        <span class="ml-1 text-green-600" title="Heartbeat gần đây: {{ $stream->last_status_update->diffForHumans() }}">●</span>
+                                    @endif
                                 </span>
                             @elseif($stream->status === 'STARTING')
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
