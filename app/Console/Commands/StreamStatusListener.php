@@ -266,70 +266,280 @@ class StreamStatusListener extends Command
 
         $this->info("💓 [Heartbeat] Received from VPS #{$vpsId} with " . count($activeStreams) . " active streams.");
 
+        // Log to file for debugging
+        \Log::info("💓 [Heartbeat] Processing heartbeat", [
+            'vps_id' => $vpsId,
+            'active_streams' => $activeStreams,
+            'timestamp' => now()->toDateTimeString()
+        ]);
+
         // Get all active stream IDs from heartbeat
         $heartbeatStreamIds = collect($activeStreams)->pluck('stream_id')->filter()->toArray();
 
         if (!empty($heartbeatStreamIds)) {
-            $this->info("🔄 [Heartbeat] Syncing status for streams: " . implode(', ', $heartbeatStreamIds));
+            $this->info("🔄 [Heartbeat] VPS #{$vpsId} reports active streams: " . implode(', ', $heartbeatStreamIds));
+
+            // CRITICAL: Heartbeat is the source of truth - sync ALL streams reported as active
 
             // 1. Update streams that are confirmed STREAMING by heartbeat
             foreach ($activeStreams as $streamInfo) {
                 if (isset($streamInfo['stream_id'])) {
                     $streamId = $streamInfo['stream_id'];
+                    $heartbeatStatus = $streamInfo['status'] ?? 'STREAMING';
+                    $heartbeatPid = $streamInfo['pid'] ?? null;
+
+                    $this->info("🔍 [Heartbeat] Processing stream #{$streamId} with heartbeat status: {$heartbeatStatus}, PID: {$heartbeatPid}");
+
                     $stream = StreamConfiguration::find($streamId);
 
                     if ($stream) {
                         $oldStatus = $stream->status;
+                        $oldVpsId = $stream->vps_server_id;
+                        $lastUpdate = $stream->last_status_update ? $stream->last_status_update->format('Y-m-d H:i:s') : 'Never';
 
-                        // Sync status based on heartbeat - this is the source of truth
-                        if (in_array($oldStatus, ['STARTING', 'INACTIVE', 'ERROR'])) {
-                            $this->info("✅ [Heartbeat] Syncing stream #{$streamId}: {$oldStatus} → STREAMING");
-                            $stream->update([
-                                'status' => 'STREAMING',
-                                'last_status_update' => now(),
-                                'vps_server_id' => $vpsId,
-                                'error_message' => null,
-                                'last_started_at' => $stream->last_started_at ?: now()
-                            ]);
+                        $this->info("📊 [Heartbeat] Stream #{$streamId} DETAILED INFO:");
+                        $this->info("  - DB Status: {$oldStatus}");
+                        $this->info("  - DB VPS ID: {$oldVpsId}");
+                        $this->info("  - Heartbeat Status: {$heartbeatStatus}");
+                        $this->info("  - Heartbeat VPS: {$vpsId}");
+                        $this->info("  - Last Update: {$lastUpdate}");
+                        $this->info("  - User ID: {$stream->user_id}");
+                        $this->info("  - Title: {$stream->title}");
 
-                            // Create progress update for UI
-                            StreamProgressService::createStageProgress($streamId, 'streaming', 'Stream đang phát trực tiếp! (Synced by heartbeat)');
+                        // 🚨 CRITICAL: Heartbeat is the SOURCE OF TRUTH
+                        // If VPS reports stream as STREAMING, database MUST be synced regardless of current status
+                        if ($heartbeatStatus === 'STREAMING') {
+
+                            if ($oldStatus !== 'STREAMING') {
+                                // Stream is running on VPS but DB shows different status - FORCE SYNC
+                                $this->info("🔥 [Heartbeat] FORCE SYNC NEEDED: Stream #{$streamId} running on VPS but DB shows {$oldStatus} → STREAMING");
+
+                                $updateData = [
+                                    'status' => 'STREAMING',
+                                    'last_status_update' => now(),
+                                    'vps_server_id' => $vpsId,
+                                    'error_message' => null,
+                                    'last_started_at' => $stream->last_started_at ?: now()
+                                ];
+
+                                if ($heartbeatPid) {
+                                    $updateData['process_id'] = $heartbeatPid;
+                                }
+
+                                $this->info("💾 [Heartbeat] Updating database with data: " . json_encode($updateData));
+
+                                $result = $stream->update($updateData);
+
+                                if ($result) {
+                                    $this->info("✅ [Heartbeat] Database update successful");
+
+                                    // Verify the update
+                                    $stream->refresh();
+                                    $this->info("🔍 [Heartbeat] Verification - New status: {$stream->status}, VPS: {$stream->vps_server_id}");
+
+                                    // Create progress update for UI
+                                    try {
+                                        StreamProgressService::createStageProgress($streamId, 'streaming', "🔄 Stream đã được đồng bộ! VPS báo cáo đang phát trực tiếp (từ {$oldStatus})");
+                                        $this->info("📊 [Heartbeat] Progress update created");
+                                    } catch (\Exception $e) {
+                                        $this->error("❌ [Heartbeat] Failed to create progress: {$e->getMessage()}");
+                                    }
+
+                                    // Trigger immediate UI refresh
+                                    $this->triggerUIRefresh($streamId);
+
+                                    $this->info("🎯 [Heartbeat] FORCE SYNC COMPLETED: Stream #{$streamId}: {$oldStatus} → STREAMING");
+
+                                } else {
+                                    $this->error("❌ [Heartbeat] Database update FAILED for stream #{$streamId}");
+                                }
+
+                            } else {
+                                // Stream already STREAMING in DB - just update heartbeat timestamp
+                                $updateResult = $stream->update([
+                                    'last_status_update' => now(),
+                                    'vps_server_id' => $vpsId,
+                                    'process_id' => $heartbeatPid
+                                ]);
+
+                                if ($updateResult) {
+                                    $this->info("🔄 [Heartbeat] Heartbeat timestamp updated for stream #{$streamId} (confirmed STREAMING)");
+                                } else {
+                                    $this->error("❌ [Heartbeat] Failed to update heartbeat timestamp for stream #{$streamId}");
+                                }
+                            }
+
                         } else {
-                            // Just update timestamp for already STREAMING streams
-                            $stream->update(['last_status_update' => now()]);
+                            $this->warn("⚠️ [Heartbeat] Unexpected heartbeat status for stream #{$streamId}: {$heartbeatStatus}");
+                        }
+                    } else {
+                        $this->warn("⚠️ [Heartbeat] Stream #{$streamId} not found in database but reported by VPS #{$vpsId}");
+
+                        // CRITICAL: Stream exists on VPS but not in DB - this is a serious issue
+                        // This could happen if:
+                        // 1. Stream was deleted from DB but still running on VPS
+                        // 2. Database corruption/rollback
+                        // 3. Manual deletion without stopping VPS stream
+
+                        $this->error("🚨 [CRITICAL] Orphaned stream detected: #{$streamId} running on VPS #{$vpsId} but missing from database");
+
+                        // Option 1: Try to stop the orphaned stream on VPS
+                        try {
+                            $this->info("🛑 [Recovery] Attempting to stop orphaned stream #{$streamId} on VPS #{$vpsId}");
+
+                            // Send stop command to VPS (use same format as StopMultistreamJob)
+                            $stopCommand = [
+                                'command' => 'STOP_STREAM',
+                                'stream_id' => $streamId,
+                            ];
+
+                            $redis = app('redis')->connection();
+                            $channel = "vps-commands:{$vpsId}";
+                            $result = $redis->publish($channel, json_encode($stopCommand));
+
+                            if ($result > 0) {
+                                $this->info("✅ [Recovery] Stop command sent for orphaned stream #{$streamId} to channel {$channel}");
+                                \Log::info("🛑 [OrphanedStreamRecovery] Stop command sent", [
+                                    'stream_id' => $streamId,
+                                    'vps_id' => $vpsId,
+                                    'channel' => $channel,
+                                    'command' => $stopCommand,
+                                    'subscribers' => $result
+                                ]);
+                            } else {
+                                $this->warn("⚠️ [Recovery] No agent listening for orphaned stream #{$streamId} on channel {$channel}");
+                                $this->warn("💡 [Recovery] Agent may be offline. Stream will continue running until agent reconnects.");
+                                \Log::warning("⚠️ [OrphanedStreamRecovery] No subscribers - agent offline", [
+                                    'stream_id' => $streamId,
+                                    'vps_id' => $vpsId,
+                                    'channel' => $channel,
+                                    'note' => 'Stream will continue as zombie until agent reconnects'
+                                ]);
+                            }
+
+                        } catch (\Exception $e) {
+                            $this->error("❌ [Recovery] Exception stopping orphaned stream #{$streamId}: {$e->getMessage()}");
                         }
                     }
+                } else {
+                    $this->warn("⚠️ [Heartbeat] Invalid stream info in heartbeat: " . json_encode($streamInfo));
                 }
             }
         }
 
-        // 2. Detect streams that should be STREAMING but are not in heartbeat
-        $dbStreamingStreams = StreamConfiguration::where('vps_server_id', $vpsId)
+        // 2. CRITICAL: Handle streams that claim to be on this VPS but are NOT in heartbeat
+        $dbStreamsOnThisVps = StreamConfiguration::where('vps_server_id', $vpsId)
             ->whereIn('status', ['STREAMING', 'STARTING'])
-            ->pluck('id')
-            ->toArray();
+            ->get();
 
-        $missingStreams = array_diff($dbStreamingStreams, $heartbeatStreamIds);
+        $missingStreamIds = $dbStreamsOnThisVps->pluck('id')->diff($heartbeatStreamIds);
 
-        foreach ($missingStreams as $streamId) {
-            $stream = StreamConfiguration::find($streamId);
+        if ($missingStreamIds->isNotEmpty()) {
+            $this->warn("🚨 [Heartbeat] VPS #{$vpsId} missing streams from heartbeat: " . $missingStreamIds->implode(', '));
+        }
+
+        foreach ($missingStreamIds as $streamId) {
+            $stream = $dbStreamsOnThisVps->where('id', $streamId)->first();
             if ($stream) {
                 $timeSinceUpdate = $stream->last_status_update ? now()->diffInMinutes($stream->last_status_update) : 999;
+                $timeSinceStart = $stream->last_started_at ? now()->diffInMinutes($stream->last_started_at) : 999;
 
-                // Only mark as stale if it's been more than 3 minutes without heartbeat
-                if ($timeSinceUpdate > 3) {
-                    $this->warn("⚠️ [Heartbeat] Stream #{$streamId} missing from heartbeat for {$timeSinceUpdate} minutes, marking as ERROR");
+                $this->warn("🔍 [Heartbeat] Stream #{$streamId} analysis:");
+                $this->warn("  - DB Status: {$stream->status}");
+                $this->warn("  - Minutes since heartbeat: {$timeSinceUpdate}");
+                $this->warn("  - Minutes since start: {$timeSinceStart}");
+
+                // More aggressive cleanup - if not in heartbeat, it's probably dead
+                if ($timeSinceUpdate > 2 || ($stream->status === 'STARTING' && $timeSinceStart > 5)) {
+                    $reason = $timeSinceUpdate > 2 ?
+                        "missing from VPS heartbeat for {$timeSinceUpdate} minutes" :
+                        "stuck in STARTING for {$timeSinceStart} minutes";
+
+                    $this->warn("💀 [Heartbeat] Stream #{$streamId} {$reason}, marking as ERROR");
+
                     $stream->update([
                         'status' => 'ERROR',
-                        'error_message' => "Stream missing from VPS heartbeat for {$timeSinceUpdate} minutes",
-                        'vps_server_id' => null
+                        'error_message' => "Stream {$reason} (VPS #{$vpsId} heartbeat)",
+                        'vps_server_id' => null,
+                        'process_id' => null
                     ]);
+
+                    // Create progress update for UI
+                    StreamProgressService::createStageProgress($streamId, 'error', "❌ Stream bị mất: {$reason}");
+
+                    // Trigger UI refresh
+                    $this->triggerUIRefresh($streamId);
 
                     if ($stream->vpsServer) {
                         $stream->vpsServer->decrement('current_streams');
                     }
                 }
             }
+        }
+
+        // 3. RECOVERY: Check for "orphaned" streams that might have been missed
+        $this->recoverOrphanedStreams($vpsId, $heartbeatStreamIds);
+    }
+
+    /**
+     * Recover orphaned streams that might be running but not assigned to correct VPS
+     */
+    private function recoverOrphanedStreams(int $vpsId, array $heartbeatStreamIds): void
+    {
+        if (empty($heartbeatStreamIds)) {
+            return;
+        }
+
+        // Find streams that are reported by this VPS but assigned to different VPS or no VPS
+        $orphanedStreams = StreamConfiguration::whereIn('id', $heartbeatStreamIds)
+            ->where(function($query) use ($vpsId) {
+                $query->where('vps_server_id', '!=', $vpsId)
+                      ->orWhereNull('vps_server_id');
+            })
+            ->get();
+
+        foreach ($orphanedStreams as $stream) {
+            $oldVpsId = $stream->vps_server_id;
+            $this->warn("🔄 [Recovery] Stream #{$stream->id} running on VPS #{$vpsId} but DB shows VPS #{$oldVpsId}");
+
+            // Update to correct VPS
+            $stream->update([
+                'vps_server_id' => $vpsId,
+                'status' => 'STREAMING',
+                'last_status_update' => now(),
+                'error_message' => null
+            ]);
+
+            // Create progress update
+            StreamProgressService::createStageProgress(
+                $stream->id,
+                'streaming',
+                "🔄 Stream đã được khôi phục! Đang chạy trên VPS #{$vpsId}"
+            );
+
+            $this->info("✅ [Recovery] Recovered stream #{$stream->id} to VPS #{$vpsId}");
+            $this->triggerUIRefresh($stream->id);
+        }
+    }
+
+    /**
+     * Trigger immediate UI refresh for specific stream
+     */
+    private function triggerUIRefresh(int $streamId): void
+    {
+        try {
+            // Publish to Redis channel that Livewire can listen to
+            $redis = app('redis')->connection();
+            $redis->publish('stream-ui-refresh', json_encode([
+                'stream_id' => $streamId,
+                'action' => 'status_synced',
+                'timestamp' => time()
+            ]));
+
+            $this->info("🔄 [UIRefresh] Triggered UI refresh for stream #{$streamId}");
+
+        } catch (\Exception $e) {
+            $this->warn("⚠️ [UIRefresh] Failed to trigger UI refresh: {$e->getMessage()}");
         }
     }
 }

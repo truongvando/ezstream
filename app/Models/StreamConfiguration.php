@@ -67,6 +67,26 @@ class StreamConfiguration extends Model
     }
 
     /**
+     * Boot method to add model event listeners
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        // Log when stream is being deleted
+        static::deleting(function ($stream) {
+            \Log::warning("🗑️ [CRITICAL] Stream #{$stream->id} is being deleted", [
+                'title' => $stream->title,
+                'status' => $stream->status,
+                'user_id' => $stream->user_id,
+                'vps_server_id' => $stream->vps_server_id,
+                'is_quick_stream' => $stream->is_quick_stream,
+                'stack_trace' => debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10)
+            ]);
+        });
+    }
+
+    /**
      * Get platform name from RTMP URL
      */
     public function getPlatformAttribute(): string

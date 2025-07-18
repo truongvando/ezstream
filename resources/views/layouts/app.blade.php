@@ -35,7 +35,15 @@
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @livewireStyles
-        
+
+        <!-- Custom Styles for Modal -->
+        <style>
+            /* Smooth transitions */
+            .transition-all-smooth {
+                transition: all 0.2s ease-in-out;
+            }
+        </style>
+
         <!-- Dark mode initialization script -->
         <script>
             // Apply dark mode immediately to prevent flashing

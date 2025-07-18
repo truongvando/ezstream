@@ -71,7 +71,7 @@ class StartMultistreamJob implements ShouldQueue
                 'rtmp_url' => $this->stream->rtmp_url,
                 'push_urls' => $this->stream->push_urls ?? [], // Ensure it's always an array
                 'loop' => $this->stream->loop ?? true,
-                'keep_files_after_stop' => $this->stream->keep_files_after_stop ?? false,
+                'keep_files_on_agent' => $this->stream->keep_files_on_agent ?? false,
             ];
 
             // 3. Tạo lệnh hoàn chỉnh để gửi qua Redis

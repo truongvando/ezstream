@@ -31,6 +31,15 @@ class AutoDeleteStreamFilesJob implements ShouldQueue
         Log::info("🗑️ [AutoDeleteStreamFiles] Starting auto-deletion for stream #{$this->stream->id}");
 
         try {
+            // Refresh stream from database to get latest status
+            $this->stream->refresh();
+
+            // CRITICAL: Do not delete files if stream is still active
+            if (in_array($this->stream->status, ['STREAMING', 'STARTING', 'STOPPING'])) {
+                Log::warning("⚠️ [Stream #{$this->stream->id}] Stream still active ({$this->stream->status}), skipping auto-deletion");
+                return;
+            }
+
             // Only process if this is a quick stream with auto-delete enabled
             if (!$this->stream->is_quick_stream || !$this->stream->auto_delete_from_cdn) {
                 Log::info("🔄 [Stream #{$this->stream->id}] Not a quick stream or auto-delete disabled, skipping");

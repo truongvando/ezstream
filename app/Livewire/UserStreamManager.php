@@ -38,14 +38,24 @@ class UserStreamManager extends BaseStreamManager
     }
 
     /**
+     * Livewire event listeners
+     */
+    protected $listeners = ['refreshStreams' => 'refreshStreams'];
+
+    /**
      * Refresh streams method for polling
      */
     public function refreshStreams()
     {
-        // This method is called by wire:poll.2s="refreshStreams"
-        // Just refresh the component
-        $this->render();
+        // This method is called by wire:poll.3s="refreshStreams" or event dispatch
+        // Clear any cached properties and force re-render
+        $this->resetPage();
+
+        // Log for debugging
+        \Log::debug("🔄 [UserStreamManager] Polling refresh triggered");
     }
+
+
 
     // All common properties and methods are now inherited from BaseStreamManager
     // Common methods inherited from BaseStreamManager
@@ -83,7 +93,7 @@ class UserStreamManager extends BaseStreamManager
             'loop' => $this->loop,
             'scheduled_at' => $this->scheduled_at,
             'playlist_order' => $this->playlist_order,
-            'keep_files_after_stop' => $this->keep_files_after_stop,
+            'keep_files_on_agent' => $this->keep_files_on_agent,
             'user_file_id' => $selectedFiles->first()->id, // Primary file for backward compatibility
         ]);
 
@@ -91,11 +101,11 @@ class UserStreamManager extends BaseStreamManager
         session()->flash('success', 'Stream đã được tạo thành công. Nhấn "Bắt đầu Stream" để khởi động.');
     }
 
-    public function edit(StreamConfiguration $stream)
+    public function edit($streamId)
     {
-        if ($stream->user_id !== Auth::id()) {
-            abort(403);
-        }
+        $stream = StreamConfiguration::where('id', $streamId)
+            ->where('user_id', Auth::id())
+            ->firstOrFail();
         $this->resetValidation();
         $this->editingStream = $stream;
         $this->title = $stream->title;
@@ -132,10 +142,22 @@ class UserStreamManager extends BaseStreamManager
 
         $this->stream_key = $stream->stream_key;
         
-        // Load new feature fields
+        // Load all feature fields
         $this->loop = $stream->loop ?? false;
         $this->scheduled_at = $stream->scheduled_at ? $stream->scheduled_at->format('Y-m-d\TH:i') : null;
         $this->playlist_order = $stream->playlist_order ?? 'sequential';
+        $this->keep_files_on_agent = $stream->keep_files_on_agent ?? false;
+
+        // Load advanced fields
+        $this->enable_schedule = !empty($stream->scheduled_at);
+        $this->scheduled_end = $stream->scheduled_end ? $stream->scheduled_end->format('Y-m-d\TH:i') : null;
+
+        // Load platform and RTMP settings
+        $this->platform = $stream->platform ?? 'youtube';
+        $this->rtmp_url = $stream->rtmp_url;
+
+        // Load files
+        $this->user_file_ids = $stream->video_source_path ? (is_array($stream->video_source_path) ? array_map('intval', $stream->video_source_path) : [$stream->user_file_id]) : [];
 
         $this->showEditModal = true;
     }
@@ -172,9 +194,10 @@ class UserStreamManager extends BaseStreamManager
             'rtmp_backup_url' => $backupRtmpUrl, // Auto-generated backup
             'stream_key' => $this->stream_key,
             'loop' => $this->loop,
-            'scheduled_at' => $this->scheduled_at,
+            'scheduled_at' => $this->enable_schedule ? $this->scheduled_at : null,
+            'scheduled_end' => $this->enable_schedule ? $this->scheduled_end : null,
             'playlist_order' => $this->playlist_order,
-            'keep_files_after_stop' => $this->keep_files_after_stop,
+            'keep_files_on_agent' => $this->keep_files_on_agent,
             'user_file_id' => $selectedFiles->first()->id,
         ]);
 
@@ -260,8 +283,13 @@ class UserStreamManager extends BaseStreamManager
         if ($stream->user_id !== Auth::id()) {
             abort(403);
         }
+
         $stream->update(['status' => 'STOPPING']);
         StopMultistreamJob::dispatch($stream);
+
+        // Force immediate UI refresh
+        $this->dispatch('$refresh');
+
         session()->flash('message', 'Lệnh dừng stream đã được gửi đi.');
     }
 

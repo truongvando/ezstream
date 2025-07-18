@@ -18,6 +18,8 @@ use App\Http\Controllers\DashboardController;
 use App\Livewire\ServiceManager;
 use App\Livewire\VpsServerManager;
 use App\Livewire\Dashboard;
+use App\Models\StreamConfiguration;
+use App\Services\StreamProgressService;
 use App\Livewire\FileUpload;
 use App\Livewire\PaymentManager;
 use App\Livewire\TransactionHistory;
@@ -502,6 +504,69 @@ Route::prefix('api')->withoutMiddleware([\Illuminate\Foundation\Http\Middleware\
 Route::get('/api/stream/{streamId}/progress', [App\Http\Controllers\StreamProgressController::class, 'getProgress']);
 Route::middleware('auth')->group(function () {
     Route::delete('/api/stream/{streamId}/progress', [App\Http\Controllers\StreamProgressController::class, 'clearProgress']);
+});
+
+// Debug Routes (remove in production)
+Route::get('/debug/stream/{streamId}', function($streamId) {
+    $stream = StreamConfiguration::find($streamId);
+
+    if (!$stream) {
+        return response()->json(['error' => 'Stream not found'], 404);
+    }
+
+    return response()->json([
+        'stream' => [
+            'id' => $stream->id,
+            'title' => $stream->title,
+            'status' => $stream->status,
+            'vps_server_id' => $stream->vps_server_id,
+            'process_id' => $stream->process_id,
+            'last_status_update' => $stream->last_status_update,
+            'last_started_at' => $stream->last_started_at,
+            'error_message' => $stream->error_message,
+            'user_id' => $stream->user_id
+        ]
+    ]);
+});
+
+Route::get('/debug/fix-stream/{streamId}', function($streamId) {
+    $stream = StreamConfiguration::find($streamId);
+
+    if (!$stream) {
+        return response()->json(['error' => 'Stream not found'], 404);
+    }
+
+    $oldStatus = $stream->status;
+
+    // Force sync to STREAMING
+    $result = $stream->update([
+        'status' => 'STREAMING',
+        'vps_server_id' => 24,
+        'last_status_update' => now(),
+        'error_message' => null,
+        'process_id' => 722503
+    ]);
+
+    // Create progress update
+    try {
+        StreamProgressService::createStageProgress($streamId, 'streaming', '🔧 Manual fix: Stream synced to STREAMING');
+        $progressCreated = true;
+    } catch (\Exception $e) {
+        $progressCreated = false;
+        $progressError = $e->getMessage();
+    }
+
+    $stream->refresh();
+
+    return response()->json([
+        'success' => $result,
+        'old_status' => $oldStatus,
+        'new_status' => $stream->status,
+        'vps_id' => $stream->vps_server_id,
+        'last_update' => $stream->last_status_update,
+        'progress_created' => $progressCreated,
+        'progress_error' => $progressError ?? null
+    ]);
 });
 
 require __DIR__.'/auth.php';

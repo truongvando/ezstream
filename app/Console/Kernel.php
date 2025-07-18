@@ -55,9 +55,9 @@ class Kernel extends ConsoleKernel
                  ->withoutOverlapping()
                  ->runInBackground();
 
-        // 🔄 Sync stream status with VPS reality
+        // 🔄 Sync stream status with VPS reality (every 2 minutes - more responsive)
         $schedule->job(new SyncStreamStatusJob())
-                 ->everyThreeMinutes()
+                 ->everyTwoMinutes()
                  ->withoutOverlapping()
                  ->runInBackground();
 

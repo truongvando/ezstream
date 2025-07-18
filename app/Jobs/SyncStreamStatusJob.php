@@ -77,13 +77,13 @@ class SyncStreamStatusJob implements ShouldQueue
     {
         // Check if stream has been stuck in STARTING for too long
         if ($stream->status === 'STARTING') {
-            $minutesSinceStart = $stream->last_started_at ? 
+            $minutesSinceStart = $stream->last_started_at ?
                 now()->diffInMinutes($stream->last_started_at) : 999;
 
-            // If stuck in STARTING for more than 10 minutes, mark as ERROR
-            if ($minutesSinceStart > 10) {
+            // If stuck in STARTING for more than 5 minutes, mark as ERROR (heartbeat every 60s)
+            if ($minutesSinceStart > 5) {
                 Log::warning("⚠️ [SyncStreamStatus] Stream #{$stream->id} stuck in STARTING for {$minutesSinceStart} minutes");
-                
+
                 $stream->update([
                     'status' => 'ERROR',
                     'error_message' => "Stream stuck in STARTING status for {$minutesSinceStart} minutes",
@@ -95,8 +95,8 @@ class SyncStreamStatusJob implements ShouldQueue
                 }
 
                 StreamProgressService::createStageProgress(
-                    $stream->id, 
-                    'error', 
+                    $stream->id,
+                    'error',
                     "Stream timeout: stuck in STARTING for {$minutesSinceStart} minutes"
                 );
                 return;
@@ -108,10 +108,10 @@ class SyncStreamStatusJob implements ShouldQueue
             $minutesSinceUpdate = $stream->last_status_update ? 
                 now()->diffInMinutes($stream->last_status_update) : 999;
 
-            // If no heartbeat for more than 5 minutes, mark as ERROR
-            if ($minutesSinceUpdate > 5) {
+            // If no heartbeat for more than 3 minutes, mark as ERROR (heartbeat every 60s)
+            if ($minutesSinceUpdate > 3) {
                 Log::warning("⚠️ [SyncStreamStatus] Stream #{$stream->id} no heartbeat for {$minutesSinceUpdate} minutes");
-                
+
                 $stream->update([
                     'status' => 'ERROR',
                     'error_message' => "No heartbeat received for {$minutesSinceUpdate} minutes",
@@ -123,8 +123,8 @@ class SyncStreamStatusJob implements ShouldQueue
                 }
 
                 StreamProgressService::createStageProgress(
-                    $stream->id, 
-                    'error', 
+                    $stream->id,
+                    'error',
                     "Stream lost: no heartbeat for {$minutesSinceUpdate} minutes"
                 );
                 return;

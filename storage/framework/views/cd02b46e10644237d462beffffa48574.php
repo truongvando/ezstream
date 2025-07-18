@@ -96,8 +96,19 @@
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                                     <div class="w-2 h-2 bg-green-400 rounded-full mr-1 animate-pulse"></div>
                                     Đang phát
-                                    <!--[if BLOCK]><![endif]--><?php if($stream->last_status_update && $stream->last_status_update->diffInMinutes() < 2): ?>
-                                        <span class="ml-1 text-green-600" title="Heartbeat gần đây: <?php echo e($stream->last_status_update->diffForHumans()); ?>">●</span>
+                                    <!--[if BLOCK]><![endif]--><?php if($stream->last_status_update): ?>
+                                        <?php
+                                            $minutesSinceHeartbeat = $stream->last_status_update->diffInMinutes();
+                                        ?>
+                                        <!--[if BLOCK]><![endif]--><?php if($minutesSinceHeartbeat < 2): ?>
+                                            <span class="ml-1 text-green-500 animate-pulse" title="Heartbeat: <?php echo e($stream->last_status_update->diffForHumans()); ?>">●</span>
+                                        <?php elseif($minutesSinceHeartbeat < 3): ?>
+                                            <span class="ml-1 text-yellow-500" title="Heartbeat cũ: <?php echo e($stream->last_status_update->diffForHumans()); ?>">●</span>
+                                        <?php else: ?>
+                                            <span class="ml-1 text-red-500" title="Không có heartbeat: <?php echo e($stream->last_status_update->diffForHumans()); ?>">●</span>
+                                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                    <?php else: ?>
+                                        <span class="ml-1 text-gray-400" title="Chưa có heartbeat">○</span>
                                     <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                 </span>
                             <?php elseif($stream->status === 'STARTING'): ?>
@@ -218,8 +229,9 @@
                         <!-- Main Action Button -->
                         <div class="flex-1">
                             <!--[if BLOCK]><![endif]--><?php if($stream->status === 'STREAMING'): ?>
-                                <button wire:click="stopStream(<?php echo e($stream->id); ?>)" 
+                                <button wire:click="stopStream(<?php echo e($stream->id); ?>)"
                                         wire:loading.attr="disabled"
+                                        onclick="setTimeout(() => { Livewire.dispatch('refreshStreams'); }, 500);"
                                         class="w-full inline-flex items-center justify-center px-4 py-2 border-2 border-red-600 text-sm font-semibold rounded-lg text-red-600 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-200">
                                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -262,7 +274,7 @@
                         <!-- Secondary Actions -->
                         <div class="flex items-center space-x-2">
                             <!-- Edit Button -->
-                            <button wire:click="edit(<?php echo e($stream->id); ?>)" 
+                            <button wire:click="edit(<?php echo e($stream->id); ?>)"
                                     class="inline-flex items-center p-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
