@@ -14,20 +14,21 @@
                             <h1 class="text-2xl sm:text-3xl font-bold">Bảng điều khiển</h1>
                         </div>
                         <p class="text-blue-100 text-base sm:text-lg">
-                            Chào mừng trở lại, <span class="font-semibold">{{ Auth::user()->name }}</span>!
-                            {{ now()->hour < 12 ? 'Chúc bạn buổi sáng tốt lành!' : (now()->hour < 18 ? 'Chúc bạn buổi chiều vui vẻ!' : 'Chúc bạn buổi tối thư giãn!') }}
+                            Chào mừng trở lại, <span class="font-semibold"><?php echo e(Auth::user()->name); ?></span>!
+                            <?php echo e(now()->hour < 12 ? 'Chúc bạn buổi sáng tốt lành!' : (now()->hour < 18 ? 'Chúc bạn buổi chiều vui vẻ!' : 'Chúc bạn buổi tối thư giãn!')); ?>
+
                         </p>
                         <p class="text-blue-200 text-sm mt-2">Quản lý streams và dịch vụ EZSTREAM của bạn tại đây</p>
                     </div>
                     <div class="flex-shrink-0 self-center sm:self-auto">
                         <div class="flex flex-col items-center space-y-2">
                             <div class="w-16 h-16 sm:w-20 sm:h-20 bg-white/20 rounded-full flex items-center justify-center">
-                                <span class="text-2xl sm:text-3xl font-bold">{{ substr(Auth::user()->name, 0, 1) }}</span>
+                                <span class="text-2xl sm:text-3xl font-bold"><?php echo e(substr(Auth::user()->name, 0, 1)); ?></span>
                             </div>
                             <div class="text-center">
-                                <p class="text-xs text-blue-200">{{ now()->format('l') }}</p>
-                                <p class="text-sm font-semibold">{{ now()->format('d/m/Y') }}</p>
-                                <p class="text-xs text-blue-200">{{ now()->format('H:i') }}</p>
+                                <p class="text-xs text-blue-200"><?php echo e(now()->format('l')); ?></p>
+                                <p class="text-sm font-semibold"><?php echo e(now()->format('d/m/Y')); ?></p>
+                                <p class="text-xs text-blue-200"><?php echo e(now()->format('H:i')); ?></p>
                             </div>
                         </div>
                     </div>
@@ -41,7 +42,7 @@
                     <div class="flex items-center justify-between">
                         <div class="flex-1 min-w-0">
                             <p class="text-xs sm:text-sm font-medium text-gray-600 truncate">Tổng Streams</p>
-                            <p class="text-2xl sm:text-3xl font-bold text-gray-900">{{ $streamCount ?? 0 }}</p>
+                            <p class="text-2xl sm:text-3xl font-bold text-gray-900"><?php echo e($streamCount ?? 0); ?></p>
                             <p class="text-xs sm:text-sm text-green-600 mt-1 flex items-center">
                                 <svg class="w-3 h-3 sm:w-4 sm:h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                     <path fill-rule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
@@ -62,7 +63,7 @@
                     <div class="flex items-center justify-between">
                         <div class="flex-1 min-w-0">
                             <p class="text-xs sm:text-sm font-medium text-gray-600 truncate">Đang hoạt động</p>
-                            <p class="text-2xl sm:text-3xl font-bold text-gray-900">{{ auth()->user()->streamConfigurations()->whereIn('status', ['STREAMING', 'STARTING'])->count() }}</p>
+                            <p class="text-2xl sm:text-3xl font-bold text-gray-900"><?php echo e(auth()->user()->streamConfigurations()->whereIn('status', ['STREAMING', 'STARTING'])->count()); ?></p>
                             <p class="text-xs sm:text-sm text-green-600 mt-1">🟢 Live</p>
                         </div>
                         <div class="bg-green-100 p-2 sm:p-3 rounded-full flex-shrink-0">
@@ -79,16 +80,17 @@
                         <div class="flex-1 min-w-0">
                             <p class="text-xs sm:text-sm font-medium text-gray-600 truncate">Gói dịch vụ</p>
                             <p class="text-lg sm:text-xl font-bold text-gray-900 truncate">
-                                {{ auth()->user()->getSubscriptionDisplayName() }}
+                                <?php echo e(auth()->user()->getSubscriptionDisplayName()); ?>
+
                             </p>
                             <p class="text-xs sm:text-sm text-purple-600 mt-1">
-                                @if(auth()->user()->isAdmin())
+                                <?php if(auth()->user()->isAdmin()): ?>
                                     👑 Quản trị viên
-                                @elseif(auth()->user()->getTotalAllowedStreams() > 0)
-                                    💎 Đang hoạt động ({{ auth()->user()->getTotalAllowedStreams() }} streams)
-                                @else
-                                    <a href="{{ route('services') }}" class="hover:underline">Chọn gói ngay →</a>
-                                @endif
+                                <?php elseif(auth()->user()->getTotalAllowedStreams() > 0): ?>
+                                    💎 Đang hoạt động (<?php echo e(auth()->user()->getTotalAllowedStreams()); ?> streams)
+                                <?php else: ?>
+                                    <a href="<?php echo e(route('services')); ?>" class="hover:underline">Chọn gói ngay →</a>
+                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                             </p>
                         </div>
                         <div class="bg-purple-100 p-2 sm:p-3 rounded-full flex-shrink-0">
@@ -109,7 +111,7 @@
                     Thao tác nhanh
                 </h3>
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-                    <a href="{{ route('user.streams') }}" class="group bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 p-4 sm:p-6 rounded-lg transition-all duration-200 border border-blue-200 hover:shadow-md">
+                    <a href="<?php echo e(route('user.streams')); ?>" class="group bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 p-4 sm:p-6 rounded-lg transition-all duration-200 border border-blue-200 hover:shadow-md">
                         <div class="text-center">
                             <div class="bg-blue-500 text-white rounded-full p-2 sm:p-3 w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 sm:mb-3 group-hover:scale-110 transition-transform">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -121,7 +123,7 @@
                         </div>
                     </a>
 
-                    <a href="{{ route('files.index') }}" class="group bg-gradient-to-br from-green-50 to-green-100 hover:from-green-100 hover:to-green-200 p-4 sm:p-6 rounded-lg transition-all duration-200 border border-green-200 hover:shadow-md">
+                    <a href="<?php echo e(route('files.index')); ?>" class="group bg-gradient-to-br from-green-50 to-green-100 hover:from-green-100 hover:to-green-200 p-4 sm:p-6 rounded-lg transition-all duration-200 border border-green-200 hover:shadow-md">
                         <div class="text-center">
                             <div class="bg-green-500 text-white rounded-full p-2 sm:p-3 w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 sm:mb-3 group-hover:scale-110 transition-transform">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -133,7 +135,7 @@
                         </div>
                     </a>
 
-                    <a href="{{ route('services') }}" class="group bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 p-4 sm:p-6 rounded-lg transition-all duration-200 border border-purple-200 hover:shadow-md">
+                    <a href="<?php echo e(route('services')); ?>" class="group bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 p-4 sm:p-6 rounded-lg transition-all duration-200 border border-purple-200 hover:shadow-md">
                         <div class="text-center">
                             <div class="bg-purple-500 text-white rounded-full p-2 sm:p-3 w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 sm:mb-3 group-hover:scale-110 transition-transform">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -145,7 +147,7 @@
                         </div>
                     </a>
 
-                    <a href="{{ route('profile.edit') }}" class="group bg-gradient-to-br from-orange-50 to-orange-100 hover:from-orange-100 hover:to-orange-200 p-4 sm:p-6 rounded-lg transition-all duration-200 border border-orange-200 hover:shadow-md">
+                    <a href="<?php echo e(route('profile.edit')); ?>" class="group bg-gradient-to-br from-orange-50 to-orange-100 hover:from-orange-100 hover:to-orange-200 p-4 sm:p-6 rounded-lg transition-all duration-200 border border-orange-200 hover:shadow-md">
                         <div class="text-center">
                             <div class="bg-orange-500 text-white rounded-full p-2 sm:p-3 w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-2 sm:mb-3 group-hover:scale-110 transition-transform">
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -161,3 +163,4 @@
         </div>
     </div>
 </div>
+<?php /**PATH D:\laragon\www\ezstream\resources\views/livewire/dashboard.blade.php ENDPATH**/ ?>
