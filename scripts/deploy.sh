@@ -15,7 +15,7 @@ NC='\033[0m'
 
 # Configuration
 PROJECT_DIR="/var/www/ezstream"
-BRANCH=${1:-main}
+BRANCH=${1:-master}
 BACKUP_DIR="/var/backups/ezstream"
 DB_NAME="sql_ezstream_pro"
 DB_USER="root"
@@ -32,8 +32,13 @@ mkdir -p $BACKUP_DIR
 # Backup database
 echo -e "${YELLOW}💾 Creating database backup...${NC}"
 BACKUP_FILE="$BACKUP_DIR/database_$(date +%Y%m%d_%H%M%S).sql"
-mysqldump -u $DB_USER -p$DB_PASS $DB_NAME > $BACKUP_FILE
-echo -e "${GREEN}✅ Database backed up to: $BACKUP_FILE${NC}"
+if mysqldump -u $DB_USER -p$DB_PASS $DB_NAME > $BACKUP_FILE 2>/dev/null; then
+    gzip $BACKUP_FILE
+    echo -e "${GREEN}✅ Database backed up to: $BACKUP_FILE.gz${NC}"
+else
+    echo -e "${RED}❌ Database backup failed${NC}"
+    exit 1
+fi
 
 # Backup .env file
 echo -e "${YELLOW}💾 Backing up .env file...${NC}"
@@ -90,11 +95,23 @@ chown -R www-data:www-data $PROJECT_DIR
 chmod -R 755 $PROJECT_DIR
 chmod -R 775 $PROJECT_DIR/storage
 chmod -R 775 $PROJECT_DIR/bootstrap/cache
+chmod 600 $PROJECT_DIR/.env
 
 # Restart services
 echo -e "${YELLOW}🔄 Restarting services...${NC}"
 systemctl reload php8.2-fpm
 systemctl reload nginx
+
+# Restart background processes
+echo -e "${YELLOW}🔄 Restarting background processes...${NC}"
+if command -v supervisorctl &> /dev/null; then
+    supervisorctl restart ezstream-queue:* || echo "Queue processes not found"
+    supervisorctl restart ezstream-stream:* || echo "Stream processes not found"
+    supervisorctl restart ezstream-redis:* || echo "Redis processes not found"
+    supervisorctl restart ezstream-schedule:* || echo "Schedule processes not found"
+else
+    echo "⚠️ Supervisor not installed, skipping process restart"
+fi
 
 # Test application
 echo -e "${YELLOW}🧪 Testing application...${NC}"
@@ -113,7 +130,7 @@ php artisan up
 
 # Clean old backups (keep last 10)
 echo -e "${YELLOW}🧹 Cleaning old backups...${NC}"
-find $BACKUP_DIR -name "database_*.sql" -type f | sort -r | tail -n +11 | xargs rm -f
+find $BACKUP_DIR -name "database_*.sql.gz" -type f | sort -r | tail -n +11 | xargs rm -f
 find $BACKUP_DIR -name ".env.backup.*" -type f | sort -r | tail -n +11 | xargs rm -f
 
 echo -e "${GREEN}🎉 Deployment completed successfully!${NC}"
@@ -124,4 +141,5 @@ echo -e "  • Timestamp: $(date)"
 echo -e "  • Website: https://ezstream.pro"
 echo ""
 echo -e "${YELLOW}💡 To rollback if needed:${NC}"
-echo -e "  mysql -u $DB_USER -p$DB_PASS $DB_NAME < $BACKUP_FILE"
+echo -e "  gunzip $BACKUP_FILE.gz"
+echo -e "  mysql -u $DB_USER -p$DB_PASS $DB_NAME < \${BACKUP_FILE%.gz}"

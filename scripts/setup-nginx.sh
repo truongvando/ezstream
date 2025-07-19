@@ -17,6 +17,18 @@ PROJECT_DIR="/var/www/ezstream"
 
 echo -e "${YELLOW}🌐 Setting up Nginx for EZSTREAM...${NC}"
 
+# Create rate limiting configuration
+echo -e "${YELLOW}🛡️ Creating rate limiting configuration...${NC}"
+cat > /etc/nginx/conf.d/rate-limit.conf << EOF
+# Rate limiting zones
+limit_req_zone \$binary_remote_addr zone=login:10m rate=5r/m;
+limit_req_zone \$binary_remote_addr zone=api:10m rate=30r/m;
+limit_req_zone \$binary_remote_addr zone=general:10m rate=10r/s;
+
+# Connection limiting
+limit_conn_zone \$binary_remote_addr zone=conn_limit_per_ip:10m;
+EOF
+
 # Create Nginx configuration
 echo -e "${YELLOW}📝 Creating Nginx configuration...${NC}"
 cat > /etc/nginx/sites-available/ezstream << EOF
@@ -39,6 +51,8 @@ server {
     client_header_timeout 300s;
 
     location / {
+        limit_req zone=general burst=20 nodelay;
+        limit_conn conn_limit_per_ip 10;
         try_files \$uri \$uri/ /index.php?\$query_string;
     }
 

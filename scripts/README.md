@@ -19,6 +19,12 @@ Pull code mới, backup database, chạy migrations, không mất dữ liệu
 ### 5. `rollback.sh` - Rollback về backup
 Khôi phục database về trạng thái trước đó
 
+### 6. `setup-supervisor.sh` - Setup background processes
+Tự động chạy queue, stream, schedule với Supervisor
+
+### 7. `manage-processes.sh` - Quản lý processes
+Start/stop/restart/monitor các background processes
+
 ## 🔧 Cách sử dụng
 
 ### Cài đặt VPS mới (One-click):
@@ -44,6 +50,13 @@ bash /root/scripts/setup-project.sh
 
 # 6. Setup Nginx + SSL
 bash /root/scripts/setup-nginx.sh
+
+# 7. Setup security
+bash /root/scripts/setup-security.sh
+
+# 8. Setup background processes
+bash /root/scripts/setup-supervisor.sh
+bash /root/scripts/setup-crontab.sh
 ```
 
 ### Cập nhật code (Zero-downtime):

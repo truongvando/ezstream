@@ -89,6 +89,10 @@ apt install -y nginx
 echo -e "${YELLOW}🔒 Installing Certbot...${NC}"
 apt install -y certbot python3-certbot-nginx
 
+# Install Fail2Ban for security
+echo -e "${YELLOW}🛡️ Installing Fail2Ban...${NC}"
+apt install -y fail2ban
+
 # Create project directory
 echo -e "${YELLOW}📁 Creating project directory...${NC}"
 mkdir -p $PROJECT_DIR

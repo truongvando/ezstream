@@ -79,6 +79,7 @@ chown -R www-data:www-data $PROJECT_DIR
 chmod -R 755 $PROJECT_DIR
 chmod -R 775 $PROJECT_DIR/storage
 chmod -R 775 $PROJECT_DIR/bootstrap/cache
+chmod 600 $PROJECT_DIR/.env
 
 # Start services
 echo -e "${YELLOW}🚀 Starting services...${NC}"
