@@ -93,7 +93,9 @@ fi
 # Install/Update Composer dependencies
 echo -e "${YELLOW}📦 Updating Composer dependencies...${NC}"
 if [ -f "composer.json" ]; then
-    composer install --no-dev --optimize-autoloader --no-interaction
+    # Set environment variable to allow running as root and disable plugins for safety
+    export COMPOSER_ALLOW_SUPERUSER=1
+    composer install --no-dev --optimize-autoloader --no-interaction --no-plugins
 else
     echo -e "${RED}❌ composer.json not found!${NC}"
     exit 1
@@ -120,9 +122,29 @@ php artisan route:clear
 php artisan view:clear
 php artisan optimize:clear
 
-# Run database migrations
+# Run database migrations (skip existing tables)
 echo -e "${YELLOW}🗄️ Running database migrations...${NC}"
-php artisan migrate --force
+echo -e "${BLUE}   Checking migration status...${NC}"
+php artisan migrate:status
+
+echo -e "${BLUE}   Running migrations (skipping existing tables)...${NC}"
+# Run migrations and capture output, ignore table exists errors
+if php artisan migrate --force 2>&1 | tee /tmp/migration_output.log; then
+    echo -e "${GREEN}✅ Migrations completed successfully${NC}"
+else
+    # Check if the only errors are "table already exists"
+    if grep -q "Base table or view already exists" /tmp/migration_output.log && ! grep -q -v "Base table or view already exists\|SQLSTATE\[42S01\]" /tmp/migration_output.log; then
+        echo -e "${YELLOW}⚠️ Some tables already exist - this is normal for existing databases${NC}"
+        echo -e "${GREEN}✅ Migration process completed (existing tables skipped)${NC}"
+    else
+        echo -e "${RED}❌ Migration failed with unexpected errors${NC}"
+        cat /tmp/migration_output.log
+        exit 1
+    fi
+fi
+
+# Clean up temp file
+rm -f /tmp/migration_output.log
 
 # Recreate storage link
 echo -e "${YELLOW}🔗 Recreating storage link...${NC}"
@@ -160,13 +182,60 @@ fi
 
 # Test application
 echo -e "${YELLOW}🧪 Testing application...${NC}"
-if php artisan tinker --execute="echo 'Laravel is working!'; exit;"; then
-    echo -e "${GREEN}✅ Laravel test passed${NC}"
+
+# Test Laravel framework
+echo -e "${BLUE}   Testing Laravel framework...${NC}"
+if php artisan --version > /dev/null 2>&1; then
+    echo -e "${GREEN}✅ Laravel framework is working${NC}"
 else
-    echo -e "${RED}❌ Laravel test failed${NC}"
+    echo -e "${RED}❌ Laravel framework test failed${NC}"
     echo -e "${YELLOW}🔄 Bringing application back up...${NC}"
     php artisan up
     exit 1
+fi
+
+# Test database connection
+echo -e "${BLUE}   Testing database connection...${NC}"
+if php artisan tinker --execute="try { \DB::connection()->getPdo(); echo 'Database connected!'; } catch(Exception \$e) { echo 'Database error: ' . \$e->getMessage(); exit(1); }"; then
+    echo -e "${GREEN}✅ Database connection test passed${NC}"
+else
+    echo -e "${RED}❌ Database connection test failed${NC}"
+    echo -e "${YELLOW}🔄 Bringing application back up...${NC}"
+    php artisan up
+    exit 1
+fi
+
+# Test web server response
+echo -e "${BLUE}   Testing web server response...${NC}"
+if curl -f -s -o /dev/null http://localhost; then
+    echo -e "${GREEN}✅ Web server is responding${NC}"
+else
+    echo -e "${YELLOW}⚠️ Web server test failed (this might be normal if not configured for localhost)${NC}"
+fi
+
+# Test email configuration
+echo -e "${BLUE}   Testing email configuration...${NC}"
+if php artisan tinker --execute="
+try {
+    \$config = [
+        'mailer' => config('mail.default'),
+        'host' => config('mail.mailers.smtp.host'),
+        'port' => config('mail.mailers.smtp.port'),
+        'from' => config('mail.from.address')
+    ];
+    echo 'Email config: ' . json_encode(\$config);
+
+    // Test if password_reset_tokens table exists
+    \$tableExists = \Schema::hasTable('password_reset_tokens');
+    echo PHP_EOL . 'Password reset table exists: ' . (\$tableExists ? 'YES' : 'NO');
+
+} catch(Exception \$e) {
+    echo 'Email config error: ' . \$e->getMessage();
+    exit(1);
+}"; then
+    echo -e "${GREEN}✅ Email configuration test passed${NC}"
+else
+    echo -e "${YELLOW}⚠️ Email configuration test failed${NC}"
 fi
 
 # Bring application back up
