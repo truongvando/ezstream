@@ -3,19 +3,18 @@
 namespace App\Livewire\Admin\Blog;
 
 use App\Models\Post;
+use App\Services\BunnyStorageService;
 use Illuminate\Support\Str;
 use Livewire\Component;
-use Livewire\WithFileUploads;
-use Intervention\Image\ImageManager;
-use Intervention\Image\Drivers\Gd\Driver;
+// use Livewire\WithFileUploads; // Disabled for form upload
 
 class PostForm extends Component
 {
-    use WithFileUploads;
+    // use WithFileUploads; // Disabled for form upload
 
     public ?Post $post = null;
     public $title, $link, $status;
-    public $featured_image;
+    // public $featured_image; // Disabled for form upload
     public $existing_featured_image;
 
     protected function rules()
@@ -24,7 +23,7 @@ class PostForm extends Component
             'title' => 'required|string|max:255',
             'link' => 'required|url|max:255',
             'status' => 'required|in:DRAFT,PUBLISHED',
-            'featured_image' => 'nullable|image|max:2048',
+            // 'featured_image' => 'nullable|image|max:2048', // Disabled for form upload
         ];
     }
 
@@ -55,25 +54,32 @@ class PostForm extends Component
         $this->post->slug = Str::slug($this->title) . '-' . uniqid();
 
 
-        if ($this->featured_image) {
-            // Create image manager with GD driver
-            $manager = new ImageManager(new Driver());
+        // Upload to BunnyCDN via form upload
+        if (request()->hasFile('featured_image')) {
+            $file = request()->file('featured_image');
+            $bunnyService = new BunnyStorageService();
 
-            // Read image from temporary upload path
-            $image = $manager->read($this->featured_image->getRealPath());
-
-            // Resize and crop the image to a 800x450
+            // Process image first
+            $manager = new \Intervention\Image\ImageManager(new \Intervention\Image\Drivers\Gd\Driver());
+            $image = $manager->read($file->getRealPath());
             $image->cover(800, 450);
 
-            // Generate a unique name for the image
-            $imageName = Str::random(32) . '.jpg';
-            $path = 'posts/' . $imageName;
+            // Save to temp file
+            $tempPath = sys_get_temp_dir() . '/' . \Illuminate\Support\Str::random(32) . '.jpg';
+            $image->toJpeg(80)->save($tempPath);
 
-            // Save the processed image to the public storage disk
-            $image->toJpeg(80)->save(storage_path('app/public/' . $path));
+            // Upload to Bunny
+            $result = $bunnyService->uploadFile($tempPath, 'post_' . time() . '.jpg', 'image/jpeg');
 
-            // Store the new path in the database
-            $this->post->featured_image = $path;
+            // Clean up temp file
+            unlink($tempPath);
+
+            if ($result['success']) {
+                $this->post->featured_image = $result['cdn_url'];
+            } else {
+                session()->flash('error', 'Failed to upload image: ' . $result['error']);
+                return;
+            }
         }
 
         $this->post->save();

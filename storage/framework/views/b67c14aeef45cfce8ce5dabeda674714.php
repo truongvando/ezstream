@@ -21,7 +21,7 @@
                         <?php $__empty_1 = true; $__currentLoopData = $posts; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $post): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                             <a href="<?php echo e($post->link); ?>" target="_blank" class="block bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden hover:shadow-lg transition-shadow">
                                 <?php if($post->featured_image): ?>
-                                    <img src="<?php echo e(asset('storage/' . $post->featured_image)); ?>" alt="<?php echo e($post->title); ?>" class="w-full h-48 object-cover">
+                                    <img src="<?php echo e($post->featured_image); ?>" alt="<?php echo e($post->title); ?>" class="w-full h-48 object-cover">
                                 <?php else: ?>
                                      <div class="w-full h-48 bg-gray-200 dark:bg-gray-600 flex items-center justify-center">
                                         <span class="text-gray-500">No Image</span>

@@ -8,7 +8,7 @@
     <div class="h-full bg-white dark:bg-gray-800">
         <div class="p-6 md:p-8 text-gray-900 dark:text-gray-100">
                     @if($post->featured_image)
-                        <img src="{{ asset('storage/' . $post->featured_image) }}" alt="{{ $post->title }}" class="w-full h-auto rounded-lg mb-8">
+                        <img src="{{ $post->featured_image }}" alt="{{ $post->title }}" class="w-full h-auto rounded-lg mb-8">
                     @endif
 
                     <h1 class="text-3xl md:text-4xl font-bold mb-4">{{ $post->title }}</h1>
