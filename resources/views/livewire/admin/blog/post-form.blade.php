@@ -206,6 +206,34 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Check if there's existing image and ensure it's visible
+    const existingImage = document.getElementById('image-preview');
+    const placeholder = document.getElementById('upload-placeholder');
+
+    if (existingImage && existingImage.src && existingImage.src !== window.location.href && existingImage.src !== '') {
+        // There's an existing image, make sure it's visible
+        console.log('Found existing image:', existingImage.src);
+        existingImage.classList.remove('hidden');
+        if (placeholder) {
+            placeholder.classList.add('hidden');
+        }
+
+        // Test if image loads successfully
+        existingImage.onerror = function() {
+            console.error('Failed to load existing image:', existingImage.src);
+            existingImage.classList.add('hidden');
+            if (placeholder) {
+                placeholder.classList.remove('hidden');
+            }
+        };
+
+        existingImage.onload = function() {
+            console.log('Existing image loaded successfully:', existingImage.src);
+        };
+    } else {
+        console.log('No existing image found or invalid src');
+    }
+
     // Apply preview on page load if data exists
     if (blogImagePreviewData) {
         applyBlogImagePreview();

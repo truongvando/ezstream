@@ -203,6 +203,23 @@ Route::middleware(['auth', 'locale'])->group(function () {
     // User Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
+    // Debug blog images
+    Route::get('/debug-blog-images', function () {
+        $posts = \App\Models\Post::whereNotNull('featured_image')->get();
+
+        $results = [];
+        foreach ($posts as $post) {
+            $results[] = [
+                'id' => $post->id,
+                'title' => $post->title,
+                'featured_image' => $post->featured_image,
+                'image_accessible' => @get_headers($post->featured_image)[0] ?? 'Cannot check',
+            ];
+        }
+
+        return response()->json($results);
+    })->name('debug.blog.images');
+
     // Service Manager - Trang gói dịch vụ tổng hợp
     Route::get('/services', ServiceManager::class)->name('services');
 

@@ -40,9 +40,15 @@ else
     exit 1
 fi
 
-# Backup .env file
-echo -e "${YELLOW}💾 Backing up .env file...${NC}"
+# Backup important configs
+echo -e "${YELLOW}💾 Backing up important configs...${NC}"
 cp $PROJECT_DIR/.env $BACKUP_DIR/.env.backup.$(date +%Y%m%d_%H%M%S)
+
+# Backup production configs if they exist
+if [ -d "/var/www/phpmyadmin" ]; then
+    echo -e "${YELLOW}💾 Backing up phpMyAdmin...${NC}"
+    cp -r /var/www/phpmyadmin $BACKUP_DIR/phpmyadmin.backup.$(date +%Y%m%d_%H%M%S)
+fi
 
 # Put application in maintenance mode
 echo -e "${YELLOW}🔧 Enabling maintenance mode...${NC}"
@@ -51,21 +57,60 @@ php artisan down
 
 # Pull latest code
 echo -e "${YELLOW}📥 Pulling latest code...${NC}"
+
+# Check and preserve phpMyAdmin symlink
+PHPMYADMIN_PATH="$PROJECT_DIR/public/phpmyadmin"
+PHPMYADMIN_IS_SYMLINK=false
+PHPMYADMIN_TARGET=""
+
+if [ -L "$PHPMYADMIN_PATH" ]; then
+    echo -e "${YELLOW}� Detected phpMyAdmin symlink, preserving...${NC}"
+    PHPMYADMIN_IS_SYMLINK=true
+    PHPMYADMIN_TARGET=$(readlink "$PHPMYADMIN_PATH")
+    echo -e "${BLUE}   Symlink target: $PHPMYADMIN_TARGET${NC}"
+elif [ -d "$PHPMYADMIN_PATH" ]; then
+    echo -e "${YELLOW}💾 Backing up phpMyAdmin directory...${NC}"
+    mv "$PHPMYADMIN_PATH" "/tmp/phpmyadmin-backup-$(date +%Y%m%d_%H%M%S)"
+fi
+
 git fetch origin
 git reset --hard origin/$BRANCH
 git clean -fd
 
+# Restore phpMyAdmin based on what it was before
+if [ "$PHPMYADMIN_IS_SYMLINK" = true ]; then
+    echo -e "${YELLOW}🔄 Restoring phpMyAdmin symlink...${NC}"
+    ln -sf "$PHPMYADMIN_TARGET" "$PHPMYADMIN_PATH"
+    echo -e "${GREEN}✅ phpMyAdmin symlink restored: $PHPMYADMIN_PATH -> $PHPMYADMIN_TARGET${NC}"
+elif [ -d "/tmp/phpmyadmin-backup-"* ]; then
+    echo -e "${YELLOW}🔄 Restoring phpMyAdmin directory...${NC}"
+    LATEST_BACKUP=$(ls -t /tmp/phpmyadmin-backup-* | head -1)
+    mv "$LATEST_BACKUP" "$PHPMYADMIN_PATH"
+    chown -R www-data:www-data "$PHPMYADMIN_PATH"
+    echo -e "${GREEN}✅ phpMyAdmin directory restored${NC}"
+fi
+
 # Install/Update Composer dependencies
 echo -e "${YELLOW}📦 Updating Composer dependencies...${NC}"
-composer install --no-dev --optimize-autoloader --no-interaction
+if [ -f "composer.json" ]; then
+    composer install --no-dev --optimize-autoloader --no-interaction
+else
+    echo -e "${RED}❌ composer.json not found!${NC}"
+    exit 1
+fi
 
 # Install/Update NPM dependencies
 echo -e "${YELLOW}📦 Updating NPM dependencies...${NC}"
-npm ci --production
+# Install all dependencies (including dev) for build process
+npm ci
 
 # Build assets
 echo -e "${YELLOW}🏗️ Building assets...${NC}"
 npm run build
+
+# Clean up dev dependencies after build
+echo -e "${YELLOW}🧹 Cleaning dev dependencies...${NC}"
+npm prune --production
 
 # Clear all caches
 echo -e "${YELLOW}🧹 Clearing caches...${NC}"

@@ -22,3 +22,10 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Production-only configs
+/config/production/
+/scripts/production/
+nginx.conf
+php-fpm.conf
+*.production.conf
