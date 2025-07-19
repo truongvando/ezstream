@@ -46,16 +46,25 @@ class RedisConnectionHandler
     /**
      * Check if exception is a connection-related error
      */
-    private static function isConnectionError(\Throwable $exception): bool
+    public static function isConnectionError(\Throwable $exception): bool
     {
         $message = $exception->getMessage();
+        $trace = $exception->getTraceAsString();
         
-        return str_contains($message, 'errno=10053') ||
+        // Check for specific error messages
+        $isMessageError = str_contains($message, 'errno=10053') ||
                str_contains($message, 'Connection refused') ||
                str_contains($message, 'Connection reset') ||
                str_contains($message, 'Connection timed out') ||
                str_contains($message, 'fwrite(): Send of') ||
                $exception instanceof ConnectionException;
+
+        // Check if the trace indicates a Redis-related operation
+        $isTraceError = str_contains($trace, 'predis') ||
+                        str_contains($trace, 'RedisQueue') ||
+                        str_contains($trace, 'Redis\\Connections');
+
+        return $isMessageError && $isTraceError;
     }
     
     /**
