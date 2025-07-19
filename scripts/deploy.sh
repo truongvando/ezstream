@@ -47,7 +47,7 @@ cp $PROJECT_DIR/.env $BACKUP_DIR/.env.backup.$(date +%Y%m%d_%H%M%S)
 # Put application in maintenance mode
 echo -e "${YELLOW}🔧 Enabling maintenance mode...${NC}"
 cd $PROJECT_DIR
-php artisan down --message="Updating application..." --retry=60
+php artisan down
 
 # Pull latest code
 echo -e "${YELLOW}📥 Pulling latest code...${NC}"

@@ -3,7 +3,7 @@
 namespace App\Livewire\Admin\Blog;
 
 use App\Models\Post;
-use App\Services\BunnyStorageService;
+use App\Services\BunnyDirectUploadService;
 use Illuminate\Support\Str;
 use Livewire\Component;
 // use Livewire\WithFileUploads; // Disabled for form upload
@@ -54,30 +54,67 @@ class PostForm extends Component
         $this->post->slug = Str::slug($this->title) . '-' . uniqid();
 
 
-        // Upload to BunnyCDN via form upload
+        // Upload to BunnyCDN via direct upload
         if (request()->hasFile('featured_image')) {
             $file = request()->file('featured_image');
-            $bunnyService = new BunnyStorageService();
 
-            // Process image first
-            $manager = new \Intervention\Image\ImageManager(new \Intervention\Image\Drivers\Gd\Driver());
-            $image = $manager->read($file->getRealPath());
-            $image->cover(800, 450);
+            try {
+                // Process image first
+                $manager = new \Intervention\Image\ImageManager(new \Intervention\Image\Drivers\Gd\Driver());
+                $image = $manager->read($file->getRealPath());
+                $image->cover(800, 450);
 
-            // Save to temp file
-            $tempPath = sys_get_temp_dir() . '/' . \Illuminate\Support\Str::random(32) . '.jpg';
-            $image->toJpeg(80)->save($tempPath);
+                // Save to temp file
+                $tempPath = sys_get_temp_dir() . '/' . \Illuminate\Support\Str::random(32) . '.jpg';
+                $image->toJpeg(80)->save($tempPath);
 
-            // Upload to Bunny
-            $result = $bunnyService->uploadFile($tempPath, 'post_' . time() . '.jpg', 'image/jpeg');
+                // Generate upload URL
+                $bunnyService = new BunnyDirectUploadService();
+                $uploadData = $bunnyService->generateUploadUrl('post_' . time() . '.jpg', auth()->id(), filesize($tempPath));
 
-            // Clean up temp file
-            unlink($tempPath);
+                if (!$uploadData['success']) {
+                    throw new \Exception($uploadData['error']);
+                }
 
-            if ($result['success']) {
-                $this->post->featured_image = $result['cdn_url'];
-            } else {
-                session()->flash('error', 'Failed to upload image: ' . $result['error']);
+                // Upload directly to Bunny CDN
+                $uploadUrl = $uploadData['upload_url'];
+                $accessKey = $uploadData['access_key'];
+
+                $response = \Illuminate\Support\Facades\Http::timeout(300)
+                    ->withHeaders([
+                        'AccessKey' => $accessKey,
+                        'Content-Type' => 'image/jpeg'
+                    ])
+                    ->withBody(file_get_contents($tempPath))
+                    ->put($uploadUrl);
+
+                if ($response->failed()) {
+                    throw new \Exception('Upload to Bunny CDN failed: ' . $response->body());
+                }
+
+                // Confirm upload
+                $confirmResult = $bunnyService->confirmUpload(
+                    $uploadData['upload_token'],
+                    filesize($tempPath),
+                    'image/jpeg'
+                );
+
+                // Clean up temp file
+                unlink($tempPath);
+
+                if ($confirmResult['success']) {
+                    $this->post->featured_image = $confirmResult['cdn_url'];
+                } else {
+                    throw new \Exception($confirmResult['error']);
+                }
+
+            } catch (\Exception $e) {
+                // Clean up temp file if exists
+                if (isset($tempPath) && file_exists($tempPath)) {
+                    unlink($tempPath);
+                }
+
+                session()->flash('error', 'Failed to upload image: ' . $e->getMessage());
                 return;
             }
         }

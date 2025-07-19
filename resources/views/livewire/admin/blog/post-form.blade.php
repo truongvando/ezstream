@@ -57,22 +57,29 @@
                     <div class="rounded-lg bg-white dark:bg-gray-800 shadow-sm ring-1 ring-gray-900/5 dark:ring-white/10">
                         <div class="p-6">
                             <h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-gray-200">Ảnh đại diện</h3>
-                            <div class="mt-2">
-                                <input type="file" name="featured_image" id="featured_image" accept="image/*" class="sr-only" onchange="previewImage(this)">
+                            <div class="mt-2" wire:ignore>
+                                <input type="file" name="featured_image" id="featured_image" accept="image/*" class="sr-only" onchange="previewBlogImage(this)">
+                                <input type="hidden" id="has_featured_image" name="has_featured_image" value="0">
                                 <label for="featured_image" class="cursor-pointer mt-2 flex justify-center rounded-lg border border-dashed border-gray-900/25 dark:border-white/25 px-6 py-10">
                                     <div class="text-center">
-                                        @if ($existing_featured_image)
-                                            <img id="image-preview" src="{{ $existing_featured_image }}" class="mx-auto h-24 w-auto object-cover">
-                                        @else
-                                            <img id="image-preview" src="" class="mx-auto h-24 w-auto object-cover hidden">
-                                            <svg id="upload-icon" class="mx-auto h-12 w-12 text-gray-300" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                                                <path fill-rule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z" clip-rule="evenodd" />
-                                            </svg>
-                                        @endif
-                                        <div class="mt-4 flex text-sm leading-6 text-gray-600">
-                                            <p class="pl-1">Nhấn để tải lên</p>
+                                        <div id="image-container">
+                                            @if ($existing_featured_image)
+                                                <img id="image-preview" src="{{ $existing_featured_image }}" class="mx-auto h-32 w-auto object-cover rounded-lg shadow-sm">
+                                                <div id="upload-placeholder" class="hidden">
+                                            @else
+                                                <img id="image-preview" src="" class="mx-auto h-32 w-auto object-cover rounded-lg shadow-sm hidden">
+                                                <div id="upload-placeholder">
+                                            @endif
+                                                    <svg id="upload-icon" class="mx-auto h-12 w-12 text-gray-300" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                                        <path fill-rule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z" clip-rule="evenodd" />
+                                                    </svg>
+                                                    <div class="mt-4 flex text-sm leading-6 text-gray-600">
+                                                        <p class="pl-1">Nhấn để tải lên ảnh đại diện</p>
+                                                    </div>
+                                                    <p class="text-xs leading-5 text-gray-600">PNG, JPG, GIF up to 2MB</p>
+                                                </div>
                                         </div>
-                                        <p class="text-xs leading-5 text-gray-600">PNG, JPG, GIF up to 2MB</p>
+                                        <div id="file-info" class="mt-2 text-xs text-gray-500 hidden"></div>
                                     </div>
                                 </label>
                                 @error('featured_image') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
@@ -86,19 +93,122 @@
 </div>
 
 <script>
-function previewImage(input) {
+// Store preview data globally to persist across Livewire updates
+let blogImagePreviewData = null;
+
+function previewBlogImage(input) {
     const file = input.files[0];
-    const preview = document.getElementById('image-preview');
-    const icon = document.getElementById('upload-icon');
 
     if (file) {
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            alert('Vui lòng chọn file ảnh (PNG, JPG, GIF)');
+            input.value = '';
+            return;
+        }
+
+        // Validate file size (2MB)
+        if (file.size > 2 * 1024 * 1024) {
+            alert('Kích thước file không được vượt quá 2MB');
+            input.value = '';
+            return;
+        }
+
         const reader = new FileReader();
         reader.onload = function(e) {
-            preview.src = e.target.result;
-            preview.classList.remove('hidden');
-            if (icon) icon.classList.add('hidden');
+            // Store preview data globally
+            blogImagePreviewData = {
+                src: e.target.result,
+                name: file.name,
+                size: file.size
+            };
+
+            // Set hidden input to indicate file is selected
+            const hasImageInput = document.getElementById('has_featured_image');
+            if (hasImageInput) {
+                hasImageInput.value = '1';
+            }
+
+            // Apply preview
+            applyBlogImagePreview();
         };
+
+        reader.onerror = function() {
+            alert('Có lỗi khi đọc file ảnh');
+            input.value = '';
+            blogImagePreviewData = null;
+        };
+
         reader.readAsDataURL(file);
+    } else {
+        // Reset preview
+        blogImagePreviewData = null;
+
+        // Reset hidden input
+        const hasImageInput = document.getElementById('has_featured_image');
+        if (hasImageInput) {
+            hasImageInput.value = '0';
+        }
+
+        resetBlogImagePreview();
     }
 }
+
+function applyBlogImagePreview() {
+    if (!blogImagePreviewData) return;
+
+    const preview = document.getElementById('image-preview');
+    const placeholder = document.getElementById('upload-placeholder');
+    const fileInfo = document.getElementById('file-info');
+
+    if (preview && placeholder && fileInfo) {
+        // Show preview image
+        preview.src = blogImagePreviewData.src;
+        preview.classList.remove('hidden');
+
+        // Hide placeholder
+        placeholder.classList.add('hidden');
+
+        // Show file info
+        const sizeInMB = (blogImagePreviewData.size / (1024 * 1024)).toFixed(2);
+        fileInfo.textContent = `${blogImagePreviewData.name} (${sizeInMB} MB)`;
+        fileInfo.classList.remove('hidden');
+    }
+}
+
+function resetBlogImagePreview() {
+    const preview = document.getElementById('image-preview');
+    const placeholder = document.getElementById('upload-placeholder');
+    const fileInfo = document.getElementById('file-info');
+
+    if (preview && placeholder && fileInfo) {
+        preview.classList.add('hidden');
+        placeholder.classList.remove('hidden');
+        fileInfo.classList.add('hidden');
+    }
+}
+
+// Restore preview after Livewire updates
+document.addEventListener('livewire:updated', function() {
+    if (blogImagePreviewData) {
+        setTimeout(applyBlogImagePreview, 100);
+    }
+});
+
+// Prevent form submission on Enter key in file input
+document.addEventListener('DOMContentLoaded', function() {
+    const fileInput = document.getElementById('featured_image');
+    if (fileInput) {
+        fileInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+            }
+        });
+    }
+
+    // Apply preview on page load if data exists
+    if (blogImagePreviewData) {
+        applyBlogImagePreview();
+    }
+});
 </script>

@@ -73,15 +73,14 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                         <div class="p-6">
                             <h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-gray-200">Ảnh đại diện</h3>
                             <div class="mt-2">
-                                <input wire:model="featured_image" type="file" id="featured_image" class="sr-only">
+                                <input type="file" name="featured_image" id="featured_image" accept="image/*" class="sr-only" onchange="previewImage(this)">
                                 <label for="featured_image" class="cursor-pointer mt-2 flex justify-center rounded-lg border border-dashed border-gray-900/25 dark:border-white/25 px-6 py-10">
                                     <div class="text-center">
-                                         <!--[if BLOCK]><![endif]--><?php if($featured_image): ?>
-                                            <img src="<?php echo e($featured_image->temporaryUrl()); ?>" class="mx-auto h-24 w-auto object-cover">
-                                        <?php elseif($existing_featured_image): ?>
-                                            <img src="<?php echo e($existing_featured_image); ?>" class="mx-auto h-24 w-auto object-cover">
+                                        <!--[if BLOCK]><![endif]--><?php if($existing_featured_image): ?>
+                                            <img id="image-preview" src="<?php echo e($existing_featured_image); ?>" class="mx-auto h-24 w-auto object-cover">
                                         <?php else: ?>
-                                            <svg class="mx-auto h-12 w-12 text-gray-300" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                            <img id="image-preview" src="" class="mx-auto h-24 w-auto object-cover hidden">
+                                            <svg id="upload-icon" class="mx-auto h-12 w-12 text-gray-300" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                                                 <path fill-rule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z" clip-rule="evenodd" />
                                             </svg>
                                         <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
@@ -107,4 +106,22 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
         </div>
     </form>
 </div>
+
+<script>
+function previewImage(input) {
+    const file = input.files[0];
+    const preview = document.getElementById('image-preview');
+    const icon = document.getElementById('upload-icon');
+
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            preview.src = e.target.result;
+            preview.classList.remove('hidden');
+            if (icon) icon.classList.add('hidden');
+        };
+        reader.readAsDataURL(file);
+    }
+}
+</script>
 <?php /**PATH D:\laragon\www\ezstream\resources\views/livewire/admin/blog/post-form.blade.php ENDPATH**/ ?>
