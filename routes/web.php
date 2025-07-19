@@ -274,6 +274,8 @@ Route::middleware(['auth', 'locale'])->group(function () {
         Route::get('/blog', PostList::class)->name('blog.index');
         Route::get('/blog/create', PostForm::class)->name('blog.create');
         Route::get('/blog/{postId}/edit', PostForm::class)->name('blog.edit');
+        Route::post('/blog', [\App\Http\Controllers\Admin\BlogController::class, 'store'])->name('blog.store');
+        Route::put('/blog/{post}', [\App\Http\Controllers\Admin\BlogController::class, 'update'])->name('blog.update');
 
         // Test route for debugging
         Route::get('/blog/test-create', function() {

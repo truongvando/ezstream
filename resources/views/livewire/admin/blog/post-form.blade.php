@@ -1,5 +1,9 @@
 <div>
-    <form wire:submit.prevent="save">
+    <form action="{{ $post->exists ? route('admin.blog.update', $post->id) : route('admin.blog.store') }}" method="POST" enctype="multipart/form-data">
+        @csrf
+        @if($post->exists)
+            @method('PUT')
+        @endif
         <div class="p-4 sm:p-6 lg:p-8">
             <div class="flex items-center justify-between">
                 <div>
@@ -27,13 +31,13 @@
                         <div class="p-6 space-y-6">
                             <div>
                                 <label for="title" class="block text-sm font-medium leading-6 text-gray-900 dark:text-gray-200">Tiêu đề</label>
-                                <input wire:model.lazy="title" type="text" id="title" class="mt-2 block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6" placeholder="Tiêu đề cho link card">
+                                <input name="title" type="text" id="title" value="{{ old('title', $title) }}" class="mt-2 block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6" placeholder="Tiêu đề cho link card" required>
                                 @error('title') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                             </div>
 
                             <div>
                                 <label for="link" class="block text-sm font-medium leading-6 text-gray-900 dark:text-gray-200">Đường dẫn (URL)</label>
-                                <input wire:model="link" type="text" id="link" class="mt-2 block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6" placeholder="https://example.com/subdomain">
+                                <input name="link" type="url" id="link" value="{{ old('link', $link) }}" class="mt-2 block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-gray-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6" placeholder="https://example.com/subdomain" required>
                                 @error('link') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                             </div>
                         </div>
@@ -47,9 +51,9 @@
                             <h3 class="text-base font-semibold leading-6 text-gray-900 dark:text-gray-200">Trạng thái</h3>
                             <div class="mt-6">
                                 <label for="status" class="block text-sm font-medium leading-6 text-gray-900 dark:text-gray-200 sr-only">Trạng thái</label>
-                                <select wire:model="status" id="status" class="mt-2 block w-full rounded-md border-0 py-1.5 pl-3 pr-10 text-gray-900 dark:text-white dark:bg-gray-700 ring-1 ring-inset ring-gray-300 dark:ring-gray-600 focus:ring-2 focus:ring-indigo-600 sm:text-sm sm:leading-6">
-                                    <option value="DRAFT">Bản nháp</option>
-                                    <option value="PUBLISHED">Công khai</option>
+                                <select name="status" id="status" class="mt-2 block w-full rounded-md border-0 py-1.5 pl-3 pr-10 text-gray-900 dark:text-white dark:bg-gray-700 ring-1 ring-inset ring-gray-300 dark:ring-gray-600 focus:ring-2 focus:ring-indigo-600 sm:text-sm sm:leading-6" required>
+                                    <option value="DRAFT" {{ old('status', $status) == 'DRAFT' ? 'selected' : '' }}>Bản nháp</option>
+                                    <option value="PUBLISHED" {{ old('status', $status) == 'PUBLISHED' ? 'selected' : '' }}>Công khai</option>
                                 </select>
                             </div>
                         </div>
