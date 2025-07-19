@@ -57,7 +57,7 @@
                                         </td>
                                         <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
                                             <button wire:click="edit({{ $stream->id }})" class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-200">Sửa</button>
-                                            <button wire:click="confirmDelete({{ $stream->id }})" class="ml-4 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200">Xóa</button>
+                                            <button wire:click="confirmDelete({{ $stream }})" class="ml-4 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200">Xóa</button>
                                         </td>
                                     </tr>
                                 @empty

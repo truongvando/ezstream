@@ -95,7 +95,7 @@
                                             <!--[if BLOCK]><![endif]--><?php if(in_array($stream->status, ['STREAMING', 'STARTING', 'ERROR', 'STOPPING'])): ?>
                                                 <button wire:click="forceStopStream(<?php echo e($stream->id); ?>)" class="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-200">Force Stop</button>
                                             <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                                            <button wire:click="confirmDelete(<?php echo e($stream->id); ?>)" class="ml-4 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200">Delete</button>
+                                            <button wire:click="confirmDelete(<?php echo e($stream); ?>)" class="ml-4 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200">Delete</button>
                                         </td>
                                     </tr>
                                 <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>

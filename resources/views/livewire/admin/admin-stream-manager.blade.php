@@ -94,7 +94,7 @@
                                             @if(in_array($stream->status, ['STREAMING', 'STARTING', 'ERROR', 'STOPPING']))
                                                 <button wire:click="forceStopStream({{ $stream->id }})" class="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-200">Force Stop</button>
                                             @endif
-                                            <button wire:click="confirmDelete({{ $stream->id }})" class="ml-4 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200">Delete</button>
+                                            <button wire:click="confirmDelete({{ $stream }})" class="ml-4 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200">Delete</button>
                                         </td>
                                     </tr>
                                 @empty

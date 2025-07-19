@@ -214,6 +214,18 @@ class UserStreamManager extends BaseStreamManager
 
     // confirmDelete and delete methods inherited from BaseStreamManager
 
+    public function confirmDelete(StreamConfiguration $stream)
+    {
+        \Illuminate\Support\Facades\Log::info('UserStreamManager confirmDelete called', [
+            'stream_id' => $stream->id,
+            'user_id' => \Illuminate\Support\Facades\Auth::id(),
+            'stream_user_id' => $stream->user_id
+        ]);
+
+        // Call parent method
+        parent::confirmDelete($stream);
+    }
+
     public function startStream($stream)
     {
         // Handle array, ID, or model object

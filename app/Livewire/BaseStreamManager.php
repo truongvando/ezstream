@@ -390,13 +390,27 @@ abstract class BaseStreamManager extends Component
      */
     public function confirmDelete(StreamConfiguration $stream)
     {
+        Log::info('BaseStreamManager confirmDelete called', [
+            'stream_id' => $stream->id,
+            'user_id' => Auth::id(),
+            'can_manage_all' => $this->canManageAllStreams(),
+            'stream_user_id' => $stream->user_id
+        ]);
+
         // Check permissions
         if (!$this->canManageAllStreams() && $stream->user_id !== Auth::id()) {
+            Log::error('Permission denied for confirmDelete', [
+                'stream_id' => $stream->id,
+                'user_id' => Auth::id(),
+                'stream_user_id' => $stream->user_id
+            ]);
             abort(403);
         }
 
         $this->deletingStream = $stream;
         $this->showDeleteModal = true;
+
+        Log::info('Delete modal opened', ['stream_id' => $stream->id]);
     }
 
     /**

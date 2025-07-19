@@ -6,6 +6,7 @@ use App\Models\UserFile;
 use App\Models\StreamConfiguration;
 use App\Models\VpsServer;
 use App\Services\Stream\StreamManager as StreamManagerService;
+use App\Jobs\StopMultistreamJob;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -185,10 +186,19 @@ class StreamManager extends Component
         $this->resetInputFields();
     }
 
-    public function confirmDelete($id)
+    public function confirmDelete(StreamConfiguration $stream)
     {
-        $this->streamId = $id;
+        \Illuminate\Support\Facades\Log::info('StreamManager confirmDelete called', [
+            'stream_id' => $stream->id,
+            'user_id' => Auth::id(),
+            'stream_user_id' => $stream->user_id
+        ]);
+
+        $this->authorizeAction($stream);
+        $this->streamId = $stream->id;
         $this->showDeleteModal = true;
+
+        \Illuminate\Support\Facades\Log::info('StreamManager delete modal opened', ['stream_id' => $stream->id]);
     }
 
     public function delete()
@@ -196,8 +206,12 @@ class StreamManager extends Component
         $stream = StreamConfiguration::findOrFail($this->streamId);
         $this->authorizeAction($stream);
 
-        // Optional: Add logic to stop the stream before deleting
-        
+        // Stop stream if running
+        if (in_array($stream->status, ['STREAMING', 'STARTING'])) {
+            $stream->update(['status' => 'STOPPING']);
+            StopMultistreamJob::dispatch($stream);
+        }
+
         $stream->delete();
         $this->showDeleteModal = false;
         session()->flash('message', 'Stream deleted successfully.');
