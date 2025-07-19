@@ -31,7 +31,7 @@ class CheckBankTransactionsJob implements ShouldQueue
         // 1. Hủy các giao dịch chờ quá 15 phút
         $expiredCount = Transaction::where('status', 'PENDING')
             ->where('created_at', '<', now()->subMinutes(15))
-            ->update(['status' => 'CANCELLED']);
+            ->update(['status' => 'FAILED']);
 
         if ($expiredCount > 0) {
             Log::info("Auto-cancelled {$expiredCount} pending transactions quá hạn 15 phút");
