@@ -11,7 +11,7 @@
 
         <!-- Modal Body (Scrollable) -->
         <div class="flex-1 overflow-y-auto p-6 modal-scrollbar">
-            <form id="create-stream-form" wire:submit.prevent="{{ $editingStream ? 'update' : 'store' }}" class="space-y-6">
+            <form id="{{ $editingStream ? 'edit-stream-form' : 'create-stream-form' }}" wire:submit.prevent="{{ $editingStream ? 'update' : 'store' }}" class="space-y-6">
                 <!-- Basic Information Section -->
                 <div class="space-y-4">
                     <h3 class="text-lg font-medium text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
@@ -44,17 +44,26 @@
                             <div class="px-4 py-3 bg-gray-100 dark:bg-gray-800 text-sm text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-600 rounded-t-lg">
                                 <span class="font-medium">Đã chọn:</span>
                                 <span class="text-indigo-600 dark:text-indigo-400 font-semibold">{{ count($user_file_ids ?? []) }}</span> file(s)
+                                @if($editingStream)
+                                    <span class="ml-2 text-xs text-gray-500">(Editing: {{ $editingStream->title }})</span>
+                                @endif
                             </div>
                             <!-- Scrollable file list with fixed height -->
                             <div class="max-h-48 overflow-y-auto">
                                 @foreach($userFiles as $file)
-                                <label class="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors">
+                                <label class="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors {{ in_array($file->id, $user_file_ids ?? []) ? 'bg-indigo-50 dark:bg-indigo-900/20' : '' }}">
                                     <input type="checkbox"
                                            wire:model.live="user_file_ids"
                                            value="{{ $file->id }}"
+                                           {{ in_array($file->id, $user_file_ids ?? []) ? 'checked' : '' }}
                                            class="form-checkbox h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer">
                                     <div class="ml-3 flex-1">
-                                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $file->original_name }}</p>
+                                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                            {{ $file->original_name }}
+                                            @if(in_array($file->id, $user_file_ids ?? []))
+                                                <span class="ml-2 text-xs bg-indigo-100 text-indigo-800 dark:bg-indigo-800 dark:text-indigo-200 px-2 py-1 rounded-full">✓ Đã chọn</span>
+                                            @endif
+                                        </p>
                                         <p class="text-xs text-gray-500">{{ \App\Helpers\SettingsHelper::formatBytes($file->size) }} • {{ $file->created_at->format('d/m/Y') }}</p>
                                     </div>
                                 </label>
@@ -205,7 +214,7 @@
             <x-secondary-button wire:click="{{ $showEditModal ? '$set(\'showEditModal\', false)' : '$set(\'showCreateModal\', false)' }}" type="button" class="px-6 py-2">
                 Hủy
             </x-secondary-button>
-            <x-primary-button type="submit" form="create-stream-form" class="px-6 py-2">
+            <x-primary-button type="submit" form="{{ $editingStream ? 'edit-stream-form' : 'create-stream-form' }}" class="px-6 py-2">
                 {{ $editingStream ? 'Lưu Thay Đổi' : 'Tạo Stream' }}
             </x-primary-button>
         </div>

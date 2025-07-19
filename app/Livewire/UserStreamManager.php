@@ -106,64 +106,63 @@ class UserStreamManager extends BaseStreamManager
         $stream = StreamConfiguration::where('id', $streamId)
             ->where('user_id', Auth::id())
             ->firstOrFail();
+
+        // Reset all form state first
         $this->resetValidation();
+        $this->reset(['showCreateModal', 'showEditModal', 'showQuickStreamModal']);
+
         $this->editingStream = $stream;
         $this->title = $stream->title;
         $this->description = $stream->description;
         
-        // Parse file list from JSON or handle legacy single file
+        // Load file IDs from video_source_path (JSON array)
         try {
-            // Check if video_source_path is already an array (from database cast) or needs JSON decoding
             if (is_array($stream->video_source_path)) {
-                $fileList = $stream->video_source_path;
+                // Already an array from database cast
+                $this->user_file_ids = collect($stream->video_source_path)->pluck('file_id')->filter()->values()->toArray();
             } elseif (is_string($stream->video_source_path)) {
+                // JSON string, decode it
                 $fileList = json_decode($stream->video_source_path, true);
+                $this->user_file_ids = $fileList ? collect($fileList)->pluck('file_id')->filter()->values()->toArray() : [];
             } else {
-                $fileList = null;
-            }
-            
-            if (is_array($fileList)) {
-                $this->user_file_ids = collect($fileList)->pluck('file_id')->toArray();
-            } else {
-                // Legacy single file support
-                $userFile = UserFile::where('path', $stream->video_source_path)
-                                    ->where('user_id', Auth::id())
-                                    ->first();
-                $this->user_file_ids = $userFile ? [$userFile->id] : [];
+                // Fallback to single file
+                $this->user_file_ids = $stream->user_file_id ? [$stream->user_file_id] : [];
             }
         } catch (\Exception $e) {
-            // Fallback for legacy data
+            // Fallback for any errors
             $this->user_file_ids = $stream->user_file_id ? [$stream->user_file_id] : [];
         }
-        
-        // Detect platform from RTMP URL
-        $this->platform = $this->detectPlatformFromUrl($stream->rtmp_url);
-        $this->rtmp_url = $stream->rtmp_url;
 
+        // Load platform and RTMP settings
+        $this->platform = $this->detectPlatformFromUrl($stream->rtmp_url) ?? 'youtube';
+        $this->rtmp_url = $stream->rtmp_url;
         $this->stream_key = $stream->stream_key;
-        
-        // Load all feature fields
+
+        // Load advanced settings
         $this->loop = $stream->loop ?? false;
-        $this->scheduled_at = $stream->scheduled_at ? $stream->scheduled_at->format('Y-m-d\TH:i') : null;
         $this->playlist_order = $stream->playlist_order ?? 'sequential';
         $this->keep_files_on_agent = $stream->keep_files_on_agent ?? false;
 
-        // Load advanced fields
+        // Load schedule settings
         $this->enable_schedule = !empty($stream->scheduled_at);
+        $this->scheduled_at = $stream->scheduled_at ? $stream->scheduled_at->format('Y-m-d\TH:i') : null;
         $this->scheduled_end = $stream->scheduled_end ? $stream->scheduled_end->format('Y-m-d\TH:i') : null;
 
-        // Load platform and RTMP settings
-        $this->platform = $stream->platform ?? 'youtube';
-        $this->rtmp_url = $stream->rtmp_url;
-
-        // Load files
-        $this->user_file_ids = $stream->video_source_path ? (is_array($stream->video_source_path) ? array_map('intval', $stream->video_source_path) : [$stream->user_file_id]) : [];
+        // Load user files for display
+        $this->loadUserFiles();
 
         $this->showEditModal = true;
     }
 
     public function update()
     {
+        \Illuminate\Support\Facades\Log::info('UserStreamManager update called', [
+            'editing_stream_id' => $this->editingStream->id ?? 'null',
+            'user_file_ids' => $this->user_file_ids,
+            'title' => $this->title,
+            'platform' => $this->platform
+        ]);
+
         if ($this->editingStream->user_id !== Auth::id()) {
             abort(403);
         }
@@ -210,6 +209,14 @@ class UserStreamManager extends BaseStreamManager
         }
 
         $this->showEditModal = false;
+        $this->editingStream = null;
+    }
+
+    public function closeModal()
+    {
+        $this->reset(['showCreateModal', 'showEditModal', 'showQuickStreamModal']);
+        $this->editingStream = null;
+        $this->resetValidation();
     }
 
     // confirmDelete and delete methods inherited from BaseStreamManager
@@ -484,14 +491,7 @@ class UserStreamManager extends BaseStreamManager
         $this->video_source_id = null;
     }
 
-    public function closeModal()
-    {
-        $this->showCreateModal = false;
-        $this->showEditModal = false;
-        $this->showDeleteModal = false;
-        $this->showQuickStreamModal = false;
-        $this->reset();
-    }
+
 
     /**
      * Get real-time progress for a stream from Redis

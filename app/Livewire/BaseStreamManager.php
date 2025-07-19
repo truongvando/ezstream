@@ -76,6 +76,7 @@ abstract class BaseStreamManager extends Component
     public function mount()
     {
         $this->cleanupHangingStreams();
+        $this->loadUserFiles();
     }
 
     /**
@@ -194,10 +195,25 @@ abstract class BaseStreamManager extends Component
             }
         }
         
-        $this->reset(['title', 'description', 'user_file_ids', 'platform', 'rtmp_url', 'stream_key', 'playlist_order']);
+        // Reset all modal states first
+        $this->reset(['showCreateModal', 'showEditModal', 'showQuickStreamModal']);
+        $this->resetValidation();
+
+        // Reset form fields
+        $this->reset(['title', 'description', 'user_file_ids', 'platform', 'rtmp_url', 'stream_key', 'playlist_order', 'loop', 'enable_schedule', 'scheduled_at', 'scheduled_end', 'keep_files_on_agent']);
+
+        // Set defaults
         $this->user_file_ids = [];
         $this->platform = 'youtube';
         $this->playlist_order = 'sequential';
+        $this->loop = false;
+        $this->enable_schedule = false;
+        $this->keep_files_on_agent = false;
+        $this->editingStream = null;
+
+        // Load user files
+        $this->loadUserFiles();
+
         $this->showCreateModal = true;
         Log::info('showCreateModal set to true: ' . ($this->showCreateModal ? 'true' : 'false'));
     }
@@ -270,12 +286,20 @@ abstract class BaseStreamManager extends Component
     }
 
     /**
+     * Load user files for display in modals
+     */
+    protected function loadUserFiles()
+    {
+        $this->userFiles = $this->getUserFiles();
+    }
+
+    /**
      * Get user files with proper permissions
      */
     protected function getUserFiles()
     {
         $userId = $this->canManageAllStreams() && isset($this->user_id) ? $this->user_id : Auth::id();
-        
+
         return UserFile::where('user_id', $userId)
             ->where('status', 'ready')
             ->latest()

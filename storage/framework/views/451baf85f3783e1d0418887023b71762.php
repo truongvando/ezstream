@@ -21,7 +21,7 @@
 
         <!-- Modal Body (Scrollable) -->
         <div class="flex-1 overflow-y-auto p-6 modal-scrollbar">
-            <form id="create-stream-form" wire:submit.prevent="<?php echo e($editingStream ? 'update' : 'store'); ?>" class="space-y-6">
+            <form id="<?php echo e($editingStream ? 'edit-stream-form' : 'create-stream-form'); ?>" wire:submit.prevent="<?php echo e($editingStream ? 'update' : 'store'); ?>" class="space-y-6">
                 <!-- Basic Information Section -->
                 <div class="space-y-4">
                     <h3 class="text-lg font-medium text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
@@ -125,17 +125,28 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <div class="px-4 py-3 bg-gray-100 dark:bg-gray-800 text-sm text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-600 rounded-t-lg">
                                 <span class="font-medium">Đã chọn:</span>
                                 <span class="text-indigo-600 dark:text-indigo-400 font-semibold"><?php echo e(count($user_file_ids ?? [])); ?></span> file(s)
+                                <!--[if BLOCK]><![endif]--><?php if($editingStream): ?>
+                                    <span class="ml-2 text-xs text-gray-500">(Editing: <?php echo e($editingStream->title); ?>)</span>
+                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                             </div>
                             <!-- Scrollable file list with fixed height -->
                             <div class="max-h-48 overflow-y-auto">
                                 <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $userFiles; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $file): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <label class="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors">
+                                <label class="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors <?php echo e(in_array($file->id, $user_file_ids ?? []) ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''); ?>">
                                     <input type="checkbox"
                                            wire:model.live="user_file_ids"
                                            value="<?php echo e($file->id); ?>"
+                                           <?php echo e(in_array($file->id, $user_file_ids ?? []) ? 'checked' : ''); ?>
+
                                            class="form-checkbox h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer">
                                     <div class="ml-3 flex-1">
-                                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100"><?php echo e($file->original_name); ?></p>
+                                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                            <?php echo e($file->original_name); ?>
+
+                                            <!--[if BLOCK]><![endif]--><?php if(in_array($file->id, $user_file_ids ?? [])): ?>
+                                                <span class="ml-2 text-xs bg-indigo-100 text-indigo-800 dark:bg-indigo-800 dark:text-indigo-200 px-2 py-1 rounded-full">✓ Đã chọn</span>
+                                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                        </p>
                                         <p class="text-xs text-gray-500"><?php echo e(\App\Helpers\SettingsHelper::formatBytes($file->size)); ?> • <?php echo e($file->created_at->format('d/m/Y')); ?></p>
                                     </div>
                                 </label>
@@ -488,14 +499,14 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
 <?php endif; ?>
             <?php if (isset($component)) { $__componentOriginald411d1792bd6cc877d687758b753742c = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginald411d1792bd6cc877d687758b753742c = $attributes; } ?>
-<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.primary-button','data' => ['type' => 'submit','form' => 'create-stream-form','class' => 'px-6 py-2']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.primary-button','data' => ['type' => 'submit','form' => ''.e($editingStream ? 'edit-stream-form' : 'create-stream-form').'','class' => 'px-6 py-2']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName('primary-button'); ?>
 <?php if ($component->shouldRender()): ?>
 <?php $__env->startComponent($component->resolveView(), $component->data()); ?>
 <?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
 <?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
 <?php endif; ?>
-<?php $component->withAttributes(['type' => 'submit','form' => 'create-stream-form','class' => 'px-6 py-2']); ?>
+<?php $component->withAttributes(['type' => 'submit','form' => ''.e($editingStream ? 'edit-stream-form' : 'create-stream-form').'','class' => 'px-6 py-2']); ?>
                 <?php echo e($editingStream ? 'Lưu Thay Đổi' : 'Tạo Stream'); ?>
 
              <?php echo $__env->renderComponent(); ?>
