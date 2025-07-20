@@ -246,8 +246,8 @@ abstract class BaseStreamManager extends Component
     public function getPlatforms()
     {
         return [
-            'youtube' => '📺 YouTube Live',
-            'custom' => '⚙️ Custom RTMP'
+            'youtube' => 'YouTube Live',
+            'custom' => 'Custom RTMP'
         ];
     }
 

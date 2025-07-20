@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Artisan;
 use App\Livewire\Admin\Dashboard as AdminDashboard;
 use App\Livewire\Admin\SettingsManager as AdminSettingsManager;
 use App\Livewire\Admin\TransactionManagement as AdminTransactionManagement;
@@ -34,6 +35,341 @@ use App\Livewire\Admin\Blog\PostForm;
 use App\Http\Controllers\BlogController;
 
 // File Upload API Routes moved to api.php
+
+
+// Test queue route
+Route::get('/test-queue', function () {
+    $output = [];
+
+    // 1. Test Redis connection
+    try {
+        $redis = app('redis')->connection();
+        $redis->ping();
+        $output[] = "✅ Redis connection: OK";
+    } catch (\Exception $e) {
+        $output[] = "❌ Redis connection: " . $e->getMessage();
+    }
+
+    // 2. Check queue size
+    try {
+        $queueSize = \Illuminate\Support\Facades\Redis::llen('queues:default');
+        $output[] = "Queue size: {$queueSize} jobs pending";
+    } catch (\Exception $e) {
+        $output[] = "❌ Queue check error: " . $e->getMessage();
+    }
+
+    // 3. Test dispatch job
+    try {
+        $testStream = \App\Models\StreamConfiguration::where('enable_schedule', true)->first();
+        if ($testStream) {
+            \App\Jobs\StartMultistreamJob::dispatch($testStream);
+            $output[] = "✅ Test job dispatched for stream #{$testStream->id}";
+        } else {
+            $output[] = "❌ No scheduled stream found to test";
+        }
+    } catch (\Exception $e) {
+        $output[] = "❌ Job dispatch error: " . $e->getMessage();
+    }
+
+    return '<pre>' . implode("\n", $output) . '</pre>';
+});
+
+// Compare create vs edit fields
+Route::get('/compare-stream-fields', function () {
+    $output = [];
+
+    // Create method fields
+    $createFields = [
+        'title', 'description', 'video_source_path', 'rtmp_url', 'rtmp_backup_url',
+        'stream_key', 'status', 'loop', 'scheduled_at', 'scheduled_end',
+        'enable_schedule', 'playlist_order', 'keep_files_on_agent',
+        'user_file_id', 'last_started_at'
+    ];
+
+    // Edit method fields (before fix)
+    $editFieldsBefore = [
+        'title', 'description', 'video_source_path', 'rtmp_url', 'rtmp_backup_url',
+        'stream_key', 'loop', 'enable_schedule', 'scheduled_at', 'scheduled_end',
+        'playlist_order', 'keep_files_on_agent', 'user_file_id'
+        // Missing: status, last_started_at
+    ];
+
+    // Edit method fields (after fix)
+    $editFieldsAfter = [
+        'title', 'description', 'video_source_path', 'rtmp_url', 'rtmp_backup_url',
+        'stream_key', 'loop', 'enable_schedule', 'scheduled_at', 'scheduled_end',
+        'playlist_order', 'keep_files_on_agent', 'user_file_id', 'last_started_at',
+        'status' // ✅ Now has smart status handling
+    ];
+
+    $output[] = "🔍 Field Comparison:";
+    $output[] = "";
+    $output[] = "✅ CREATE fields: " . implode(', ', $createFields);
+    $output[] = "";
+    $output[] = "❌ EDIT fields (before): " . implode(', ', $editFieldsBefore);
+    $output[] = "Missing: " . implode(', ', array_diff($createFields, $editFieldsBefore));
+    $output[] = "";
+    $output[] = "✅ EDIT fields (after fix): " . implode(', ', $editFieldsAfter);
+    $missing = array_diff($createFields, $editFieldsAfter);
+    $output[] = "Still missing: " . (empty($missing) ? "NONE! ✅" : implode(', ', $missing));
+
+    return '<pre>' . implode("\n", $output) . '</pre>';
+});
+
+// Test FORCE_KILL_STREAM command
+Route::get('/test-force-kill/{streamId}', function ($streamId) {
+    $output = [];
+
+    $stream = \App\Models\StreamConfiguration::find($streamId);
+    if (!$stream) {
+        return '<pre>Stream not found</pre>';
+    }
+
+    $output[] = "🎯 Testing FORCE_KILL_STREAM for Stream #{$streamId}";
+    $output[] = "Stream: {$stream->title}";
+    $output[] = "Status: {$stream->status}";
+    $output[] = "VPS: {$stream->vps_server_id}";
+    $output[] = "";
+
+    if (!$stream->vps_server_id) {
+        $output[] = "❌ No VPS assigned to stream";
+        return '<pre>' . implode("\n", $output) . '</pre>';
+    }
+
+    try {
+        $redis = app('redis')->connection();
+        $killCommand = [
+            'command' => 'FORCE_KILL_STREAM',
+            'stream_id' => (int)$streamId,
+            'reason' => 'Manual test kill',
+            'timestamp' => time()
+        ];
+
+        $channel = "vps-commands:{$stream->vps_server_id}";
+        $result = $redis->publish($channel, json_encode($killCommand));
+
+        $output[] = "📤 Sent FORCE_KILL_STREAM command:";
+        $output[] = "Channel: {$channel}";
+        $output[] = "Command: " . json_encode($killCommand, JSON_PRETTY_PRINT);
+        $output[] = "Subscribers: {$result}";
+
+        if ($result > 0) {
+            $output[] = "✅ Command sent successfully!";
+            $output[] = "💡 Check agent logs to see if it received the command";
+        } else {
+            $output[] = "❌ No subscribers listening";
+            $output[] = "💡 Agent may be offline";
+        }
+
+    } catch (\Exception $e) {
+        $output[] = "❌ Error: " . $e->getMessage();
+    }
+
+    return '<pre>' . implode("\n", $output) . '</pre>';
+});
+
+// Test agent connection
+Route::get('/test-agent-command', function () {
+    $output = [];
+
+    // Find VPS with active streams
+    $vps = \App\Models\VpsServer::where('status', 'ACTIVE')->first();
+    if (!$vps) {
+        return '<pre>No active VPS found</pre>';
+    }
+
+    $output[] = "🎯 Testing Agent Command";
+    $output[] = "VPS #{$vps->id}: {$vps->name}";
+    $output[] = "";
+
+    // Send test command
+    try {
+        $redis = app('redis')->connection();
+        $testCommand = [
+            'command' => 'PING',
+            'timestamp' => time(),
+            'test' => true
+        ];
+
+        $channel = "vps-commands:{$vps->id}";
+        $result = $redis->publish($channel, json_encode($testCommand));
+
+        $output[] = "📤 Sent PING command to channel: {$channel}";
+        $output[] = "📊 Subscribers listening: {$result}";
+
+        if ($result > 0) {
+            $output[] = "✅ Agent is listening!";
+        } else {
+            $output[] = "❌ No agent listening on this channel";
+            $output[] = "💡 Agent may be offline or not running";
+        }
+
+    } catch (\Exception $e) {
+        $output[] = "❌ Error: " . $e->getMessage();
+    }
+
+    return '<pre>' . implode("\n", $output) . '</pre>';
+});
+
+// Debug scheduled streams
+Route::get('/debug-scheduled', function () {
+    $now = now();
+    $output = [];
+
+    $output[] = "🕐 Current time: " . $now->format('Y-m-d H:i:s');
+    $output[] = "";
+
+    // All scheduled streams
+    $allScheduled = \App\Models\StreamConfiguration::where('enable_schedule', true)->get();
+    $output[] = "📋 All scheduled streams: " . $allScheduled->count();
+
+    foreach ($allScheduled as $stream) {
+        $shouldStart = $stream->scheduled_at && $stream->scheduled_at <= $now;
+        $validStatus = in_array($stream->status, ['INACTIVE', 'STOPPED', 'ERROR']);
+
+        $output[] = "";
+        $output[] = "Stream #{$stream->id}: {$stream->title}";
+        $output[] = "  Status: {$stream->status}";
+        $output[] = "  Scheduled At: " . ($stream->scheduled_at ?? 'NULL');
+        $output[] = "  Should Start (time): " . ($shouldStart ? 'YES' : 'NO');
+        $output[] = "  Valid Status: " . ($validStatus ? 'YES' : 'NO');
+        $output[] = "  Will Start: " . ($shouldStart && $validStatus ? 'YES' : 'NO');
+    }
+
+    return '<pre>' . implode("\n", $output) . '</pre>';
+});
+
+// Test new master-slave logic
+Route::get('/test-master-slave', function () {
+    $output = [];
+
+    // Find a STREAMING stream
+    $stream = \App\Models\StreamConfiguration::where('status', 'STREAMING')->first();
+
+    if (!$stream) {
+        return '<pre>No STREAMING streams found to test</pre>';
+    }
+
+    $output[] = "🎯 Testing Master-Slave Logic";
+    $output[] = "Stream #{$stream->id}: {$stream->title}";
+    $output[] = "Current Status: {$stream->status}";
+    $output[] = "";
+
+    // Test 1: Change to STOPPED (simulate user stop)
+    $output[] = "Test 1: User stops stream (Laravel Master decision)";
+    $stream->update(['status' => 'STOPPED']);
+    $output[] = "✅ DB updated to STOPPED";
+    $output[] = "⏳ Next heartbeat should trigger FORCE_KILL_STREAM command";
+    $output[] = "";
+
+    // Test 2: Change back to STREAMING
+    $output[] = "Test 2: Revert to STREAMING";
+    $stream->update(['status' => 'STREAMING']);
+    $output[] = "✅ DB reverted to STREAMING";
+    $output[] = "⏳ Next heartbeat should confirm stream is correct";
+
+    return '<pre>' . implode("\n", $output) . '</pre>';
+});
+
+// Check latest streams
+Route::get('/check-streams', function () {
+    $streams = \App\Models\StreamConfiguration::orderBy('id', 'desc')->take(10)->get();
+
+    $output = [];
+    $output[] = "📋 Latest 10 streams:";
+    $output[] = "";
+
+    foreach ($streams as $stream) {
+        $output[] = "Stream #{$stream->id}: {$stream->title}";
+        $output[] = "  Status: {$stream->status}";
+        $output[] = "  VPS ID: " . ($stream->vps_server_id ?? 'NULL');
+        $output[] = "  Created: {$stream->created_at}";
+        $output[] = "  Updated: {$stream->updated_at}";
+        $output[] = "  Enable Schedule: " . ($stream->enable_schedule ? 'YES' : 'NO');
+        if ($stream->enable_schedule) {
+            $output[] = "  Scheduled At: " . ($stream->scheduled_at ?? 'NULL');
+            $output[] = "  Scheduled End: " . ($stream->scheduled_end ?? 'NULL');
+        }
+        $output[] = "";
+    }
+
+    return '<pre>' . implode("\n", $output) . '</pre>';
+});
+
+// Debug queue route
+Route::get('/debug-queue', function () {
+    $output = [];
+
+    // 1. Check Redis connection
+    try {
+        $redis = app('redis')->connection();
+        $redis->ping();
+        $output[] = "✅ Redis: Connected";
+    } catch (\Exception $e) {
+        $output[] = "❌ Redis: " . $e->getMessage();
+        return '<pre>' . implode("\n", $output) . '</pre>';
+    }
+
+    // 2. Check queue size
+    $queueSize = \Illuminate\Support\Facades\Redis::llen('queues:default');
+    $output[] = "📋 Queue size: {$queueSize} jobs";
+
+    // 3. Check failed jobs
+    $failedJobs = \Illuminate\Support\Facades\Redis::llen('queues:default:failed');
+    $output[] = "❌ Failed jobs: {$failedJobs}";
+
+    // 4. Test job dispatch
+    $testStream = \App\Models\StreamConfiguration::where('enable_schedule', true)->first();
+    if ($testStream) {
+        \App\Jobs\StartMultistreamJob::dispatch($testStream);
+        $output[] = "✅ Test job dispatched for stream #{$testStream->id}";
+
+        // Check queue size after dispatch
+        $newQueueSize = \Illuminate\Support\Facades\Redis::llen('queues:default');
+        $output[] = "📋 Queue size after dispatch: {$newQueueSize}";
+    } else {
+        $output[] = "❌ No scheduled stream found";
+    }
+
+    return '<pre>' . implode("\n", $output) . '</pre>';
+});
+
+// Test scheduler route
+Route::get('/test-scheduler', function () {
+    $output = [];
+
+    // 1. Check current time
+    $output[] = "Current time: " . now()->format('Y-m-d H:i:s');
+
+    // 2. Check scheduled streams
+    $scheduledStreams = \App\Models\StreamConfiguration::where('enable_schedule', true)->get();
+    $output[] = "Found {$scheduledStreams->count()} scheduled streams:";
+
+    foreach ($scheduledStreams as $stream) {
+        $shouldStart = $stream->scheduled_at && $stream->scheduled_at <= now() && $stream->status === 'INACTIVE';
+        $shouldStop = $stream->scheduled_end && $stream->scheduled_end <= now() && in_array($stream->status, ['STREAMING', 'STARTING']);
+
+        $output[] = "Stream #{$stream->id}: {$stream->title}";
+        $output[] = "  Status: {$stream->status}";
+        $output[] = "  Scheduled At: " . ($stream->scheduled_at ?? 'NULL');
+        $output[] = "  Scheduled End: " . ($stream->scheduled_end ?? 'NULL');
+        $output[] = "  Should Start: " . ($shouldStart ? 'YES' : 'NO');
+        $output[] = "  Should Stop: " . ($shouldStop ? 'YES' : 'NO');
+        $output[] = "";
+    }
+
+    // 3. Run scheduler
+    $output[] = "Running scheduler...";
+    try {
+        Artisan::call('streams:check-scheduled');
+        $output[] = "Scheduler output:";
+        $output[] = Artisan::output();
+    } catch (\Exception $e) {
+        $output[] = "Scheduler error: " . $e->getMessage();
+    }
+
+    return '<pre>' . implode("\n", $output) . '</pre>';
+});
 
 Route::get('/', function () {
     try {

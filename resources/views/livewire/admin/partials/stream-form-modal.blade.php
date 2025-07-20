@@ -61,19 +61,28 @@
                     
                     @if(count($user_file_ids) > 0)
                         <div class="mt-2 text-sm text-blue-600 dark:text-blue-400">
-                            ✅ Đã chọn {{ count($user_file_ids) }} file(s)
+                            <svg class="w-4 h-4 mr-1 text-green-500 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            Đã chọn {{ count($user_file_ids) }} file(s)
                         </div>
                     @endif
                 @elseif($user_id)
                     <div class="mt-2 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-md">
                         <p class="text-sm text-yellow-800 dark:text-yellow-200">
-                            💡 User này chưa có video nào. Họ cần upload video từ trang Quản lý File trước.
+                            <svg class="w-4 h-4 mr-1 text-yellow-500 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                            </svg>
+                            User này chưa có video nào. Họ cần upload video từ trang Quản lý File trước.
                         </p>
                     </div>
                 @else
                     <div class="mt-2 p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md">
                         <p class="text-sm text-gray-600 dark:text-gray-400">
-                            👆 Vui lòng chọn User trước để xem danh sách video
+                            <svg class="w-4 h-4 mr-1 text-gray-500 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"/>
+                            </svg>
+                            Vui lòng chọn User trước để xem danh sách video
                         </p>
                     </div>
                 @endif
@@ -251,19 +260,28 @@
                     
                     @if(count($user_file_ids) > 0)
                         <div class="mt-2 text-sm text-blue-600 dark:text-blue-400">
-                            ✅ Đã chọn {{ count($user_file_ids) }} file(s)
+                            <svg class="w-4 h-4 mr-1 text-green-500 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            Đã chọn {{ count($user_file_ids) }} file(s)
                         </div>
                     @endif
                 @elseif($user_id)
                     <div class="mt-2 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-md">
                         <p class="text-sm text-yellow-800 dark:text-yellow-200">
-                            💡 User này chưa có video nào. Họ cần upload video từ trang Quản lý File trước.
+                            <svg class="w-4 h-4 mr-1 text-yellow-500 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                            </svg>
+                            User này chưa có video nào. Họ cần upload video từ trang Quản lý File trước.
                         </p>
                     </div>
                 @else
                     <div class="mt-2 p-4 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md">
                         <p class="text-sm text-gray-600 dark:text-gray-400">
-                            👆 Vui lòng chọn User trước để xem danh sách video
+                            <svg class="w-4 h-4 mr-1 text-gray-500 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 11l5-5m0 0l5 5m-5-5v12"/>
+                            </svg>
+                            Vui lòng chọn User trước để xem danh sách video
                         </p>
                     </div>
                 @endif

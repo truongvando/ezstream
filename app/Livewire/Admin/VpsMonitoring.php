@@ -52,9 +52,7 @@ class VpsMonitoring extends Component
 
         return view('livewire.admin.vps-monitoring', [
             'vpsServers' => $vpsServers,
-        ])
-        
-        ->slot('header', '<h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">VPS Real-time Monitoring</h1>');
+        ])->layout('layouts.sidebar');
     }
 
     /**

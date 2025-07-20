@@ -1,5 +1,5 @@
 <div>
-{{-- Header --}}
+
 <div class="flex justify-between items-center mb-6">
     <div>
         <h2 class="text-2xl font-semibold text-gray-900 dark:text-gray-100">
@@ -19,14 +19,14 @@
     </div>
 </div>
 
-{{-- Summary Cards --}}
+
 <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-    @php
+    <?php
         $totalVps = count($vpsServers);
         $onlineVps = collect($vpsServers)->where('is_online', true)->count();
         $totalStreams = collect($vpsServers)->sum('current_streams');
         $totalCapacity = collect($vpsServers)->sum('max_streams');
-    @endphp
+    ?>
 
     <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow">
         <div class="flex items-center">
@@ -37,7 +37,7 @@
             </div>
             <div class="ml-4">
                 <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Total VPS</p>
-                <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ $totalVps }}</p>
+                <p class="text-2xl font-semibold text-gray-900 dark:text-white"><?php echo e($totalVps); ?></p>
             </div>
         </div>
     </div>
@@ -51,7 +51,7 @@
             </div>
             <div class="ml-4">
                 <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Online VPS</p>
-                <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ $onlineVps }}</p>
+                <p class="text-2xl font-semibold text-gray-900 dark:text-white"><?php echo e($onlineVps); ?></p>
             </div>
         </div>
     </div>
@@ -65,7 +65,7 @@
             </div>
             <div class="ml-4">
                 <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Active Streams</p>
-                <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ $totalStreams }}</p>
+                <p class="text-2xl font-semibold text-gray-900 dark:text-white"><?php echo e($totalStreams); ?></p>
             </div>
         </div>
     </div>
@@ -79,13 +79,13 @@
             </div>
             <div class="ml-4">
                 <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Total Capacity</p>
-                <p class="text-2xl font-semibold text-gray-900 dark:text-white">{{ $totalCapacity }}</p>
+                <p class="text-2xl font-semibold text-gray-900 dark:text-white"><?php echo e($totalCapacity); ?></p>
             </div>
         </div>
     </div>
 </div>
 
-{{-- VPS Table --}}
+
 <div wire:poll.5s class="bg-white dark:bg-gray-800 shadow-sm rounded-lg overflow-hidden">
     <div class="overflow-x-auto">
         <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -115,116 +115,122 @@
                 </tr>
             </thead>
             <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                @forelse($vpsServers as $vps)
-                    <tr @class([
+                <!--[if BLOCK]><![endif]--><?php $__empty_1 = true; $__currentLoopData = $vpsServers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $vps): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
+                    <tr class="<?php echo \Illuminate\Support\Arr::toCssClasses([
                         'transition-all duration-300',
                         'hover:bg-gray-50 dark:hover:bg-gray-700' => $vps['is_online'],
                         'opacity-60 bg-gray-100 dark:bg-gray-900' => !$vps['is_online'],
-                    ])>
-                        {{-- VPS Info --}}
+                    ]); ?>">
+                        
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
                                 <div class="flex-shrink-0 h-10 w-10">
-                                    <div @class([
+                                    <div class="<?php echo \Illuminate\Support\Arr::toCssClasses([
                                         'h-10 w-10 rounded-full flex items-center justify-center text-white font-bold text-sm',
                                         'bg-green-500' => $vps['is_online'],
                                         'bg-red-500' => !$vps['is_online'],
-                                    ])>
-                                        {{ strtoupper(substr($vps['name'], 0, 2)) }}
+                                    ]); ?>">
+                                        <?php echo e(strtoupper(substr($vps['name'], 0, 2))); ?>
+
                                     </div>
                                 </div>
                                 <div class="ml-4">
                                     <div class="text-sm font-medium text-gray-900 dark:text-white">
-                                        {{ $vps['name'] }}
+                                        <?php echo e($vps['name']); ?>
+
                                     </div>
                                     <div class="text-sm text-gray-500 dark:text-gray-400">
-                                        {{ $vps['ip_address'] }}
+                                        <?php echo e($vps['ip_address']); ?>
+
                                     </div>
                                 </div>
                             </div>
                         </td>
 
-                        {{-- Status --}}
+                        
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span @class([
+                            <span class="<?php echo \Illuminate\Support\Arr::toCssClasses([
                                 'inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium',
                                 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' => $vps['is_online'],
                                 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' => !$vps['is_online'],
-                            ])>
+                            ]); ?>">
                                 <svg class="w-1.5 h-1.5 mr-1.5" fill="currentColor" viewBox="0 0 8 8">
                                     <circle cx="4" cy="4" r="3"/>
                                 </svg>
-                                {{ $vps['status'] }}
+                                <?php echo e($vps['status']); ?>
+
                             </span>
                         </td>
 
-                        {{-- CPU Usage --}}
+                        
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
                                 <div class="flex-1">
                                     <div class="flex justify-between text-sm mb-1">
-                                        <span class="font-medium text-gray-900 dark:text-white">{{ number_format($vps['cpu_usage_percent'], 1) }}%</span>
+                                        <span class="font-medium text-gray-900 dark:text-white"><?php echo e(number_format($vps['cpu_usage_percent'], 1)); ?>%</span>
                                     </div>
                                     <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                                        @php($cpuColor = $vps['cpu_usage_percent'] > 80 ? 'bg-red-500' : ($vps['cpu_usage_percent'] > 60 ? 'bg-yellow-400' : 'bg-blue-500'))
-                                        <div class="{{ $cpuColor }} h-2 rounded-full transition-all duration-500" style="width: {{ $vps['cpu_usage_percent'] }}%"></div>
+                                        <?php ($cpuColor = $vps['cpu_usage_percent'] > 80 ? 'bg-red-500' : ($vps['cpu_usage_percent'] > 60 ? 'bg-yellow-400' : 'bg-blue-500')); ?>
+                                        <div class="<?php echo e($cpuColor); ?> h-2 rounded-full transition-all duration-500" style="width: <?php echo e($vps['cpu_usage_percent']); ?>%"></div>
                                     </div>
                                 </div>
                             </div>
                         </td>
 
-                        {{-- RAM Usage --}}
+                        
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
                                 <div class="flex-1">
                                     <div class="flex justify-between text-sm mb-1">
-                                        <span class="font-medium text-gray-900 dark:text-white">{{ number_format($vps['ram_usage_percent'], 1) }}%</span>
+                                        <span class="font-medium text-gray-900 dark:text-white"><?php echo e(number_format($vps['ram_usage_percent'], 1)); ?>%</span>
                                     </div>
                                     <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                                        @php($ramColor = $vps['ram_usage_percent'] > 85 ? 'bg-red-500' : ($vps['ram_usage_percent'] > 70 ? 'bg-yellow-400' : 'bg-green-500'))
-                                        <div class="{{ $ramColor }} h-2 rounded-full transition-all duration-500" style="width: {{ $vps['ram_usage_percent'] }}%"></div>
+                                        <?php ($ramColor = $vps['ram_usage_percent'] > 85 ? 'bg-red-500' : ($vps['ram_usage_percent'] > 70 ? 'bg-yellow-400' : 'bg-green-500')); ?>
+                                        <div class="<?php echo e($ramColor); ?> h-2 rounded-full transition-all duration-500" style="width: <?php echo e($vps['ram_usage_percent']); ?>%"></div>
                                     </div>
                                 </div>
                             </div>
                         </td>
 
-                        {{-- Disk Usage --}}
+                        
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
                                 <div class="flex-1">
                                     <div class="flex justify-between text-sm mb-1">
-                                        <span class="font-medium text-gray-900 dark:text-white">{{ number_format($vps['disk_usage_percent'], 1) }}%</span>
+                                        <span class="font-medium text-gray-900 dark:text-white"><?php echo e(number_format($vps['disk_usage_percent'], 1)); ?>%</span>
                                     </div>
                                     <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                                        @php($diskColor = $vps['disk_usage_percent'] > 90 ? 'bg-red-500' : ($vps['disk_usage_percent'] > 75 ? 'bg-yellow-400' : 'bg-purple-500'))
-                                        <div class="{{ $diskColor }} h-2 rounded-full transition-all duration-500" style="width: {{ $vps['disk_usage_percent'] }}%"></div>
+                                        <?php ($diskColor = $vps['disk_usage_percent'] > 90 ? 'bg-red-500' : ($vps['disk_usage_percent'] > 75 ? 'bg-yellow-400' : 'bg-purple-500')); ?>
+                                        <div class="<?php echo e($diskColor); ?> h-2 rounded-full transition-all duration-500" style="width: <?php echo e($vps['disk_usage_percent']); ?>%"></div>
                                     </div>
                                 </div>
                             </div>
                         </td>
 
-                        {{-- Streams --}}
+                        
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
                                 <div class="text-sm">
                                     <div class="font-medium text-gray-900 dark:text-white">
-                                        {{ $vps['current_streams'] }} / {{ $vps['max_streams'] }}
+                                        <?php echo e($vps['current_streams']); ?> / <?php echo e($vps['max_streams']); ?>
+
                                     </div>
                                     <div class="text-gray-500 dark:text-gray-400">
-                                        {{ round(($vps['current_streams'] / max($vps['max_streams'], 1)) * 100) }}% used
+                                        <?php echo e(round(($vps['current_streams'] / max($vps['max_streams'], 1)) * 100)); ?>% used
                                     </div>
                                 </div>
                             </div>
                         </td>
 
-                        {{-- Last Update --}}
+                        
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            <div title="{{ $vps['last_updated'] }}">
-                                {{ $vps['last_updated'] }}
+                            <div title="<?php echo e($vps['last_updated']); ?>">
+                                <?php echo e($vps['last_updated']); ?>
+
                             </div>
                         </td>
                     </tr>
-                @empty
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                     <tr>
                         <td colspan="7" class="px-6 py-12 text-center">
                             <div class="text-gray-500 dark:text-gray-400">
@@ -236,9 +242,9 @@
                             </div>
                         </td>
                     </tr>
-                @endforelse
+                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
             </tbody>
         </table>
     </div>
 </div>
-</div>
+</div><?php /**PATH D:\laragon\www\ezstream\resources\views/livewire/admin/vps-monitoring.blade.php ENDPATH**/ ?>

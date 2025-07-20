@@ -77,11 +77,16 @@ class SyncStreamStatusJob implements ShouldQueue
     {
         // Check if stream has been stuck in STARTING for too long
         if ($stream->status === 'STARTING') {
-            $minutesSinceStart = $stream->last_started_at ?
-                now()->diffInMinutes($stream->last_started_at) : 999;
+            // Only check timeout if stream actually started (has last_started_at)
+            if (!$stream->last_started_at) {
+                // Stream is STARTING but never actually started - this is normal for scheduled streams
+                return;
+            }
 
-            // If stuck in STARTING for more than 5 minutes, mark as ERROR (heartbeat every 60s)
-            if ($minutesSinceStart > 5) {
+            $minutesSinceStart = now()->diffInMinutes($stream->last_started_at);
+
+            // If stuck in STARTING for more than 3 minutes, mark as ERROR (heartbeat every 10s)
+            if ($minutesSinceStart > 3) {
                 Log::warning("⚠️ [SyncStreamStatus] Stream #{$stream->id} stuck in STARTING for {$minutesSinceStart} minutes");
 
                 $stream->update([
@@ -103,13 +108,39 @@ class SyncStreamStatusJob implements ShouldQueue
             }
         }
 
+        // Check if stream stuck in STOPPING
+        if ($stream->status === 'STOPPING') {
+            $minutesSinceStopping = $stream->updated_at ?
+                now()->diffInMinutes($stream->updated_at) : 999;
+
+            // If stuck in STOPPING for more than 2 minutes, force to STOPPED
+            if ($minutesSinceStopping > 2) {
+                Log::warning("⚠️ [SyncStreamStatus] Stream #{$stream->id} stuck in STOPPING for {$minutesSinceStopping} minutes, forcing to STOPPED");
+
+                $stream->update([
+                    'status' => 'INACTIVE',
+                    'error_message' => "Force stopped after being stuck in STOPPING for {$minutesSinceStopping} minutes",
+                    'vps_server_id' => null
+                ]);
+
+                StreamProgressService::createStageProgress(
+                    $stream->id,
+                    'stopped',
+                    "Stream force stopped after timeout"
+                );
+                return;
+            }
+        }
+
         // Check if stream has been without heartbeat for too long
         if ($stream->status === 'STREAMING') {
-            $minutesSinceUpdate = $stream->last_status_update ? 
-                now()->diffInMinutes($stream->last_status_update) : 999;
+            // Use created_at as fallback instead of 999 for new streams
+            $minutesSinceUpdate = $stream->last_status_update ?
+                now()->diffInMinutes($stream->last_status_update) :
+                now()->diffInMinutes($stream->created_at);
 
-            // If no heartbeat for more than 3 minutes, mark as ERROR (heartbeat every 60s)
-            if ($minutesSinceUpdate > 3) {
+            // If no heartbeat for more than 1 minute, mark as ERROR (heartbeat every 10s)
+            if ($minutesSinceUpdate > 1) {
                 Log::warning("⚠️ [SyncStreamStatus] Stream #{$stream->id} no heartbeat for {$minutesSinceUpdate} minutes");
 
                 $stream->update([

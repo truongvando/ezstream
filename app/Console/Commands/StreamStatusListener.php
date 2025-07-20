@@ -306,89 +306,45 @@ class StreamStatusListener extends Command
                         $this->info("  - User ID: {$stream->user_id}");
                         $this->info("  - Title: {$stream->title}");
 
-                        // 🚨 CRITICAL: Heartbeat is the SOURCE OF TRUTH
-                        // If VPS reports stream as STREAMING, database MUST be synced regardless of current status
+                        // 🎯 NEW LOGIC: Laravel is Master, Agent is Slave
+                        // Agent reports what it's doing, Laravel decides if it's correct
                         if ($heartbeatStatus === 'STREAMING') {
+                            $dbStatus = $stream->status;
 
-                            // 🚨 CRITICAL: Check if stream was force stopped by admin
-                            if ($stream->error_message && str_contains($stream->error_message, 'Force stopped by admin')) {
-                                $this->warn("🚫 [Heartbeat] Stream #{$streamId} was force stopped by admin, ignoring heartbeat");
+                            $this->info("🤔 [Heartbeat] Agent reports STREAMING, DB says: {$dbStatus}");
 
-                                // Send STOP command to agent to ensure it stops
-                                try {
-                                    $redis = app('redis')->connection();
-                                    $stopCommand = [
-                                        'command' => 'STOP_STREAM',
-                                        'stream_id' => $streamId,
-                                    ];
-                                    $channel = "vps-commands:{$vpsId}";
-                                    $redis->publish($channel, json_encode($stopCommand));
-                                    $this->info("📤 [Heartbeat] Sent STOP command to agent for force-stopped stream #{$streamId}");
-                                } catch (\Exception $e) {
-                                    $this->error("❌ [Heartbeat] Failed to send stop command: {$e->getMessage()}");
-                                }
-                                continue;
-                            }
+                            if (in_array($dbStatus, ['STREAMING', 'STARTING'])) {
+                                // ✅ Correct - Agent doing what Laravel wants
+                                $this->info("✅ [Heartbeat] Stream #{$streamId} - Agent is correct, confirming...");
 
-                            if ($oldStatus !== 'STREAMING') {
-                                // Stream is running on VPS but DB shows different status - FORCE SYNC
-                                $this->info("🔥 [Heartbeat] FORCE SYNC NEEDED: Stream #{$streamId} running on VPS but DB shows {$oldStatus} → STREAMING");
-
-                                $updateData = [
-                                    'status' => 'STREAMING',
-                                    'last_status_update' => now(),
-                                    'vps_server_id' => $vpsId,
-                                    'error_message' => null, // Only clear if not force stopped
-                                    'last_started_at' => $stream->last_started_at ?: now()
-                                ];
-
-                                if ($heartbeatPid) {
-                                    $updateData['process_id'] = $heartbeatPid;
-                                }
-
-                                $this->info("💾 [Heartbeat] Updating database with data: " . json_encode($updateData));
-
-                                $result = $stream->update($updateData);
-
-                                if ($result) {
-                                    $this->info("✅ [Heartbeat] Database update successful");
-
-                                    // Verify the update
-                                    $stream->refresh();
-                                    $this->info("🔍 [Heartbeat] Verification - New status: {$stream->status}, VPS: {$stream->vps_server_id}");
-
-                                    // Create progress update for UI
-                                    try {
-                                        StreamProgressService::createStageProgress($streamId, 'streaming', "🔄 Stream đã được đồng bộ! VPS báo cáo đang phát trực tiếp (từ {$oldStatus})");
-                                        $this->info("📊 [Heartbeat] Progress update created");
-                                    } catch (\Exception $e) {
-                                        $this->error("❌ [Heartbeat] Failed to create progress: {$e->getMessage()}");
-                                    }
-
-                                    // Trigger immediate UI refresh
-                                    $this->triggerUIRefresh($streamId);
-
-                                    $this->info("🎯 [Heartbeat] FORCE SYNC COMPLETED: Stream #{$streamId}: {$oldStatus} → STREAMING");
-
+                                // Update to STREAMING if was STARTING
+                                if ($dbStatus === 'STARTING') {
+                                    $stream->update([
+                                        'status' => 'STREAMING',
+                                        'last_status_update' => now(),
+                                        'vps_server_id' => $vpsId,
+                                        'process_id' => $heartbeatPid,
+                                        'sync_notes' => null
+                                    ]);
+                                    $this->info("🔄 [Heartbeat] Updated STARTING → STREAMING");
                                 } else {
-                                    $this->error("❌ [Heartbeat] Database update FAILED for stream #{$streamId}");
+                                    // Just update timestamp
+                                    $stream->update(['last_status_update' => now()]);
                                 }
+
+                                // Send confirmation to agent (optional)
+                                $this->sendAgentConfirmation($vpsId, $streamId, 'CONTINUE');
 
                             } else {
-                                // Stream already STREAMING in DB - just update heartbeat timestamp
-                                $updateResult = $stream->update([
-                                    'last_status_update' => now(),
-                                    'vps_server_id' => $vpsId,
-                                    'process_id' => $heartbeatPid
+                                // ❌ Wrong - Agent running stream that should be stopped
+                                $this->warn("❌ [Heartbeat] Stream #{$streamId} - Agent is wrong! DB: {$dbStatus}, Agent: STREAMING");
+                                $this->warn("🛑 [Heartbeat] Sending KILL command to agent...");
+
+                                // Send kill command to agent
+                                $this->sendAgentCommand($vpsId, $streamId, 'FORCE_KILL_STREAM', [
+                                    'reason' => "Laravel master says this stream should be {$dbStatus}, not STREAMING"
                                 ]);
-
-                                if ($updateResult) {
-                                    $this->info("🔄 [Heartbeat] Heartbeat timestamp updated for stream #{$streamId} (confirmed STREAMING)");
-                                } else {
-                                    $this->error("❌ [Heartbeat] Failed to update heartbeat timestamp for stream #{$streamId}");
-                                }
                             }
-
                         } else {
                             $this->warn("⚠️ [Heartbeat] Unexpected heartbeat status for stream #{$streamId}: {$heartbeatStatus}");
                         }
@@ -452,6 +408,46 @@ class StreamStatusListener extends Command
             ->whereIn('status', ['STREAMING', 'STARTING'])
             ->get();
 
+        // 3. Handle STOPPING timeout - streams stuck in STOPPING status
+        $stoppingStreams = StreamConfiguration::where('vps_server_id', $vpsId)
+            ->where('status', 'STOPPING')
+            ->get();
+
+        foreach ($stoppingStreams as $stream) {
+            $timeSinceStop = $stream->last_stopped_at ?
+                now()->diffInMinutes($stream->last_stopped_at) :
+                now()->diffInMinutes($stream->updated_at);
+
+            $this->info("⏱️ [Timeout] Checking STOPPING stream #{$stream->id} - {$timeSinceStop} minutes since stop command");
+
+            // If STOPPING for more than 2 minutes, assume agent failed to respond
+            if ($timeSinceStop > 2) {
+                $this->warn("⏰ [Timeout] Stream #{$stream->id} stuck in STOPPING for {$timeSinceStop} minutes, forcing to INACTIVE");
+
+                $stream->update([
+                    'status' => 'INACTIVE',
+                    'error_message' => "Stop command timeout after {$timeSinceStop} minutes - agent may be offline",
+                    'vps_server_id' => null,
+                    'process_id' => null
+                ]);
+
+                // Create progress update for UI
+                StreamProgressService::createStageProgress($stream->id, 'stopped', "⏰ Stream dừng do timeout (agent không phản hồi)");
+
+                // Decrement VPS stream count
+                if ($stream->vpsServer) {
+                    $stream->vpsServer->decrement('current_streams');
+                }
+
+                \Log::warning("⏰ [StoppingTimeout] Stream #{$stream->id} forced to INACTIVE after {$timeSinceStop} minutes", [
+                    'stream_id' => $stream->id,
+                    'vps_id' => $vpsId,
+                    'timeout_minutes' => $timeSinceStop,
+                    'reason' => 'Agent did not confirm stop command'
+                ]);
+            }
+        }
+
         $missingStreamIds = $dbStreamsOnThisVps->pluck('id')->diff($heartbeatStreamIds);
 
         if ($missingStreamIds->isNotEmpty()) {
@@ -465,16 +461,18 @@ class StreamStatusListener extends Command
                 $timeSinceUpdate = $stream->last_status_update ?
                     now()->diffInMinutes($stream->last_status_update) :
                     now()->diffInMinutes($stream->created_at);
-                $timeSinceStart = $stream->last_started_at ? now()->diffInMinutes($stream->last_started_at) : 999;
+                $timeSinceStart = $stream->last_started_at ? now()->diffInMinutes($stream->last_started_at) : null;
 
                 $this->warn("🔍 [Heartbeat] Stream #{$streamId} analysis:");
                 $this->warn("  - DB Status: {$stream->status}");
                 $this->warn("  - Minutes since heartbeat: {$timeSinceUpdate}");
-                $this->warn("  - Minutes since start: {$timeSinceStart}");
+                $this->warn("  - Minutes since start: " . ($timeSinceStart ?? 'never started'));
 
                 // More aggressive cleanup - if not in heartbeat, it's probably dead
-                if ($timeSinceUpdate > 2 || ($stream->status === 'STARTING' && $timeSinceStart > 5)) {
-                    $reason = $timeSinceUpdate > 2 ?
+                // Skip STARTING timeout check if stream never actually started (scheduled streams)
+                $startingTimeout = ($stream->status === 'STARTING' && $timeSinceStart !== null && $timeSinceStart > 3);
+                if ($timeSinceUpdate > 1 || $startingTimeout) {
+                    $reason = $timeSinceUpdate > 1 ?
                         "missing from VPS heartbeat for {$timeSinceUpdate} minutes" :
                         "stuck in STARTING for {$timeSinceStart} minutes";
 
@@ -563,6 +561,48 @@ class StreamStatusListener extends Command
 
         } catch (\Exception $e) {
             $this->warn("⚠️ [UIRefresh] Failed to trigger UI refresh: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * Send confirmation to agent that stream is correct
+     */
+    private function sendAgentConfirmation($vpsId, $streamId, $action)
+    {
+        try {
+            $redis = app('redis')->connection();
+            $confirmCommand = [
+                'command' => 'STREAM_CONFIRMATION',
+                'stream_id' => $streamId,
+                'action' => $action, // CONTINUE, STOP, etc.
+                'timestamp' => time()
+            ];
+            $channel = "vps-commands:{$vpsId}";
+            $redis->publish($channel, json_encode($confirmCommand));
+            $this->info("✅ [Confirmation] Sent {$action} confirmation to VPS #{$vpsId} for stream #{$streamId}");
+        } catch (\Exception $e) {
+            $this->error("❌ [Confirmation] Failed to send confirmation: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * Send command to agent
+     */
+    private function sendAgentCommand($vpsId, $streamId, $command, $data = [])
+    {
+        try {
+            $redis = app('redis')->connection();
+            $commandData = array_merge([
+                'command' => $command,
+                'stream_id' => $streamId,
+                'timestamp' => time()
+            ], $data);
+
+            $channel = "vps-commands:{$vpsId}";
+            $redis->publish($channel, json_encode($commandData));
+            $this->info("📤 [Command] Sent {$command} to VPS #{$vpsId} for stream #{$streamId}");
+        } catch (\Exception $e) {
+            $this->error("❌ [Command] Failed to send command: {$e->getMessage()}");
         }
     }
 }

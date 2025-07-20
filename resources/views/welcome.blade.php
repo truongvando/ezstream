@@ -187,7 +187,12 @@
             <!-- Status Badge -->
             <div class="inline-flex items-center px-6 py-3 rounded-2xl glass mb-8 animate-fade-in">
                 <div class="w-3 h-3 bg-green-500 rounded-full live-dot mr-3"></div>
-                <span class="font-mono text-sm font-semibold">🔴 LIVE - {{ $stats['active_streams'] }}+ streams đang hoạt động</span>
+                <span class="font-mono text-sm font-semibold flex items-center">
+                    <svg class="w-3 h-3 mr-1.5 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                        <circle cx="12" cy="12" r="10"/>
+                    </svg>
+                    LIVE - {{ $stats['active_streams'] }}+ streams đang hoạt động
+                </span>
             </div>
             
             <!-- Main Headline -->

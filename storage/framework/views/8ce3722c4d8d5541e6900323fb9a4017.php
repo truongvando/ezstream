@@ -76,15 +76,15 @@
                         </svg>
                     </button>
                 </div>
-                <main class="flex-1 relative overflow-y-auto focus:outline-none">
-                    <div class="py-6">
-                        <div class="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-                           <?php if(isset($header)): ?>
-                                <header class="mb-6">
-                                    <?php echo e($header); ?>
+                <main class="flex-1 relative overflow-y-auto focus:outline-none h-full">
+                    <div class="h-full">
+                        <?php if(isset($header)): ?>
+                            <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+                                <?php echo e($header); ?>
 
-                                </header>
-                            <?php endif; ?>
+                            </header>
+                        <?php endif; ?>
+                        <div class="p-4">
                             <?php if (isset($component)) { $__componentOriginalbb0843bd48625210e6e530f88101357e = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginalbb0843bd48625210e6e530f88101357e = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.flash-message','data' => []] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
@@ -106,7 +106,7 @@
 <?php unset($__componentOriginalbb0843bd48625210e6e530f88101357e); ?>
 <?php endif; ?>
                         </div>
-                        <div class="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+                        <div class="flex-1 px-4 pb-4">
                             <?php if(isset($slot)): ?>
                                 <?php echo e($slot); ?>
 

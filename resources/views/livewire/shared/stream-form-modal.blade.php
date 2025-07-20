@@ -92,7 +92,21 @@
                             <label class="flex items-center p-4 rounded-lg border cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors duration-200"
                                    :class="platform === '{{ $key }}' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 ring-2 ring-indigo-500 ring-opacity-20' : 'border-gray-300 dark:border-gray-700'">
                                 <input type="radio" wire:model.live="platform" value="{{ $key }}" class="form-radio h-5 w-5 text-indigo-600 focus:ring-indigo-500">
-                                <span class="ml-3 text-sm font-medium text-gray-900 dark:text-gray-100">{{ $platformName }}</span>
+
+                                @if($key === 'youtube')
+                                    <!-- YouTube Icon -->
+                                    <svg class="ml-3 h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                                    </svg>
+                                @else
+                                    <!-- Custom RTMP Icon -->
+                                    <svg class="ml-3 h-5 w-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                    </svg>
+                                @endif
+
+                                <span class="ml-2 text-sm font-medium text-gray-900 dark:text-gray-100">{{ $platformName }}</span>
                             </label>
                         @endforeach
                     </div>
@@ -128,8 +142,8 @@
                         <div>
                             <x-input-label value="Thứ tự phát" class="text-sm font-medium mb-2" />
                             <select wire:model.defer="playlist_order" class="block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 focus:border-indigo-500 dark:focus:border-indigo-400 focus:ring-indigo-500 dark:focus:ring-indigo-400 rounded-lg shadow-sm">
-                                <option value="sequential">📋 Tuần tự (1→2→3)</option>
-                                <option value="random">🎲 Ngẫu nhiên</option>
+                                <option value="sequential">Tuần tự (1→2→3)</option>
+                                <option value="random">Ngẫu nhiên</option>
                             </select>
                             @error('playlist_order') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                         </div>
@@ -142,7 +156,9 @@
                                        class="mt-1 h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
                                 <label for="loop_checkbox" class="ml-3 flex-1 cursor-pointer">
                                     <div class="flex items-start">
-                                        <span class="text-xl mr-2">🔄</span>
+                                        <svg class="w-5 h-5 mr-2 text-green-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                        </svg>
                                         <div>
                                             <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Lặp lại 24/7</span>
                                             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Phát liên tục không dừng, tự động lặp lại playlist</p>
@@ -157,7 +173,9 @@
                                        class="mt-1 h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300 rounded">
                                 <label for="keep_files_checkbox" class="ml-3 flex-1 cursor-pointer">
                                     <div class="flex items-start">
-                                        <span class="text-xl mr-2">💾</span>
+                                        <svg class="w-5 h-5 mr-2 text-blue-500 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 19a2 2 0 01-2-2V7a2 2 0 012-2h4l2 2h4a2 2 0 012 2v1M5 19h14a2 2 0 002-2v-5a2 2 0 00-2-2H9a2 2 0 00-2 2v5a2 2 0 01-2 2z"/>
+                                        </svg>
                                         <div>
                                             <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Giữ file trên VPS</span>
                                             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">File được giữ lại để stream nhanh hơn lần sau</p>
@@ -174,7 +192,9 @@
                                        class="h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-300 rounded">
                                 <label for="schedule_checkbox" class="ml-3 flex-1 cursor-pointer">
                                     <div class="flex items-center">
-                                        <span class="text-xl mr-2">⏰</span>
+                                        <svg class="w-5 h-5 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
                                         <div>
                                             <span class="text-sm font-medium text-gray-900 dark:text-gray-100">Lịch trình tự động</span>
                                             <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Tự động bắt đầu stream vào thời gian định sẵn</p>

@@ -51,6 +51,9 @@ class UserStreamManager extends BaseStreamManager
         // Clear any cached properties and force re-render
         $this->resetPage();
 
+        // Force refresh streams property
+        unset($this->streams);
+
         // Log for debugging
         \Log::debug("🔄 [UserStreamManager] Polling refresh triggered");
     }
@@ -97,6 +100,7 @@ class UserStreamManager extends BaseStreamManager
             'playlist_order' => $this->playlist_order,
             'keep_files_on_agent' => $this->keep_files_on_agent,
             'user_file_id' => $selectedFiles->first()->id, // Primary file for backward compatibility
+            'last_started_at' => $this->enable_schedule ? null : now(), // Don't set start time for scheduled streams
         ]);
 
         $this->showCreateModal = false;
@@ -187,7 +191,7 @@ class UserStreamManager extends BaseStreamManager
         // Auto-generate backup URL based on platform
         $backupRtmpUrl = $this->platform !== 'custom' ? $this->getPlatformBackupUrl($this->platform) : '';
 
-        $this->editingStream->update([
+        $updateData = [
             'title' => $this->title,
             'description' => $this->description,
             'video_source_path' => $fileList, // Store file list as array (auto-cast to JSON)
@@ -201,7 +205,19 @@ class UserStreamManager extends BaseStreamManager
             'playlist_order' => $this->playlist_order,
             'keep_files_on_agent' => $this->keep_files_on_agent,
             'user_file_id' => $selectedFiles->first()->id,
-        ]);
+            // ✅ Add last_started_at like in create method
+            'last_started_at' => $this->enable_schedule ? null : ($this->editingStream->last_started_at ?: now()),
+        ];
+
+        // Simple status handling: Reset failed streams to INACTIVE, keep active streams unchanged
+        $currentStatus = $this->editingStream->status;
+        if (in_array($currentStatus, ['STOPPED', 'ERROR'])) {
+            // Reset failed streams to INACTIVE so they can be started again
+            $updateData['status'] = 'INACTIVE';
+        }
+        // Keep STREAMING, STARTING, STOPPING, INACTIVE unchanged
+
+        $this->editingStream->update($updateData);
 
         // If stream is currently running, dispatch update job
         if ($this->editingStream->status === 'STREAMING') {
@@ -349,15 +365,14 @@ class UserStreamManager extends BaseStreamManager
 
     public function createQuickStream()
     {
-        try {
-            Log::info('🚀 [QuickStream] Starting createQuickStream', [
-                'quickTitle' => $this->quickTitle,
-                'quickPlatform' => $this->quickPlatform,
-                'quickSelectedFiles' => $this->quickSelectedFiles,
-                'video_source_id' => $this->video_source_id,
-            ]);
+        Log::info('🚀 [QuickStream] Starting createQuickStream', [
+            'quickTitle' => $this->quickTitle,
+            'quickPlatform' => $this->quickPlatform,
+            'quickSelectedFiles' => $this->quickSelectedFiles,
+            'video_source_id' => $this->video_source_id,
+        ]);
 
-        // First validate basic fields
+        // First validate basic fields (OUTSIDE try-catch so validation errors show)
         $this->validate([
             'quickTitle' => 'required|string|max:255',
             'quickDescription' => 'nullable|string',
@@ -367,7 +382,19 @@ class UserStreamManager extends BaseStreamManager
             // 🚨 CRITICAL: Add schedule validation
             'quickScheduledAt' => 'required_if:quickEnableSchedule,true|nullable|date|after:now',
             'quickScheduledEnd' => 'nullable|date|after:quickScheduledAt',
+        ], [
+            'quickTitle.required' => 'Tiêu đề stream là bắt buộc.',
+            'quickTitle.max' => 'Tiêu đề stream không được vượt quá 255 ký tự.',
+            'quickPlatform.required' => 'Vui lòng chọn nền tảng stream.',
+            'quickRtmpUrl.required_if' => 'URL RTMP là bắt buộc khi chọn Custom.',
+            'quickRtmpUrl.url' => 'URL RTMP không hợp lệ.',
+            'quickStreamKey.required' => 'Stream key là bắt buộc.',
+            'quickScheduledAt.required_if' => 'Thời gian bắt đầu là bắt buộc khi bật lịch phát.',
+            'quickScheduledAt.after' => 'Thời gian bắt đầu phải sau thời điểm hiện tại.',
+            'quickScheduledEnd.after' => 'Thời gian kết thúc phải sau thời gian bắt đầu.',
         ]);
+
+        try {
 
         $user = Auth::user();
         $userFiles = collect();
@@ -523,6 +550,9 @@ class UserStreamManager extends BaseStreamManager
         // Refresh the streams list to show the new stream
         $this->dispatch('refreshStreams');
 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // Re-throw validation exceptions so they show in UI
+            throw $e;
         } catch (\Exception $e) {
             Log::error('❌ [QuickStream] Failed to create quick stream', [
                 'error' => $e->getMessage(),

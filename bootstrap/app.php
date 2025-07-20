@@ -53,6 +53,11 @@ return Application::configure(basePath: dirname(__DIR__))
                  ->everyTwoMinutes()
                  ->withoutOverlapping();
 
+        // ⏰ Handle STOPPING timeout (every minute - critical for stuck streams)
+        $schedule->job(new \App\Jobs\HandleStoppingTimeoutJob())
+                 ->everyMinute()
+                 ->withoutOverlapping();
+
         // 🩺 Redis health check
         $schedule->command('redis:health-check --connection=queue --fix')
                  ->everyTenMinutes()

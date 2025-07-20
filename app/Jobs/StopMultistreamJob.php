@@ -50,6 +50,8 @@ class StopMultistreamJob implements ShouldQueue
             $redisCommand = [
                 'command' => 'STOP_STREAM',
                 'stream_id' => $this->stream->id,
+                'timestamp' => time(),
+                'laravel_request_id' => uniqid('stop_', true) // Unique ID để track request
             ];
 
             // Gửi lệnh qua Redis với retry mechanism
@@ -57,16 +59,36 @@ class StopMultistreamJob implements ShouldQueue
             $publishResult = $this->publishWithRetry($channel, $redisCommand);
 
             Log::info("✅ [Stream #{$this->stream->id}] Stop command published to Redis channel '{$channel}'", [
+                'command' => $redisCommand,
+                'channel' => $channel,
                 'publish_result' => $publishResult,
-                'subscribers' => $publishResult > 0 ? 'YES' : 'NO'
+                'subscribers' => $publishResult > 0 ? 'YES' : 'NO',
+                'vps_id' => $vpsId,
+                'current_status' => $this->stream->status
             ]);
 
-            // Cập nhật trạng thái ngay lập tức. Agent sẽ không báo cáo lại trạng thái STOPPED.
-            // Việc này giúp giao diện phản hồi nhanh hơn.
+            // Log detailed debugging info
+            Log::debug("🔍 [StopMultistreamJob] Debug info for stream #{$this->stream->id}", [
+                'stream_data' => [
+                    'id' => $this->stream->id,
+                    'title' => $this->stream->title,
+                    'status' => $this->stream->status,
+                    'vps_server_id' => $this->stream->vps_server_id,
+                    'process_id' => $this->stream->process_id,
+                    'last_status_update' => $this->stream->last_status_update,
+                    'last_started_at' => $this->stream->last_started_at,
+                ],
+                'redis_command' => $redisCommand,
+                'redis_channel' => $channel,
+                'redis_result' => $publishResult
+            ]);
+
+            // Keep status as STOPPING and preserve vps_server_id
+            // Let agent confirm stop via heartbeat or timeout mechanism handle it
             $this->stream->update([
-                'status' => 'INACTIVE',
+                'status' => 'STOPPING',  // Keep STOPPING until agent confirms
                 'last_stopped_at' => now(),
-                'vps_server_id' => null, // Xóa vps_id khi stream dừng
+                // Keep vps_server_id so we can send kill commands if needed
                 'error_message' => null,
             ]);
 

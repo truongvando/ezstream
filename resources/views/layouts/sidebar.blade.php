@@ -75,17 +75,17 @@
                         </svg>
                     </button>
                 </div>
-                <main class="flex-1 relative overflow-y-auto focus:outline-none">
-                    <div class="py-6">
-                        <div class="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
-                           @isset($header)
-                                <header class="mb-6">
-                                    {{ $header }}
-                                </header>
-                            @endisset
+                <main class="flex-1 relative overflow-y-auto focus:outline-none h-full">
+                    <div class="h-full">
+                        @isset($header)
+                            <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
+                                {{ $header }}
+                            </header>
+                        @endisset
+                        <div class="p-4">
                             <x-flash-message />
                         </div>
-                        <div class="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+                        <div class="flex-1 px-4 pb-4">
                             @if(isset($slot))
                                 {{ $slot }}
                             @else

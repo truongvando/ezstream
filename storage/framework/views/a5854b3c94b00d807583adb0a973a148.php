@@ -23,7 +23,12 @@
             <!-- Header -->
             <div class="bg-white dark:bg-gray-800 px-6 py-4 flex-shrink-0">
                 <div class="flex items-center justify-between">
-                    <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">🚀 Quick Stream - Tạo & Stream Ngay</h3>
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">
+                        <svg class="inline w-5 h-5 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                        Quick Stream - Tạo & Stream Ngay
+                    </h3>
                     <button @click="$wire.showQuickStreamModal = false" class="text-gray-400 hover:text-gray-600">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
@@ -78,10 +83,34 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <!-- Platform -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Platform *</label>
-                                <select wire:model.live="quickPlatform" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                    <option value="youtube">📺 YouTube</option>
-                                    <option value="custom">🔧 Custom RTMP</option>
-                                </select>
+                                <div class="mt-1 relative">
+                                    <select wire:model.live="quickPlatform" class="block w-full pl-10 pr-3 py-2 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                        <option value="youtube">YouTube Live</option>
+                                        <option value="custom">Custom RTMP</option>
+                                    </select>
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <!--[if BLOCK]><![endif]--><?php if($quickPlatform === 'youtube'): ?>
+                                            <!-- YouTube Icon -->
+                                            <svg class="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                                            </svg>
+                                        <?php else: ?>
+                                            <!-- Custom RTMP Icon -->
+                                            <svg class="h-5 w-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                            </svg>
+                                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                    </div>
+                                </div>
+                                <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['quickPlatform'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> <span class="text-red-500 text-sm"><?php echo e($message); ?></span> <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             </div>
 
                             <!-- RTMP URL (chỉ hiện khi custom) -->
@@ -136,14 +165,20 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                                         <button type="button"
                                                 @click="switchTab('upload')"
                                                 :class="videoSource === 'upload' ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'bg-gray-100 text-gray-700 border-gray-300'"
-                                                class="px-3 py-2 text-sm font-medium border rounded-md transition-colors">
-                                            📤 Upload nhanh
+                                                class="px-3 py-2 text-sm font-medium border rounded-md transition-colors flex items-center">
+                                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                                            </svg>
+                                            Upload nhanh
                                         </button>
                                         <button type="button"
                                                 @click="switchTab('library')"
                                                 :class="videoSource === 'library' ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'bg-gray-100 text-gray-700 border-gray-300'"
-                                                class="px-3 py-2 text-sm font-medium border rounded-md transition-colors">
-                                            📚 Thư viện
+                                                class="px-3 py-2 text-sm font-medium border rounded-md transition-colors flex items-center">
+                                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
+                                            </svg>
+                                            Thư viện
                                         </button>
                                     </div>
 
@@ -192,14 +227,19 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <div class="space-y-3 pt-4 border-t">
                                 <div class="flex items-center">
                                     <input type="checkbox" wire:model="quickLoop" id="quickLoop" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-                                    <label for="quickLoop" class="ml-2 text-sm">🔄 Stream lặp lại 24/7</label>
+                                    <label for="quickLoop" class="ml-2 text-sm flex items-center">
+                                        <svg class="w-4 h-4 mr-1.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                                        </svg>
+                                        Stream lặp lại 24/7
+                                    </label>
                                 </div>
                                 
                                 <div>
                                     <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Thứ tự phát</label>
                                     <select wire:model="quickPlaylistOrder" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                        <option value="sequential">📋 Tuần tự</option>
-                                        <option value="random">🎲 Ngẫu nhiên</option>
+                                        <option value="sequential">Tuần tự</option>
+                                        <option value="random">Ngẫu nhiên</option>
                                     </select>
                                 </div>
                             </div>
@@ -208,7 +248,12 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <div class="space-y-3 pt-4 border-t">
                                 <div class="flex items-center">
                                     <input type="checkbox" wire:model.live="quickEnableSchedule" id="quickEnableSchedule" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
-                                    <label for="quickEnableSchedule" class="ml-2 text-sm font-medium">⏰ Lên lịch stream</label>
+                                    <label for="quickEnableSchedule" class="ml-2 text-sm font-medium flex items-center">
+                                        <svg class="w-4 h-4 mr-1.5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                        </svg>
+                                        Lên lịch stream
+                                    </label>
                                 </div>
 
                                 <!--[if BLOCK]><![endif]--><?php if($quickEnableSchedule): ?>
@@ -238,7 +283,12 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                         wire:loading.class="opacity-50 cursor-not-allowed"
                         type="button"
                         class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-md transition-all duration-200">
-                    <span wire:loading.remove wire:target="createQuickStream">🚀 Tạo & Stream Ngay</span>
+                    <span wire:loading.remove wire:target="createQuickStream" class="flex items-center">
+                        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                        </svg>
+                        Tạo & Stream Ngay
+                    </span>
                     <span wire:loading wire:target="createQuickStream" class="flex items-center">
                         <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
