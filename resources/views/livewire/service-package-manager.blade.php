@@ -143,8 +143,15 @@
                                     <button wire:click.prevent="removeFeature({{$index}})" class="ml-2 text-red-500 hover:text-red-700">Xóa</button>
                                 </div>
                                 @endforeach
-                                <div class="flex items-center mt-2">
-                                    <input type="text" wire:model.lazy="newFeature" wire:keydown.enter="addFeature" placeholder="Thêm tính năng và nhấn Enter" class="block w-full shadow-sm sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                <div class="flex items-center mt-2 space-x-2">
+                                    <input type="text"
+                                           wire:model.lazy="newFeature"
+                                           wire:keydown.enter.prevent="addFeature"
+                                           placeholder="Thêm tính năng và nhấn Enter"
+                                           class="block w-full shadow-sm sm:text-sm border-gray-300 rounded-md dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                    <button type="button" wire:click="addFeature" class="px-3 py-2 bg-blue-500 text-white text-sm rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 whitespace-nowrap">
+                                        Thêm
+                                    </button>
                                 </div>
                             </div>
                             <div class="flex items-center space-x-6">

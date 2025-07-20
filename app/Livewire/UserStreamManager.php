@@ -286,6 +286,28 @@ class UserStreamManager extends BaseStreamManager
             return;
         }
 
+        // ✅ Check concurrent streams limit
+        $user = Auth::user();
+        $currentActiveStreams = $user->streamConfigurations()
+            ->whereIn('status', ['STREAMING', 'STARTING'])
+            ->count();
+        $allowedStreams = $user->getTotalAllowedStreams();
+
+        if ($currentActiveStreams >= $allowedStreams) {
+            Log::warning("🚫 [UserStreamManager] Concurrent streams limit exceeded", [
+                'user_id' => $user->id,
+                'current_streams' => $currentActiveStreams,
+                'allowed_streams' => $allowedStreams,
+                'stream_id' => $stream->id
+            ]);
+
+            $package = $user->currentPackage();
+            $packageName = $package ? $package->name : 'Không xác định';
+
+            session()->flash('error', "❌ Vượt quá giới hạn streams đồng thời. Gói {$packageName} cho phép tối đa {$allowedStreams} streams. Hiện tại: {$currentActiveStreams} streams đang chạy.");
+            return;
+        }
+
         $stream->update(['status' => 'STARTING']);
 
         Log::info("📤 [UserStreamManager] Dispatching StartMultistreamJob", [
@@ -367,6 +389,26 @@ class UserStreamManager extends BaseStreamManager
                 'quickSelectedFiles' => $this->quickSelectedFiles
             ]);
             session()->flash('error', 'Vui lòng chọn ít nhất một video hoặc upload file mới.');
+            return;
+        }
+
+        // ✅ Check concurrent streams limit for Quick Stream
+        $currentActiveStreams = $user->streamConfigurations()
+            ->whereIn('status', ['STREAMING', 'STARTING'])
+            ->count();
+        $allowedStreams = $user->getTotalAllowedStreams();
+
+        if ($currentActiveStreams >= $allowedStreams) {
+            Log::warning("🚫 [UserStreamManager] Quick Stream: Concurrent streams limit exceeded", [
+                'user_id' => $user->id,
+                'current_streams' => $currentActiveStreams,
+                'allowed_streams' => $allowedStreams
+            ]);
+
+            $package = $user->currentPackage();
+            $packageName = $package ? $package->name : 'Không xác định';
+
+            session()->flash('error', "❌ Vượt quá giới hạn streams đồng thời. Gói {$packageName} cho phép tối đa {$allowedStreams} streams. Hiện tại: {$currentActiveStreams} streams đang chạy.");
             return;
         }
 

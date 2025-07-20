@@ -141,6 +141,7 @@
     </div>
 
     <?php $__env->startPush('scripts'); ?>
+    <script src="<?php echo e(asset('js/file-upload.js')); ?>"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         const fileInput = document.getElementById('file-input');
@@ -236,8 +237,16 @@
                 });
 
                 if (!uploadUrlResponse.ok) {
-                    const errorText = await uploadUrlResponse.text();
-                    throw new Error(`HTTP ${uploadUrlResponse.status}: ${uploadUrlResponse.statusText}`);
+                    const errorData = await uploadUrlResponse.json().catch(() => ({ error: 'Lỗi không xác định' }));
+
+                    // Show detailed error modal if available
+                    if (errorData.reason && errorData.details && errorData.solutions && window.showDetailedErrorModal) {
+                        window.showDetailedErrorModal(errorData);
+                        resetForm();
+                        return;
+                    }
+
+                    throw new Error(errorData.error || errorData.message || `HTTP ${uploadUrlResponse.status}: ${uploadUrlResponse.statusText}`);
                 }
 
                 const uploadUrlData = await uploadUrlResponse.json();

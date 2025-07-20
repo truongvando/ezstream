@@ -97,6 +97,10 @@
             </div>
         </div>
         @livewireScripts
+
+        <!-- Global file upload script -->
+        <script src="{{ asset('js/file-upload.js') }}"></script>
+
         @stack('scripts')
     </body>
 </html>

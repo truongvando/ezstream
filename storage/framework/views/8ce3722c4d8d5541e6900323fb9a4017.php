@@ -120,6 +120,10 @@
         </div>
         <?php echo \Livewire\Mechanisms\FrontendAssets\FrontendAssets::scripts(); ?>
 
+
+        <!-- Global file upload script -->
+        <script src="<?php echo e(asset('js/file-upload.js')); ?>"></script>
+
         <?php echo $__env->yieldPushContent('scripts'); ?>
     </body>
 </html><?php /**PATH D:\laragon\www\ezstream\resources\views/layouts/sidebar.blade.php ENDPATH**/ ?>

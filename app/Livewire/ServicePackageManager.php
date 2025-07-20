@@ -81,9 +81,19 @@ class ServicePackageManager extends Component
 
     public function addFeature()
     {
-        if (trim($this->newFeature) !== '') {
-            $this->features[] = trim($this->newFeature);
-            $this->newFeature = '';
+        $feature = trim($this->newFeature);
+        if ($feature !== '') {
+            // Kiểm tra trùng lặp
+            if (!in_array($feature, $this->features)) {
+                $this->features[] = $feature;
+                $this->newFeature = '';
+
+                // Thông báo thành công (optional)
+                $this->dispatch('feature-added', $feature);
+            } else {
+                // Thông báo trùng lặp
+                session()->flash('warning', 'Tính năng này đã tồn tại!');
+            }
         }
     }
 

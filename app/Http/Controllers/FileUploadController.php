@@ -170,7 +170,8 @@ class FileUploadController extends Controller
                                 "🔧 Giảm chất lượng video xuống {$maxRes} hoặc thấp hơn",
                                 "📈 Nâng cấp lên gói cao hơn để hỗ trợ {$currentRes}",
                                 "✂️ Sử dụng phần mềm như HandBrake để resize video"
-                            ]
+                            ],
+                            'show_modal' => true // Flag để frontend biết hiển thị modal
                         ], 400);
                     }
                 }
@@ -209,7 +210,8 @@ class FileUploadController extends Controller
                             "🗑️ Xóa bớt {$fileSizeGB}GB file cũ để có đủ dung lượng",
                             "📈 Nâng cấp lên gói có dung lượng lưu trữ cao hơn",
                             "📁 Kiểm tra và xóa các file không cần thiết"
-                        ]
+                        ],
+                        'show_modal' => true // Flag để frontend biết hiển thị modal
                     ], 400);
                 }
             }

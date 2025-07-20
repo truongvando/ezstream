@@ -187,7 +187,7 @@
             <!-- Status Badge -->
             <div class="inline-flex items-center px-6 py-3 rounded-2xl glass mb-8 animate-fade-in">
                 <div class="w-3 h-3 bg-green-500 rounded-full live-dot mr-3"></div>
-                <span class="font-mono text-sm font-semibold">🔴 LIVE - {{ $stats['active_streams'] }} streams đang hoạt động</span>
+                <span class="font-mono text-sm font-semibold">🔴 LIVE - {{ $stats['active_streams'] }}+ streams đang hoạt động</span>
             </div>
             
             <!-- Main Headline -->
@@ -253,13 +253,13 @@
             </div>
             
             <!-- Performance Stats -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-5xl mx-auto animate-fade-in mb-16">
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-6 max-w-6xl mx-auto animate-fade-in mb-16">
                 <div class="glass rounded-2xl p-6 hover-lift">
                     <div class="text-4xl md:text-5xl font-black gradient-text mb-2">99.9%</div>
                     <div class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">UPTIME</div>
                 </div>
                 <div class="glass rounded-2xl p-6 hover-lift">
-                    <div class="text-4xl md:text-5xl font-black gradient-text mb-2">{{ $stats['total_vps'] }}</div>
+                    <div class="text-4xl md:text-5xl font-black gradient-text mb-2">{{ $stats['total_vps'] }}+</div>
                     <div class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">SERVERS</div>
                 </div>
                 <div class="glass rounded-2xl p-6 hover-lift">
@@ -267,8 +267,12 @@
                     <div class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">SUPPORT</div>
                 </div>
                 <div class="glass rounded-2xl p-6 hover-lift">
-                    <div class="text-4xl md:text-5xl font-black gradient-text mb-2">{{ $stats['active_streams'] }}</div>
+                    <div class="text-4xl md:text-5xl font-black gradient-text mb-2">{{ $stats['active_streams'] }}+</div>
                     <div class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">LIVE STREAMS</div>
+                </div>
+                <div class="glass rounded-2xl p-6 hover-lift">
+                    <div class="text-4xl md:text-5xl font-black gradient-text mb-2">{{ $stats['total_users'] }}+</div>
+                    <div class="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">KHÁCH HÀNG</div>
                 </div>
             </div>
             
@@ -709,7 +713,7 @@
             
             <!-- Subtitle -->
             <p class="text-xl md:text-2xl text-white/80 mb-12 max-w-3xl mx-auto leading-relaxed">
-                Tham gia cùng <span class="text-white font-bold">các creator</span> và doanh nghiệp 
+                Tham gia cùng <span class="text-white font-bold">{{ $stats['total_users'] }}+ khách hàng</span> và doanh nghiệp
                 đang sử dụng hệ thống streaming tự động của chúng tôi
             </p>
             

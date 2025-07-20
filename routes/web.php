@@ -37,27 +37,32 @@ use App\Http\Controllers\BlogController;
 
 Route::get('/', function () {
     try {
-        // Lấy dữ liệu thực từ hệ thống
+        // Lấy số liệu thật để tính toán số ảo
+        $realVps = \App\Models\VpsServer::where('status', 'ACTIVE')->count();
+        $realStreams = \App\Models\StreamConfiguration::where('status', 'STREAMING')->count();
+        $realUsers = \App\Models\User::count();
+
+        // Tạo số liệu ảo (thật + số ảo)
         $stats = [
-            'total_vps' => \App\Models\VpsServer::where('status', 'ACTIVE')->count(),
-            'active_streams' => \App\Models\StreamConfiguration::where('status', 'STREAMING')->count(),
-            'total_users' => \App\Models\User::count(),
-            'service_packages' => \App\Models\ServicePackage::orderBy('price')->get(),
-            'uptime_percentage' => 99.9, // Có thể tính từ VPS stats
+            'total_vps' => $realVps + 50,        // +50 servers ảo
+            'active_streams' => $realStreams + 100,  // +100 streams ảo
+            'total_users' => $realUsers + 1000,      // +1000 users ảo
+            'service_packages' => \App\Models\ServicePackage::orderBy('price')->take(6)->get(), // Giới hạn 6 gói
+            'uptime_percentage' => 99.9,
         ];
     } catch (\Exception $e) {
-        // Fallback data nếu database chưa sẵn sàng
+        // Fallback data với số liệu ảo
         $stats = [
-            'total_vps' => 5,
-            'active_streams' => 12,
-            'total_users' => 150,
+            'total_vps' => 55,      // 50+ servers
+            'active_streams' => 120, // 100+ streams
+            'total_users' => 1150,   // 1000+ users
             'service_packages' => collect([
                 (object)[
                     'id' => 1,
                     'name' => 'Basic',
                     'description' => 'Gói cơ bản cho người mới bắt đầu',
                     'price' => 299000,
-                    'features' => json_encode(['1 VPS Server', '24/7 Support', 'Basic Monitoring']),
+                    'features' => json_encode(['2 Streams đồng thời', '720p HD', '5GB Storage', 'Hỗ trợ 24/7']),
                     'is_popular' => false
                 ],
                 (object)[
@@ -65,7 +70,7 @@ Route::get('/', function () {
                     'name' => 'Pro',
                     'description' => 'Gói chuyên nghiệp cho creator',
                     'price' => 599000,
-                    'features' => json_encode(['3 VPS Servers', '24/7 Support', 'Advanced Monitoring', 'Auto Recovery']),
+                    'features' => json_encode(['5 Streams đồng thời', '1080p Full HD', '20GB Storage', 'Auto Recovery', 'Priority Support']),
                     'is_popular' => true
                 ],
                 (object)[
@@ -73,7 +78,7 @@ Route::get('/', function () {
                     'name' => 'Enterprise',
                     'description' => 'Gói doanh nghiệp với tính năng đầy đủ',
                     'price' => 999000,
-                    'features' => json_encode(['10 VPS Servers', 'Priority Support', 'Full Monitoring', 'Custom Setup']),
+                    'features' => json_encode(['20 Streams đồng thời', '4K Ultra HD', '100GB Storage', 'Custom Setup', 'Dedicated Support']),
                     'is_popular' => false
                 ]
             ]),

@@ -1,14 +1,28 @@
 // Global file upload handler - can be called from anywhere
 window.handleFileUpload = null;
 
+// Immediately expose functions (don't wait for DOMContentLoaded)
+function exposeGlobalFunctions() {
+    // Global function for showing detailed error modal
+    window.showDetailedErrorModal = function(errorData) {
+        if (typeof showDetailedError === 'function') {
+            showDetailedError(errorData);
+        } else {
+            console.error('showDetailedError function not found');
+            alert('Error: ' + (errorData.error || 'Unknown error'));
+        }
+    };
+}
+
+// Expose immediately
+exposeGlobalFunctions();
+
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 File upload script loaded');
     initializeFileUpload();
 });
 
 // Also initialize when Livewire navigates (for SPA-like behavior)
 document.addEventListener('livewire:navigated', function() {
-    console.log('🔄 Livewire navigated, reinitializing file upload');
     initializeFileUpload();
 });
 
@@ -19,16 +33,7 @@ function initializeFileUpload() {
     const progressBar = document.getElementById('progress-bar');
     const uploadStatus = document.getElementById('upload-status');
 
-    console.log('Elements found:', {
-        fileInput: !!fileInput,
-        uploadForm: !!uploadForm,
-        uploadProgress: !!uploadProgress,
-        progressBar: !!progressBar,
-        uploadStatus: !!uploadStatus
-    });
-
     if (!fileInput || !uploadForm) {
-        console.warn('⚠️ Upload form elements not found on this page');
         return;
     }
 
@@ -96,7 +101,6 @@ function initializeFileUpload() {
         try {
             // Get video dimensions
             const dimensions = await getVideoDimensions(file);
-            console.log('🖼️ Video dimensions:', dimensions);
 
             updateProgress('📋 Đang tạo URL upload...', 5);
 
@@ -194,7 +198,6 @@ function initializeFileUpload() {
             }, 2000);
 
         } catch (error) {
-            console.error('Upload failed:', error);
             updateProgress('❌ Lỗi: ' + error.message, 0);
             
             // Call custom error handler
@@ -207,6 +210,103 @@ function initializeFileUpload() {
     }
 
     function showDetailedError(errorData) {
+
+        // Create modal overlay
+        const modalOverlay = document.createElement('div');
+        modalOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+        modalOverlay.style.zIndex = '9999';
+
+        // Create modal content
+        const modalContent = document.createElement('div');
+        modalContent.className = 'bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto';
+
+        modalContent.innerHTML = `
+            <div class="p-6">
+                <!-- Header -->
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center">
+                        <div class="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mr-3">
+                            <svg class="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Upload Không Thành Công</h3>
+                    </div>
+                    <button onclick="this.closest('.fixed').remove()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+
+                <!-- Error Message -->
+                <div class="mb-4">
+                    <p class="text-red-600 dark:text-red-400 font-medium mb-2">${errorData.error || 'Có lỗi xảy ra'}</p>
+                    ${errorData.reason ? `<p class="text-gray-600 dark:text-gray-400 text-sm">${errorData.reason}</p>` : ''}
+                </div>
+
+                <!-- Details -->
+                ${errorData.details ? `
+                <div class="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <h4 class="font-medium text-gray-900 dark:text-white mb-2">Chi tiết:</h4>
+                    <div class="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                        ${Object.entries(errorData.details).map(([key, value]) => `
+                            <div><span class="font-medium">${formatDetailKey(key)}:</span> ${value}</div>
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
+
+                <!-- Solutions -->
+                ${errorData.solutions ? `
+                <div class="mb-6">
+                    <h4 class="font-medium text-gray-900 dark:text-white mb-2">💡 Giải pháp:</h4>
+                    <ul class="space-y-2 text-sm text-gray-600 dark:text-gray-400">
+                        ${errorData.solutions.map(solution => `
+                            <li class="flex items-start">
+                                <span class="text-blue-500 mr-2">•</span>
+                                <span>${solution}</span>
+                            </li>
+                        `).join('')}
+                    </ul>
+                </div>
+                ` : ''}
+
+                <!-- Actions -->
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <button onclick="this.closest('.fixed').remove()"
+                            class="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-colors">
+                        Đóng
+                    </button>
+                    ${errorData.details && errorData.details.package_name ? `
+                    <button onclick="window.location.href='/services'"
+                            class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        Nâng Cấp Gói
+                    </button>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+
+        modalOverlay.appendChild(modalContent);
+        document.body.appendChild(modalOverlay);
+
+        // Close on overlay click
+        modalOverlay.addEventListener('click', (e) => {
+            if (e.target === modalOverlay) {
+                modalOverlay.remove();
+            }
+        });
+
+        // Close on Escape key
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                modalOverlay.remove();
+                document.removeEventListener('keydown', handleEscape);
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+
         const progressContainer = document.getElementById('upload-progress');
 
         progressContainer.innerHTML = `
@@ -350,8 +450,28 @@ function initializeFileUpload() {
         });
     }
 
-    // Expose handleFileUpload globally so it can be called from other scripts
-    window.handleFileUpload = handleFileUpload;
+    // Helper function to format detail keys
+    function formatDetailKey(key) {
+        const keyMap = {
+            'video_resolution': 'Độ phân giải video',
+            'package_name': 'Gói hiện tại',
+            'package_limit': 'Giới hạn gói',
+            'supported_orientations': 'Hướng hỗ trợ',
+            'storage_used': 'Dung lượng đã dùng',
+            'file_size': 'Kích thước file',
+            'remaining_space': 'Dung lượng còn lại'
+        };
+        return keyMap[key] || key;
+    }
 
-    console.log('🌍 handleFileUpload exposed globally');
+    // Global function for showing detailed error modal
+    window.showDetailedErrorModal = function(errorData) {
+        showDetailedError(errorData);
+    };
+
+    // Expose functions globally
+    window.handleFileUpload = handleFileUpload;
+    window.formatDetailKey = formatDetailKey;
+
+
 }
