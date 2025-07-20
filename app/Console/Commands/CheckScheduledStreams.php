@@ -28,6 +28,12 @@ class CheckScheduledStreams extends Command
                 ->where('scheduled_at', '<=', $now)
                 ->where('status', 'INACTIVE')
                 ->whereNotNull('scheduled_at')
+                // 🚨 CRITICAL: Additional safety checks
+                ->where(function($query) use ($now) {
+                    // Only start if not recently force stopped by admin
+                    $query->whereNull('error_message')
+                          ->orWhere('error_message', 'not like', '%Force stopped by admin%');
+                })
                 ->get();
         } catch (\Exception $e) {
             $this->warn("enable_schedule column not found: " . $e->getMessage());
@@ -39,14 +45,21 @@ class CheckScheduledStreams extends Command
 
         foreach ($streamsToStart as $stream) {
             try {
-                Log::info("🕐 Starting scheduled stream: {$stream->title}");
-                
+                Log::info("🕐 Starting scheduled stream: {$stream->title}", [
+                    'stream_id' => $stream->id,
+                    'scheduled_at' => $stream->scheduled_at,
+                    'current_status' => $stream->status,
+                    'enable_schedule' => $stream->enable_schedule,
+                    'error_message' => $stream->error_message,
+                    'last_stopped_at' => $stream->last_stopped_at
+                ]);
+
                 // Update status and dispatch job
                 $stream->update(['status' => 'STARTING']);
                 StartMultistreamJob::dispatch($stream);
-                
+
                 $this->info("Started scheduled stream: {$stream->title}");
-                
+
             } catch (\Exception $e) {
                 Log::error("Failed to start scheduled stream {$stream->id}: {$e->getMessage()}");
                 $stream->update(['status' => 'ERROR']);

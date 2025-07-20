@@ -364,6 +364,9 @@ class UserStreamManager extends BaseStreamManager
             'quickPlatform' => 'required|string',
             'quickRtmpUrl' => 'required_if:quickPlatform,custom|nullable|url',
             'quickStreamKey' => 'required|string',
+            // 🚨 CRITICAL: Add schedule validation
+            'quickScheduledAt' => 'required_if:quickEnableSchedule,true|nullable|date|after:now',
+            'quickScheduledEnd' => 'nullable|date|after:quickScheduledAt',
         ]);
 
         $user = Auth::user();
@@ -437,6 +440,36 @@ class UserStreamManager extends BaseStreamManager
         $rtmpUrl = $this->quickPlatform === 'custom' ? $this->quickRtmpUrl : $this->getPlatformUrl($this->quickPlatform);
         $backupRtmpUrl = $this->getPlatformBackupUrl($this->quickPlatform);
 
+        // 🚨 CRITICAL: Properly handle schedule data
+        $scheduledAt = null;
+        $scheduledEnd = null;
+        $enableSchedule = (bool) $this->quickEnableSchedule;
+
+        if ($enableSchedule) {
+            // Validate schedule times are not empty
+            if (empty($this->quickScheduledAt)) {
+                session()->flash('error', 'Vui lòng chọn thời gian bắt đầu khi bật lịch phát.');
+                return;
+            }
+
+            try {
+                $scheduledAt = \Carbon\Carbon::parse($this->quickScheduledAt);
+                if ($this->quickScheduledEnd) {
+                    $scheduledEnd = \Carbon\Carbon::parse($this->quickScheduledEnd);
+                }
+
+                // Additional validation
+                if ($scheduledAt->isPast()) {
+                    session()->flash('error', 'Thời gian bắt đầu phải trong tương lai.');
+                    return;
+                }
+
+            } catch (\Exception $e) {
+                session()->flash('error', 'Định dạng thời gian không hợp lệ.');
+                return;
+            }
+        }
+
         // Create quick stream configuration
         $stream = $userFiles->first()->user->streamConfigurations()->create([
             'title' => $this->quickTitle,
@@ -445,15 +478,15 @@ class UserStreamManager extends BaseStreamManager
             'rtmp_url' => $rtmpUrl,
             'rtmp_backup_url' => $backupRtmpUrl,
             'stream_key' => $this->quickStreamKey,
-            'status' => $this->quickEnableSchedule ? 'INACTIVE' : 'STARTING', // Respect schedule
+            'status' => $enableSchedule ? 'INACTIVE' : 'STARTING', // Respect schedule
             'loop' => $this->quickLoop,
             'playlist_order' => 'sequential',
             'is_quick_stream' => true,
             'user_file_id' => $userFiles->first()->id,
-            'scheduled_at' => $this->quickEnableSchedule ? $this->quickScheduledAt : null,
-            'scheduled_end' => $this->quickEnableSchedule ? $this->quickScheduledEnd : null,
-            'enable_schedule' => $this->quickEnableSchedule,
-            'last_started_at' => $this->quickEnableSchedule ? null : now()
+            'scheduled_at' => $scheduledAt,
+            'scheduled_end' => $scheduledEnd,
+            'enable_schedule' => $enableSchedule,
+            'last_started_at' => $enableSchedule ? null : now()
         ]);
 
         Log::info("🎬 [QuickStream] Stream created successfully", [
@@ -461,16 +494,17 @@ class UserStreamManager extends BaseStreamManager
             'title' => $stream->title,
             'status' => $stream->status,
             'file_count' => count($fileList),
-            'scheduled' => $this->quickEnableSchedule,
-            'scheduled_at' => $this->quickScheduledAt
+            'scheduled' => $enableSchedule,
+            'scheduled_at' => $scheduledAt ? $scheduledAt->toDateTimeString() : null,
+            'scheduled_end' => $scheduledEnd ? $scheduledEnd->toDateTimeString() : null
         ]);
 
         // Only start immediately if not scheduled
-        if (!$this->quickEnableSchedule) {
+        if (!$enableSchedule) {
             StartMultistreamJob::dispatch($stream);
             $message = 'Quick Stream đã được tạo và bắt đầu ngay!';
         } else {
-            $message = 'Quick Stream đã được tạo và sẽ bắt đầu vào ' . \Carbon\Carbon::parse($this->quickScheduledAt)->format('d/m/Y H:i');
+            $message = 'Quick Stream đã được tạo và sẽ bắt đầu vào ' . $scheduledAt->format('d/m/Y H:i');
         }
 
         Log::info("✅ [QuickStream] Stream created", [

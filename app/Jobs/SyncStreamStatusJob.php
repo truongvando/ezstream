@@ -134,7 +134,7 @@ class SyncStreamStatusJob implements ShouldQueue
         // If stream has VPS but VPS is offline, mark as ERROR
         if ($stream->vpsServer && !$this->isVpsOnline($stream->vpsServer)) {
             Log::warning("⚠️ [SyncStreamStatus] Stream #{$stream->id} VPS #{$stream->vps_server_id} is offline");
-            
+
             $stream->update([
                 'status' => 'ERROR',
                 'error_message' => "VPS server is offline",
@@ -142,10 +142,24 @@ class SyncStreamStatusJob implements ShouldQueue
             ]);
 
             StreamProgressService::createStageProgress(
-                $stream->id, 
-                'error', 
+                $stream->id,
+                'error',
                 "VPS server is offline"
             );
+        }
+
+        // 🚨 CRITICAL: Check if stream was force stopped by admin
+        if ($stream->error_message && str_contains($stream->error_message, 'Force stopped by admin')) {
+            Log::info("🚫 [SyncStreamStatus] Stream #{$stream->id} was force stopped by admin, ensuring it stays stopped");
+
+            // Ensure it stays INACTIVE
+            if ($stream->status !== 'INACTIVE') {
+                $stream->update([
+                    'status' => 'INACTIVE',
+                    'vps_server_id' => null,
+                    'last_stopped_at' => now()
+                ]);
+            }
         }
     }
 

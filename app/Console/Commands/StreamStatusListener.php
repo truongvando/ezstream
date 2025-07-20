@@ -310,6 +310,26 @@ class StreamStatusListener extends Command
                         // If VPS reports stream as STREAMING, database MUST be synced regardless of current status
                         if ($heartbeatStatus === 'STREAMING') {
 
+                            // 🚨 CRITICAL: Check if stream was force stopped by admin
+                            if ($stream->error_message && str_contains($stream->error_message, 'Force stopped by admin')) {
+                                $this->warn("🚫 [Heartbeat] Stream #{$streamId} was force stopped by admin, ignoring heartbeat");
+
+                                // Send STOP command to agent to ensure it stops
+                                try {
+                                    $redis = app('redis')->connection();
+                                    $stopCommand = [
+                                        'command' => 'STOP_STREAM',
+                                        'stream_id' => $streamId,
+                                    ];
+                                    $channel = "vps-commands:{$vpsId}";
+                                    $redis->publish($channel, json_encode($stopCommand));
+                                    $this->info("📤 [Heartbeat] Sent STOP command to agent for force-stopped stream #{$streamId}");
+                                } catch (\Exception $e) {
+                                    $this->error("❌ [Heartbeat] Failed to send stop command: {$e->getMessage()}");
+                                }
+                                continue;
+                            }
+
                             if ($oldStatus !== 'STREAMING') {
                                 // Stream is running on VPS but DB shows different status - FORCE SYNC
                                 $this->info("🔥 [Heartbeat] FORCE SYNC NEEDED: Stream #{$streamId} running on VPS but DB shows {$oldStatus} → STREAMING");
@@ -318,7 +338,7 @@ class StreamStatusListener extends Command
                                     'status' => 'STREAMING',
                                     'last_status_update' => now(),
                                     'vps_server_id' => $vpsId,
-                                    'error_message' => null,
+                                    'error_message' => null, // Only clear if not force stopped
                                     'last_started_at' => $stream->last_started_at ?: now()
                                 ];
 

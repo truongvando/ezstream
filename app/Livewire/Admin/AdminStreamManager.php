@@ -66,11 +66,16 @@ class AdminStreamManager extends Component
 
     public function forceStopStream(StreamConfiguration $stream)
     {
+        // ✅ Fix: Set status to INACTIVE instead of STOPPED
+        // Also disable schedule to prevent auto-restart
         $stream->update([
-            'status' => 'STOPPED',
+            'status' => 'INACTIVE',
             'output_log' => ($stream->output_log ?? '') . "\nForce stopped by admin.",
             'last_stopped_at' => now(),
             'ffmpeg_pid' => null,
+            'vps_server_id' => null, // Clear VPS assignment
+            'enable_schedule' => false, // 🚨 CRITICAL: Disable schedule to prevent restart
+            'error_message' => 'Force stopped by admin - schedule disabled',
         ]);
 
         if ($stream->vps_server_id) {
@@ -80,7 +85,7 @@ class AdminStreamManager extends Component
             }
         }
 
-        session()->flash('success', "Stream '{$stream->title}' đã được buộc dừng.");
+        session()->flash('success', "Stream '{$stream->title}' đã được buộc dừng và tắt lịch phát.");
     }
 
     public function render()
