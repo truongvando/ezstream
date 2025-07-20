@@ -153,7 +153,6 @@ HTML;
     </div>
 </div>
 
-@push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener('livewire:load', function () {
@@ -242,4 +241,3 @@ document.addEventListener('livewire:load', function () {
     });
 });
 </script>
-@endpush

@@ -1,3 +1,74 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ===== LIVEWIRE COMPONENTS STYLES ===== */
+
+/* Custom scrollbar styling for file list */
+.max-h-48::-webkit-scrollbar,
+.max-h-64::-webkit-scrollbar {
+    width: 6px;
+}
+
+.max-h-48::-webkit-scrollbar-track,
+.max-h-64::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 3px;
+}
+
+.max-h-48::-webkit-scrollbar-thumb,
+.max-h-64::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 3px;
+}
+
+.max-h-48::-webkit-scrollbar-thumb:hover,
+.max-h-64::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.5);
+}
+
+/* Dark mode scrollbar */
+.dark .max-h-48::-webkit-scrollbar-track,
+.dark .max-h-64::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.dark .max-h-48::-webkit-scrollbar-thumb,
+.dark .max-h-64::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.dark .max-h-48::-webkit-scrollbar-thumb:hover,
+.dark .max-h-64::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+/* Quick Stream Modal Styles */
+.quick-stream-checkbox {
+    position: relative;
+    z-index: 10;
+    pointer-events: auto !important;
+    cursor: pointer !important;
+}
+
+.quick-stream-checkbox:focus {
+    outline: 2px solid #4f46e5;
+    outline-offset: 2px;
+}
+
+.quick-stream-file-label {
+    cursor: pointer !important;
+    user-select: none;
+}
+
+.quick-stream-file-label:hover {
+    background-color: rgba(59, 130, 246, 0.05);
+}
+
+.quick-stream-modal {
+    z-index: 9999 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+}

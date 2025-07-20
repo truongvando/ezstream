@@ -1,4 +1,3 @@
-<!-- Quick Stream Modal - Giao diện 2 cột, Upload Nhanh mặc định -->
 <div x-show="$wire.showQuickStreamModal"
      x-cloak
      x-init="$watch('$wire.showQuickStreamModal', value => {
@@ -195,11 +194,11 @@
                                 <div class="ml-6 space-y-3">
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Thời gian bắt đầu</label>
-                                        <input type="datetime-local" wire:model="quickScheduledAt" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                        <input type="datetime-local" wire:model.defer="quickScheduledAt" wire:ignore.self class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                     </div>
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Thời gian kết thúc</label>
-                                        <input type="datetime-local" wire:model="quickScheduledEnd" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                        <input type="datetime-local" wire:model.defer="quickScheduledEnd" wire:ignore.self class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                     </div>
                                 </div>
                                 @endif
@@ -231,85 +230,6 @@
         </div>
     </div>
 </div>
-
-@push('styles')
-<style>
-/* Ensure checkboxes are clickable and visible */
-.quick-stream-checkbox {
-    position: relative;
-    z-index: 10;
-    pointer-events: auto !important;
-    cursor: pointer !important;
-}
-
-.quick-stream-checkbox:focus {
-    outline: 2px solid #4f46e5;
-    outline-offset: 2px;
-}
-
-/* Ensure labels are clickable */
-.quick-stream-file-label {
-    cursor: pointer !important;
-    user-select: none;
-}
-
-.quick-stream-file-label:hover {
-    background-color: rgba(59, 130, 246, 0.05);
-}
-
-/* Fix any potential z-index issues */
-.quick-stream-modal {
-    z-index: 9999 !important;
-}
-
-/* Custom scrollbar styling for file list */
-.max-h-48::-webkit-scrollbar,
-.max-h-64::-webkit-scrollbar {
-    width: 6px;
-}
-
-.max-h-48::-webkit-scrollbar-track,
-.max-h-64::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.1);
-    border-radius: 3px;
-}
-
-.max-h-48::-webkit-scrollbar-thumb,
-.max-h-64::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 3px;
-}
-
-.max-h-48::-webkit-scrollbar-thumb:hover,
-.max-h-64::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.5);
-}
-
-/* Dark mode scrollbar */
-.dark .max-h-48::-webkit-scrollbar-track,
-.dark .max-h-64::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.dark .max-h-48::-webkit-scrollbar-thumb,
-.dark .max-h-64::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.3);
-}
-
-.dark .max-h-48::-webkit-scrollbar-thumb:hover,
-.dark .max-h-64::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.5);
-}
-
-/* Ensure modal is properly centered and positioned */
-.quick-stream-modal {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-}
-</style>
-@endpush
 
 @push('scripts')
 <script>

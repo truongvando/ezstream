@@ -1,8 +1,7 @@
-<!-- Stream Management Cards -->
 <div class="bg-white dark:bg-gray-800 shadow-sm sm:rounded-lg">
     <div class="p-6 text-gray-900 dark:text-gray-100">
 
-        <!-- Header -->
+        
         <div class="flex justify-between items-center mb-6">
             <div>
                 <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">
@@ -12,9 +11,9 @@
                     Tạo và quản lý các stream video của bạn
                 </p>
             </div>
-            
+
             <div class="flex space-x-3">
-                <!-- Quick Stream Button -->
+                
                 <button wire:click="openQuickStreamModal"
                         class="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors duration-200">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -23,7 +22,7 @@
                     🚀 Quick Stream
                 </button>
 
-                <!-- Regular Stream Button -->
+                
                 <button wire:click="create"
                         class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors duration-200">
                     <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -34,7 +33,7 @@
             </div>
         </div>
 
-        <!-- Filters -->
+        
         <div class="flex flex-wrap gap-4 mb-6">
             <!--[if BLOCK]><![endif]--><?php if(isset($isAdmin) && $isAdmin && isset($users)): ?>
             <div class="flex-1 min-w-48">
@@ -61,13 +60,13 @@
             </div>
         </div>
 
-        <!-- Stream Cards Grid -->
+        
         <!--[if BLOCK]><![endif]--><?php if($streams && $streams->count() > 0): ?>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $streams; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $stream): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
             <div wire:key="stream-card-<?php echo e($stream->id); ?>-<?php echo e($stream->status); ?>-<?php echo e($stream->updated_at); ?>" class="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200">
                 
-                <!-- Card Header -->
+                
                 <div class="p-4 border-b border-gray-200 dark:border-gray-600">
                     <div class="flex items-start justify-between">
                         <div class="flex-1 min-w-0">
@@ -90,7 +89,7 @@
                             <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                         </div>
                         
-                        <!-- Status Badge -->
+                        
                         <div class="ml-3 flex-shrink-0">
                             <!--[if BLOCK]><![endif]--><?php if($stream->status === 'STREAMING'): ?>
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
@@ -136,10 +135,10 @@
                     </div>
                 </div>
 
-                <!-- Card Body -->
+                
                 <div class="p-4 space-y-3">
                     
-                    <!-- Stream Info Grid -->
+                    
                     <div class="grid grid-cols-2 gap-4 text-sm">
                         <div>
                             <span class="text-gray-500 dark:text-gray-400">Người tạo:</span>
@@ -174,118 +173,149 @@
 
                             </p>
                         </div>
+
                     </div>
 
-                    <!-- Progress Bar (show when STARTING or has active progress) -->
-                    <!--[if BLOCK]><![endif]--><?php if($stream->status === 'STARTING' || ($stream->status === 'STREAMING' && isset($stream->progress_data))): ?>
-                    <div class="space-y-2">
-                        <div class="flex justify-between items-center">
-                            <span class="text-sm text-blue-600 dark:text-blue-400">
-                                <?php echo e($stream->progress_data['message'] ?? 'Đang chuẩn bị...'); ?>
+                    
+                    <!--[if BLOCK]><![endif]--><?php if(($stream->enable_schedule ?? false) && $stream->scheduled_at): ?>
+                    <div class="mt-4 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-700">
+                        <div class="flex items-center space-x-2 mb-2">
+                            <svg class="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            <span class="text-sm font-medium text-purple-700 dark:text-purple-300">📅 Lịch phát</span>
+                        </div>
+                        <div class="space-y-1 text-sm">
+                            <div class="flex justify-between">
+                                <span class="text-gray-600 dark:text-gray-400">Bắt đầu:</span>
+                                <span class="font-medium text-purple-600 dark:text-purple-400">
+                                    <?php echo e($stream->scheduled_at->format('d/m/Y H:i')); ?>
 
-                            </span>
-                            <span class="text-sm font-medium text-blue-600 dark:text-blue-400">
-                                <?php echo e(($stream->progress_data['progress_percentage'] ?? 10)); ?>%
-                            </span>
-                        </div>
-                        <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                            <div class="bg-blue-600 h-2 rounded-full transition-all duration-500"
-                                 style="width: <?php echo e(($stream->progress_data['progress_percentage'] ?? 10)); ?>%"></div>
-                        </div>
-                        <!-- Download details (if available) -->
-                        <!--[if BLOCK]><![endif]--><?php if(isset($stream->progress_data['details']) && !empty($stream->progress_data['details'])): ?>
-                        <div class="text-xs text-gray-500 dark:text-gray-400">
-                            <!--[if BLOCK]><![endif]--><?php if(isset($stream->progress_data['details']['file_name'])): ?>
-                                <span>Đang tải <?php echo e($stream->progress_data['details']['file_name']); ?></span>
-                                <!--[if BLOCK]><![endif]--><?php if(isset($stream->progress_data['details']['downloaded_mb']) && isset($stream->progress_data['details']['total_mb'])): ?>
-                                    <span>: <?php echo e($stream->progress_data['details']['downloaded_mb']); ?>MB/<?php echo e($stream->progress_data['details']['total_mb']); ?>MB</span>
-                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                </span>
+                            </div>
+                            <!--[if BLOCK]><![endif]--><?php if(isset($stream->scheduled_end) && $stream->scheduled_end): ?>
+                            <div class="flex justify-between">
+                                <span class="text-gray-600 dark:text-gray-400">Kết thúc:</span>
+                                <span class="font-medium text-purple-600 dark:text-purple-400">
+                                    <?php echo e($stream->scheduled_end->format('d/m/Y H:i')); ?>
+
+                                </span>
+                            </div>
+                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                            <?php
+                                $now = now();
+                                $scheduledAt = $stream->scheduled_at;
+                                $isUpcoming = $scheduledAt->isFuture();
+                                $isPast = $scheduledAt->isPast();
+                                $timeUntil = $isUpcoming ? $scheduledAt->diffForHumans() : null;
+                            ?>
+                            <!--[if BLOCK]><![endif]--><?php if($isUpcoming): ?>
+                            <div class="mt-2 text-center">
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                    ⏳ Sẽ bắt đầu <?php echo e($timeUntil); ?>
+
+                                </span>
+                            </div>
+                            <?php elseif($isPast && $stream->status === 'INACTIVE'): ?>
+                            <div class="mt-2 text-center">
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
+                                    ⚠️ Đã quá giờ phát (<?php echo e($scheduledAt->diffForHumans()); ?>)
+                                </span>
+                            </div>
                             <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                         </div>
-                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                     </div>
                     <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-
-                    <!-- Error Message -->
-                    <!--[if BLOCK]><![endif]--><?php if($stream->error_message): ?>
-                    <div class="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-                        <p class="text-sm text-red-600 dark:text-red-400"><?php echo e($stream->error_message); ?></p>
-                    </div>
-                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-
-                    <!-- Timestamps -->
-                    <div class="text-xs text-gray-500 dark:text-gray-400 space-y-1">
-                        <div>Tạo: <?php echo e($stream->created_at->format('d/m/Y H:i')); ?></div>
-                        <!--[if BLOCK]><![endif]--><?php if($stream->last_started_at): ?>
-                        <div>Khởi động: <?php echo e($stream->last_started_at->format('d/m/Y H:i')); ?></div>
-                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                    </div>
                 </div>
 
-                <!-- Card Footer - Action Buttons -->
-                <div class="px-4 py-3 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-600 rounded-b-lg">
-                    <div class="flex items-center justify-between space-x-3">
+                
+                <!--[if BLOCK]><![endif]--><?php if($stream->status === 'STARTING' || ($stream->status === 'STREAMING' && isset($stream->progress_data))): ?>
+                <div class="px-4 pb-4 space-y-2">
+                    <div class="flex justify-between items-center">
+                        <span class="text-sm text-blue-600 dark:text-blue-400">
+                            <?php echo e($stream->progress_data['message'] ?? 'Đang chuẩn bị...'); ?>
+
+                        </span>
+                        <span class="text-sm font-medium text-blue-600 dark:text-blue-400">
+                            <?php echo e(($stream->progress_data['progress_percentage'] ?? 10)); ?>%
+                        </span>
+                    </div>
+                    <div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                        <div class="bg-blue-600 h-2 rounded-full transition-all duration-500"
+                             style="width: <?php echo e(($stream->progress_data['progress_percentage'] ?? 10)); ?>%"></div>
+                    </div>
+                    
+                    <!--[if BLOCK]><![endif]--><?php if(isset($stream->progress_data['details']) && !empty($stream->progress_data['details'])): ?>
+                    <div class="text-xs text-gray-500 dark:text-gray-400">
+                        <!--[if BLOCK]><![endif]--><?php if(isset($stream->progress_data['details']['file_name'])): ?>
+                            <span>Đang tải <?php echo e($stream->progress_data['details']['file_name']); ?></span>
+                            <!--[if BLOCK]><![endif]--><?php if(isset($stream->progress_data['details']['downloaded_mb']) && isset($stream->progress_data['details']['total_mb'])): ?>
+                                <span>: <?php echo e($stream->progress_data['details']['downloaded_mb']); ?>MB/<?php echo e($stream->progress_data['details']['total_mb']); ?>MB</span>
+                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                    </div>
+                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                </div>
+                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+
+                
+                <div class="p-4 border-t border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 rounded-b-lg">
+                    <div class="flex justify-between items-center">
                         
-                        <!-- Main Action Button -->
-                        <div class="flex-1">
-                            <!--[if BLOCK]><![endif]--><?php if($stream->status === 'STREAMING'): ?>
-                                <button wire:click="stopStream(<?php echo e($stream->id); ?>)"
-                                        wire:loading.attr="disabled"
-                                        onclick="setTimeout(() => { Livewire.dispatch('refreshStreams'); }, 500);"
-                                        class="w-full inline-flex items-center justify-center px-4 py-2 border-2 border-red-600 text-sm font-semibold rounded-lg text-red-600 bg-white hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all duration-200">
-                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10h6v4H9z"></path>
+                        <div class="flex space-x-2">
+                            <!--[if BLOCK]><![endif]--><?php if($stream->status === 'INACTIVE'): ?>
+                                <button wire:click="startStream(<?php echo e($stream->id); ?>)" wire:loading.attr="disabled" wire:target="startStream(<?php echo e($stream->id); ?>)" class="inline-flex items-center px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-medium rounded-md shadow-sm transition-colors duration-200">
+                                    <svg wire:loading.remove wire:target="startStream(<?php echo e($stream->id); ?>)" class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
-                                    Dừng Stream
-                                </button>
-                            <?php elseif($stream->status === 'STARTING'): ?>
-                                <div class="w-full space-y-2">
-                                    <div class="inline-flex items-center justify-center px-4 py-2 border-2 border-blue-600 text-sm font-semibold rounded-lg text-blue-600 bg-blue-50 w-full">
-                                        <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
-                                        <span id="progress-text-<?php echo e($stream->id); ?>">Đang chuẩn bị...</span>
-                                    </div>
-                                    <button wire:click="stopStream(<?php echo e($stream); ?>)"
-                                            wire:loading.attr="disabled"
-                                            class="w-full inline-flex items-center justify-center px-4 py-2 border border-red-300 text-sm font-medium rounded-lg text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200">
-                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                        </svg>
-                                        Hủy
-                                    </button>
-                                </div>
-                            <?php elseif(in_array($stream->status, ['PENDING', 'INACTIVE', 'STOPPED', 'ERROR'])): ?>
-                                <button wire:click="startStream(<?php echo e($stream); ?>)"
-                                        wire:loading.attr="disabled"
-                                        class="w-full inline-flex items-center justify-center px-4 py-2 border-2 border-green-600 text-sm font-semibold rounded-lg text-white bg-green-600 hover:bg-green-700 hover:border-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-all duration-200">
-                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-6 4h8m2-10v18a2 2 0 01-2 2H6a2 2 0 01-2-2V4a2 2 0 012-2h8l4 4z"></path>
+                                    <svg wire:loading wire:target="startStream(<?php echo e($stream->id); ?>)" class="animate-spin w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
                                     Bắt đầu Stream
                                 </button>
-                            <?php elseif($stream->status === 'STOPPING'): ?>
-                                <div class="w-full inline-flex items-center justify-center px-4 py-2 border-2 border-orange-600 text-sm font-semibold rounded-lg text-orange-600 bg-orange-50 cursor-not-allowed">
-                                    <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600 mr-2"></div>
-                                    Đang dừng...
-                                </div>
+                            <?php elseif($stream->status === 'STREAMING'): ?>
+                                <button wire:click="stopStream(<?php echo e($stream->id); ?>)" wire:loading.attr="disabled" wire:target="stopStream(<?php echo e($stream->id); ?>)" class="inline-flex items-center px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded-md shadow-sm transition-colors duration-200">
+                                    <svg wire:loading.remove wire:target="stopStream(<?php echo e($stream->id); ?>)" class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                                    </svg>
+                                    <svg wire:loading wire:target="stopStream(<?php echo e($stream->id); ?>)" class="animate-spin w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    Dừng Stream
+                                </button>
+                            <?php elseif($stream->status === 'STARTING' || $stream->status === 'STOPPING'): ?>
+                                <button disabled class="inline-flex items-center px-3 py-1.5 bg-gray-400 text-white text-xs font-medium rounded-md shadow-sm cursor-not-allowed">
+                                    <svg class="animate-spin w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <?php echo e($stream->status === 'STARTING' ? 'Đang khởi động...' : 'Đang dừng...'); ?>
+
+                                </button>
+                            <?php elseif($stream->status === 'ERROR'): ?>
+                                <button wire:click="startStream(<?php echo e($stream->id); ?>)" wire:loading.attr="disabled" wire:target="startStream(<?php echo e($stream->id); ?>)" class="inline-flex items-center px-3 py-1.5 bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-medium rounded-md shadow-sm transition-colors duration-200">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    Thử lại
+                                </button>
                             <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                         </div>
 
-                        <!-- Secondary Actions -->
-                        <div class="flex items-center space-x-2">
-                            <!-- Edit Button -->
-                            <button wire:click="edit(<?php echo e($stream->id); ?>)"
-                                    class="inline-flex items-center p-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors duration-200">
+                        
+                        <div class="flex space-x-2">
+                            <button wire:click="edit(<?php echo e($stream->id); ?>)" class="inline-flex items-center px-2 py-1 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors duration-200">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                                 </svg>
                             </button>
-
-                            <!-- Delete Button -->
-                            <button wire:click="confirmDelete(<?php echo e($stream); ?>)"
-                                    class="inline-flex items-center p-2 border border-gray-300 dark:border-gray-600 rounded-lg text-red-500 hover:text-red-700 hover:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors duration-200">
+                            <button wire:click="confirmDelete(<?php echo e($stream->id); ?>)" class="inline-flex items-center px-2 py-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors duration-200">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
                                 </svg>
                             </button>
                         </div>
@@ -294,38 +324,33 @@
             </div>
             <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
         </div>
+        <?php else: ?>
+        <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-8 text-center">
+            <div class="mx-auto w-16 h-16 bg-gray-100 dark:bg-gray-600 rounded-full flex items-center justify-center mb-4">
+                <svg class="w-8 h-8 text-gray-400 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                </svg>
+            </div>
+            <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">Chưa có Stream nào</h3>
+            <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">Bắt đầu bằng cách tạo stream mới hoặc sử dụng Quick Stream.</p>
+            <div class="mt-6">
+                <button wire:click="create" class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors duration-200">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                    </svg>
+                    Tạo Stream Đầu Tiên
+                </button>
+            </div>
+        </div>
+        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 
-        <!-- Pagination -->
+        
         <!--[if BLOCK]><![endif]--><?php if($streams && $streams->hasPages()): ?>
         <div class="mt-6">
             <?php echo e($streams->links()); ?>
 
         </div>
         <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-
-        <?php else: ?>
-        <!-- Empty State -->
-        <div class="text-center py-12">
-            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-            </svg>
-            <h3 class="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">Chưa có stream nào</h3>
-            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Bắt đầu bằng cách tạo stream đầu tiên của bạn.</p>
-            <!--[if BLOCK]><![endif]--><?php if(!isset($isAdmin) || $isAdmin !== true): ?>
-            <div class="mt-6">
-                <button wire:click="create" 
-                        class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                    <svg class="-ml-1 mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                    </svg>
-                    Tạo Stream Mới
-                </button>
-            </div>
-            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-        </div>
-        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
     </div>
 </div>
-
-<!-- Progress now handled by Livewire polling (wire:poll.2s) -->
 <?php /**PATH D:\laragon\www\ezstream\resources\views/livewire/shared/stream-cards.blade.php ENDPATH**/ ?>

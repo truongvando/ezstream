@@ -17,13 +17,25 @@ class CheckScheduledStreams extends Command
     public function handle()
     {
         $now = Carbon::now();
-        
-        // Check streams to start
-        $streamsToStart = StreamConfiguration::where('enable_schedule', true)
-            ->where('scheduled_at', '<=', $now)
-            ->where('status', 'INACTIVE')
-            ->whereNotNull('scheduled_at')
-            ->get();
+
+        // Debug: Log current time and search criteria
+        $this->info("🕐 Checking scheduled streams at: {$now->format('Y-m-d H:i:s')}");
+
+        // Check streams to start (with safe column check)
+        $streamsToStart = collect();
+        try {
+            $streamsToStart = StreamConfiguration::where('enable_schedule', true)
+                ->where('scheduled_at', '<=', $now)
+                ->where('status', 'INACTIVE')
+                ->whereNotNull('scheduled_at')
+                ->get();
+        } catch (\Exception $e) {
+            $this->warn("enable_schedule column not found: " . $e->getMessage());
+            $this->warn("Please run: ALTER TABLE stream_configurations ADD COLUMN enable_schedule BOOLEAN DEFAULT FALSE AFTER loop;");
+            return 1;
+        }
+
+        $this->info("Found {$streamsToStart->count()} streams to start");
 
         foreach ($streamsToStart as $stream) {
             try {
@@ -41,12 +53,19 @@ class CheckScheduledStreams extends Command
             }
         }
 
-        // Check streams to stop
-        $streamsToStop = StreamConfiguration::where('enable_schedule', true)
-            ->where('scheduled_end', '<=', $now)
-            ->whereIn('status', ['STREAMING', 'STARTING'])
-            ->whereNotNull('scheduled_end')
-            ->get();
+        // Check streams to stop (only if scheduled_end column exists)
+        $streamsToStop = collect();
+        try {
+            $streamsToStop = StreamConfiguration::where('enable_schedule', true)
+                ->where('scheduled_end', '<=', $now)
+                ->whereIn('status', ['STREAMING', 'STARTING'])
+                ->whereNotNull('scheduled_end')
+                ->get();
+        } catch (\Exception $e) {
+            $this->warn("scheduled_end column not found, skipping stop checks: " . $e->getMessage());
+        }
+
+        $this->info("Found {$streamsToStop->count()} streams to stop");
 
         foreach ($streamsToStop as $stream) {
             try {

@@ -1,7 +1,3 @@
-<!--
-    File này được tái cấu trúc hoàn toàn để sử dụng duy nhất Alpine.js quản lý trạng thái,
-    giải quyết triệt để xung đột với Livewire và thống nhất logic cho cả User và Admin.
--->
 <div 
     x-data="quickUploader()"
     x-init="

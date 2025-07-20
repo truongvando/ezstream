@@ -146,7 +146,7 @@ class UserStreamManager extends BaseStreamManager
         $this->keep_files_on_agent = $stream->keep_files_on_agent ?? false;
 
         // Load schedule settings
-        $this->enable_schedule = !empty($stream->scheduled_at);
+        $this->enable_schedule = $stream->enable_schedule ?? false;
         $this->scheduled_at = $stream->scheduled_at ? $stream->scheduled_at->format('Y-m-d\TH:i') : null;
         $this->scheduled_end = $stream->scheduled_end ? $stream->scheduled_end->format('Y-m-d\TH:i') : null;
 
@@ -195,6 +195,7 @@ class UserStreamManager extends BaseStreamManager
             'rtmp_backup_url' => $backupRtmpUrl, // Auto-generated backup
             'stream_key' => $this->stream_key,
             'loop' => $this->loop,
+            'enable_schedule' => $this->enable_schedule,
             'scheduled_at' => $this->enable_schedule ? $this->scheduled_at : null,
             'scheduled_end' => $this->enable_schedule ? $this->scheduled_end : null,
             'playlist_order' => $this->playlist_order,

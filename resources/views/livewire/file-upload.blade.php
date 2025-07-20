@@ -219,7 +219,6 @@
     </div>
 </div>
 
-@push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const fileInput = document.getElementById('file-input');
@@ -436,4 +435,3 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 </script>
-@endpush

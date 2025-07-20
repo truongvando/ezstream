@@ -1,5 +1,5 @@
-<!-- Unified Stream Form Modal - Clean Layout -->
 @if($showCreateModal || $showEditModal)
+{{-- Unified Stream Form Modal - Clean Layout --}}
 <x-modal-v2 wire:model.live="{{ $showEditModal ? 'showEditModal' : 'showCreateModal' }}" max-width="3xl">
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-h-[85vh] flex flex-col transition-all-smooth">
         <!-- Modal Header -->
@@ -189,20 +189,19 @@
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <x-input-label value="Thời gian bắt đầu" class="text-sm font-medium" />
-                                        <input type="datetime-local" wire:model.defer="scheduled_at"
+                                        <input type="datetime-local" wire:model.defer="scheduled_at" wire:ignore.self
                                                class="mt-2 block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 focus:border-purple-500 dark:focus:border-purple-400 focus:ring-purple-500 dark:focus:ring-purple-400 rounded-lg shadow-sm">
                                         @error('scheduled_at') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                                     </div>
                                     <div>
                                         <x-input-label value="Thời gian kết thúc (tùy chọn)" class="text-sm font-medium" />
-                                        <input type="datetime-local" wire:model.defer="scheduled_end"
+                                        <input type="datetime-local" wire:model.defer="scheduled_end" wire:ignore.self
                                                class="mt-2 block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 focus:border-purple-500 dark:focus:border-purple-400 focus:ring-purple-500 dark:focus:ring-purple-400 rounded-lg shadow-sm">
                                         @error('scheduled_end') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                                     </div>
                                 </div>
                             </div>
                             @endif
-                        </div>
                         </div>
                     </div>
                 </div>
@@ -221,44 +220,4 @@
     </div>
 </x-modal-v2>
 @endif
-
-@push('styles')
-<style>
-/* Custom scrollbar styling for file list */
-.max-h-48::-webkit-scrollbar {
-    width: 6px;
-}
-
-.max-h-48::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.1);
-    border-radius: 3px;
-}
-
-.max-h-48::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 3px;
-}
-
-.max-h-48::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.5);
-}
-
-/* Dark mode scrollbar */
-.dark .max-h-48::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.dark .max-h-48::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.3);
-}
-
-.dark .max-h-48::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.5);
-}
-</style>
-@endpush
-
-
-
-
 

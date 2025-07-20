@@ -1,5 +1,5 @@
-<!-- Unified Stream Form Modal - Clean Layout -->
 <!--[if BLOCK]><![endif]--><?php if($showCreateModal || $showEditModal): ?>
+
 <?php if (isset($component)) { $__componentOriginal8825625a130ec5602a26c85b5a1506a9 = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal8825625a130ec5602a26c85b5a1506a9 = $attributes; } ?>
 <?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.modal-v2','data' => ['wire:model.live' => ''.e($showEditModal ? 'showEditModal' : 'showCreateModal').'','maxWidth' => '3xl']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
@@ -421,7 +421,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
 <?php $component = $__componentOriginale3da9d84bb64e4bc2eeebaafabfb2581; ?>
 <?php unset($__componentOriginale3da9d84bb64e4bc2eeebaafabfb2581); ?>
 <?php endif; ?>
-                                        <input type="datetime-local" wire:model.defer="scheduled_at"
+                                        <input type="datetime-local" wire:model.defer="scheduled_at" wire:ignore.self
                                                class="mt-2 block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 focus:border-purple-500 dark:focus:border-purple-400 focus:ring-purple-500 dark:focus:ring-purple-400 rounded-lg shadow-sm">
                                         <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['scheduled_at'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
@@ -453,7 +453,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
 <?php $component = $__componentOriginale3da9d84bb64e4bc2eeebaafabfb2581; ?>
 <?php unset($__componentOriginale3da9d84bb64e4bc2eeebaafabfb2581); ?>
 <?php endif; ?>
-                                        <input type="datetime-local" wire:model.defer="scheduled_end"
+                                        <input type="datetime-local" wire:model.defer="scheduled_end" wire:ignore.self
                                                class="mt-2 block w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 focus:border-purple-500 dark:focus:border-purple-400 focus:ring-purple-500 dark:focus:ring-purple-400 rounded-lg shadow-sm">
                                         <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['scheduled_end'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
@@ -467,7 +467,6 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                                 </div>
                             </div>
                             <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-                        </div>
                         </div>
                     </div>
                 </div>
@@ -532,45 +531,5 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
 <?php unset($__componentOriginal8825625a130ec5602a26c85b5a1506a9); ?>
 <?php endif; ?>
 <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
-
-<?php $__env->startPush('styles'); ?>
-<style>
-/* Custom scrollbar styling for file list */
-.max-h-48::-webkit-scrollbar {
-    width: 6px;
-}
-
-.max-h-48::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.1);
-    border-radius: 3px;
-}
-
-.max-h-48::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.3);
-    border-radius: 3px;
-}
-
-.max-h-48::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.5);
-}
-
-/* Dark mode scrollbar */
-.dark .max-h-48::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.dark .max-h-48::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.3);
-}
-
-.dark .max-h-48::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.5);
-}
-</style>
-<?php $__env->stopPush(); ?>
-
-
-
-
 
 <?php /**PATH D:\laragon\www\ezstream\resources\views/livewire/shared/stream-form-modal.blade.php ENDPATH**/ ?>
