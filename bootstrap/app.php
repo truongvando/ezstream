@@ -59,6 +59,11 @@ return Application::configure(basePath: dirname(__DIR__))
                  ->withoutOverlapping();
 
         $schedule->command('vps:update-capacity')->everyFiveMinutes();
+
+        // 🛑 Stop streams of expired users
+        $schedule->command('streams:stop-expired-users')
+                 ->hourly()
+                 ->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->use([

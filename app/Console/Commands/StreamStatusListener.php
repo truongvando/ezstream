@@ -441,7 +441,10 @@ class StreamStatusListener extends Command
         foreach ($missingStreamIds as $streamId) {
             $stream = $dbStreamsOnThisVps->where('id', $streamId)->first();
             if ($stream) {
-                $timeSinceUpdate = $stream->last_status_update ? now()->diffInMinutes($stream->last_status_update) : 999;
+                // For new streams, use created_at instead of 999
+                $timeSinceUpdate = $stream->last_status_update ?
+                    now()->diffInMinutes($stream->last_status_update) :
+                    now()->diffInMinutes($stream->created_at);
                 $timeSinceStart = $stream->last_started_at ? now()->diffInMinutes($stream->last_started_at) : 999;
 
                 $this->warn("🔍 [Heartbeat] Stream #{$streamId} analysis:");
