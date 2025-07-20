@@ -129,7 +129,6 @@
     </div>
 
     @push('scripts')
-    <script src="{{ asset('js/file-upload.js') }}"></script>
     <script>
     document.addEventListener('DOMContentLoaded', function() {
         const fileInput = document.getElementById('file-input');
@@ -142,240 +141,46 @@
             return;
         }
 
-        // Click to select file
-        uploadForm.addEventListener('click', () => fileInput.click());
-
-        // File input change handler
-        fileInput.addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (file) {
-                handleFileUpload(file);
-            }
-        });
-
-        // Drag and drop handlers
-        uploadForm.addEventListener('dragover', function(e) {
-            e.preventDefault();
-            uploadForm.classList.add('border-blue-400', 'bg-blue-50');
-        });
-
-        uploadForm.addEventListener('dragleave', function(e) {
-            e.preventDefault();
-            uploadForm.classList.remove('border-blue-400', 'bg-blue-50');
-        });
-
-        uploadForm.addEventListener('drop', function(e) {
-            e.preventDefault();
-            uploadForm.classList.remove('border-blue-400', 'bg-blue-50');
-
-            const file = e.dataTransfer.files[0];
-            if (file) {
-                fileInput.files = e.dataTransfer.files;
-                handleFileUpload(file);
-            }
-        });
-
-        async function handleFileUpload(file) {
-            // Validate file type - Only MP4
-            if (file.type !== 'video/mp4') {
-                alert('Chỉ hỗ trợ file MP4. Vui lòng chuyển đổi video sang định dạng MP4 trước khi upload.');
-                resetForm();
-                return;
-            }
-
-            // Validate file size based on user role
-            const maxSize = {{ $maxFileSize }};
-            const maxSizeGB = {{ number_format($maxFileSize / 1024 / 1024 / 1024, 0) }};
-            if (file.size > maxSize) {
-                alert(`File quá lớn. Tối đa ${maxSizeGB}GB.`);
-                resetForm();
-                return;
-            }
-
-            try {
-                // Show progress
-                showProgress();
-                updateProgress('📋 Đang phân tích video...', 5);
-
-                // Get video dimensions
-                const videoDimensions = await getVideoDimensions(file);
-                if (!videoDimensions || !videoDimensions.width || !videoDimensions.height) {
-                    throw new Error('Không thể đọc thông tin video. Vui lòng kiểm tra file có hợp lệ không.');
-                }
-
-                updateProgress('📋 Đang tạo URL upload...', 10);
-
-                // Step 1: Generate upload URL
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-                const uploadUrlResponse = await fetch('/api/generate-upload-url', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken
-                    },
-                    credentials: 'include',
-                    body: JSON.stringify({
-                        filename: file.name,
-                        size: file.size,
-                        content_type: file.type,
-                        width: videoDimensions.width,
-                        height: videoDimensions.height
-                    })
-                });
-
-                if (!uploadUrlResponse.ok) {
-                    const errorData = await uploadUrlResponse.json().catch(() => ({ error: 'Lỗi không xác định' }));
-
-                    // Show detailed error modal if available
-                    if (errorData.reason && errorData.details && errorData.solutions && window.showDetailedErrorModal) {
-                        window.showDetailedErrorModal(errorData);
-                        resetForm();
-                        return;
-                    }
-
-                    throw new Error(errorData.error || errorData.message || `HTTP ${uploadUrlResponse.status}: ${uploadUrlResponse.statusText}`);
-                }
-
-                const uploadUrlData = await uploadUrlResponse.json();
-
-                if (uploadUrlData.status !== 'success') {
-                    throw new Error(uploadUrlData.message || 'Failed to generate upload URL');
-                }
-
-                // Step 2: Upload to Server
-                updateProgress('📤 Đang upload lên server...', 15);
-                await uploadToBunny(file, uploadUrlData);
-
-                // Step 3: Confirm upload
-                updateProgress('✅ Đang xác nhận...', 95);
-                const confirmResponse = await fetch('/api/confirm-upload', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json',
-                        'X-CSRF-TOKEN': csrfToken
-                    },
-                    credentials: 'include',
-                    body: JSON.stringify({
-                        upload_token: uploadUrlData.upload_token,
-                        size: file.size,
-                        content_type: file.type
-                    })
-                });
-
-                if (!confirmResponse.ok) {
-                    const errorText = await confirmResponse.text();
-                    throw new Error(`Confirm upload failed: ${confirmResponse.status} - ${errorText}`);
-                }
-
-                const confirmData = await confirmResponse.json();
-
-                if (confirmData.status !== 'success') {
-                    throw new Error(confirmData.message || 'Upload confirmation failed');
-                }
-
-                // Success!
-                updateProgress('🎉 Upload hoàn tất!', 100);
-                
-                setTimeout(() => {
-                    resetForm();
-                    location.reload(); // Refresh page to show new file
-                }, 2000);
-
-            } catch (error) {
-                updateProgress('❌ Lỗi: ' + error.message, 0);
-                setTimeout(resetForm, 3000);
-            }
+        // Click to select file (only if not already handled by file-upload.js)
+        if (!uploadForm.hasAttribute('data-click-initialized')) {
+            uploadForm.addEventListener('click', () => fileInput.click());
+            uploadForm.setAttribute('data-click-initialized', 'true');
         }
 
-        async function uploadToBunny(file, uploadData) {
-            return new Promise((resolve, reject) => {
-                const xhr = new XMLHttpRequest();
+        // File input change handler is now handled by file-upload.js globally
+        // Remove duplicate handler to prevent double uploads
 
-                xhr.upload.addEventListener('progress', function(e) {
-                    if (e.lengthComputable) {
-                        const percent = Math.round((e.loaded / e.total) * 75) + 15;
-                        updateProgress(`📤 Uploading... ${formatFileSize(e.loaded)}/${formatFileSize(e.total)}`, percent);
-                    }
-                });
-
-                xhr.addEventListener('load', function() {
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                        resolve();
-                    } else {
-                        reject(new Error(`Bunny upload failed: ${xhr.status}`));
-                    }
-                });
-
-                xhr.addEventListener('error', function() {
-                    reject(new Error('Network error during upload'));
-                });
-
-                xhr.open('PUT', uploadData.upload_url);
-                xhr.setRequestHeader('AccessKey', uploadData.access_key);
-                xhr.setRequestHeader('Content-Type', file.type);
-                xhr.send(file);
+        // Drag and drop handlers (only if not already handled)
+        if (!uploadForm.hasAttribute('data-drag-initialized')) {
+            uploadForm.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                uploadForm.classList.add('border-blue-400', 'bg-blue-50');
             });
-        }
 
-        function showProgress() {
-            uploadProgress.classList.remove('hidden');
-            fileInput.disabled = true;
-        }
-
-        function updateProgress(message, percent) {
-            uploadStatus.textContent = message;
-            progressBar.style.width = percent + '%';
-
-            if (percent === 100) {
-                progressBar.className = 'bg-green-600 h-2 rounded-full transition-all duration-300';
-            } else if (percent === 0) {
-                progressBar.className = 'bg-red-600 h-2 rounded-full transition-all duration-300';
-            } else {
-                progressBar.className = 'bg-blue-600 h-2 rounded-full transition-all duration-300';
-            }
-        }
-
-        function resetForm() {
-            uploadProgress.classList.add('hidden');
-            fileInput.disabled = false;
-            fileInput.value = '';
-            progressBar.style.width = '0%';
-            progressBar.className = 'bg-blue-600 h-2 rounded-full transition-all duration-300';
-        }
-
-        function formatFileSize(bytes) {
-            if (bytes === 0) return '0 Bytes';
-            const k = 1024;
-            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-        }
-
-        // Get video dimensions from file
-        function getVideoDimensions(file) {
-            return new Promise((resolve) => {
-                const video = document.createElement('video');
-                video.preload = 'metadata';
-
-                video.onloadedmetadata = function() {
-                    window.URL.revokeObjectURL(video.src);
-                    resolve({
-                        width: video.videoWidth,
-                        height: video.videoHeight,
-                        duration: video.duration
-                    });
-                };
-
-                video.onerror = function() {
-                    resolve(null);
-                };
-
-                video.src = URL.createObjectURL(file);
+            uploadForm.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                uploadForm.classList.remove('border-blue-400', 'bg-blue-50');
             });
+
+            uploadForm.addEventListener('drop', function(e) {
+                e.preventDefault();
+                uploadForm.classList.remove('border-blue-400', 'bg-blue-50');
+
+                const file = e.dataTransfer.files[0];
+                if (file && window.handleFileUpload) {
+                    fileInput.files = e.dataTransfer.files;
+                    window.handleFileUpload(file); // Use global function
+                }
+            });
+
+            uploadForm.setAttribute('data-drag-initialized', 'true');
         }
+
+        // All upload functionality is now handled by file-upload.js globally
+        // No need for duplicate functions here
     });
+
+
 
     function deleteFile(fileId, fileName) {
         if (!confirm(`Bạn có chắc muốn xóa file "${fileName}"?`)) {

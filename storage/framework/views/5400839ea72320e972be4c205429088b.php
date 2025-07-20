@@ -134,7 +134,18 @@
                         headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '<?php echo e(csrf_token()); ?>', 'Accept': 'application/json'},
                         body: JSON.stringify({filename: file.name, size: file.size, content_type: file.type, width: dimensions.width, height: dimensions.height})
                     });
-                    if (!uploadUrlResponse.ok) throw new Error((await uploadUrlResponse.json()).message || 'Không thể tạo URL upload.');
+                    if (!uploadUrlResponse.ok) {
+                        const errorData = await uploadUrlResponse.json().catch(() => ({ error: 'Lỗi không xác định' }));
+
+                        // Show detailed error modal if available
+                        if (errorData.reason && errorData.details && errorData.solutions && window.showDetailedErrorModal) {
+                            window.showDetailedErrorModal(errorData);
+                            this.reset();
+                            return;
+                        }
+
+                        throw new Error(errorData.error || errorData.message || 'Không thể tạo URL upload.');
+                    }
                     const uploadUrlData = await uploadUrlResponse.json();
 
                     this.updateStatus('📤 Đang upload...', 10);

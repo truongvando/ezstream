@@ -410,6 +410,38 @@ abstract class BaseStreamManager extends Component
     }
 
     /**
+     * Update a live stream (force refresh playlist)
+     */
+    public function updateLiveStream($streamId)
+    {
+        $stream = StreamConfiguration::find($streamId);
+
+        if (!$stream) {
+            session()->flash('error', 'Stream không tồn tại.');
+            return;
+        }
+
+        // Check permissions
+        if (!$this->canManageAllStreams() && $stream->user_id !== Auth::id()) {
+            abort(403);
+        }
+
+        // Only allow update for running streams
+        if (!in_array($stream->status, ['STREAMING', 'STARTING'])) {
+            session()->flash('error', 'Chỉ có thể cập nhật stream đang chạy.');
+            return;
+        }
+
+        // Dispatch update job
+        \App\Jobs\UpdateMultistreamJob::dispatch($stream);
+
+        session()->flash('success', 'Đã gửi lệnh cập nhật stream! Playlist sẽ được làm mới trong vài giây.');
+
+        // Force refresh UI
+        $this->dispatch('refreshStreams');
+    }
+
+    /**
      * Confirm delete stream
      */
     public function confirmDelete(StreamConfiguration $stream)

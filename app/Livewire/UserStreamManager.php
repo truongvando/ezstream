@@ -91,7 +91,9 @@ class UserStreamManager extends BaseStreamManager
             'stream_key' => $this->stream_key,
             'status' => 'INACTIVE',
             'loop' => $this->loop,
-            'scheduled_at' => $this->scheduled_at,
+            'scheduled_at' => $this->enable_schedule ? $this->scheduled_at : null,
+            'scheduled_end' => $this->enable_schedule ? $this->scheduled_end : null,
+            'enable_schedule' => $this->enable_schedule,
             'playlist_order' => $this->playlist_order,
             'keep_files_on_agent' => $this->keep_files_on_agent,
             'user_file_id' => $selectedFiles->first()->id, // Primary file for backward compatibility
@@ -442,35 +444,46 @@ class UserStreamManager extends BaseStreamManager
             'rtmp_url' => $rtmpUrl,
             'rtmp_backup_url' => $backupRtmpUrl,
             'stream_key' => $this->quickStreamKey,
-            'status' => 'STARTING', // Set to STARTING immediately for Quick Stream
+            'status' => $this->quickEnableSchedule ? 'INACTIVE' : 'STARTING', // Respect schedule
             'loop' => $this->quickLoop,
             'playlist_order' => 'sequential',
             'is_quick_stream' => true,
             'user_file_id' => $userFiles->first()->id,
-            'last_started_at' => now()
+            'scheduled_at' => $this->quickEnableSchedule ? $this->quickScheduledAt : null,
+            'scheduled_end' => $this->quickEnableSchedule ? $this->quickScheduledEnd : null,
+            'enable_schedule' => $this->quickEnableSchedule,
+            'last_started_at' => $this->quickEnableSchedule ? null : now()
         ]);
 
         Log::info("🎬 [QuickStream] Stream created successfully", [
             'stream_id' => $stream->id,
             'title' => $stream->title,
             'status' => $stream->status,
-            'file_count' => count($fileList)
+            'file_count' => count($fileList),
+            'scheduled' => $this->quickEnableSchedule,
+            'scheduled_at' => $this->quickScheduledAt
         ]);
 
-        // Immediately dispatch the job to start the stream
-        StartMultistreamJob::dispatch($stream);
+        // Only start immediately if not scheduled
+        if (!$this->quickEnableSchedule) {
+            StartMultistreamJob::dispatch($stream);
+            $message = 'Quick Stream đã được tạo và bắt đầu ngay!';
+        } else {
+            $message = 'Quick Stream đã được tạo và sẽ bắt đầu vào ' . \Carbon\Carbon::parse($this->quickScheduledAt)->format('d/m/Y H:i');
+        }
 
-        Log::info("✅ [QuickStream] Stream created and start job dispatched", [
+        Log::info("✅ [QuickStream] Stream created", [
             'stream_id' => $stream->id,
             'user_id' => $userFiles->first()->user_id,
             'title' => $stream->title,
-            'platform' => $this->quickPlatform
+            'platform' => $this->quickPlatform,
+            'immediate_start' => !$this->quickEnableSchedule
         ]);
 
         $this->showQuickStreamModal = false;
         $this->resetQuickStreamForm();
 
-        session()->flash('message', '🚀 Quick Stream "' . $stream->title . '" đã được tạo và đang bắt đầu stream! Vui lòng kiểm tra trạng thái trong danh sách streams.');
+        session()->flash('success', $message);
 
         // Refresh the streams list to show the new stream
         $this->dispatch('refreshStreams');

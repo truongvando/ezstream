@@ -1,6 +1,9 @@
 // Global file upload handler - can be called from anywhere
 window.handleFileUpload = null;
 
+// Global flag to prevent multiple initializations
+window.fileUploadInitialized = window.fileUploadInitialized || false;
+
 // Immediately expose functions (don't wait for DOMContentLoaded)
 function exposeGlobalFunctions() {
     // Global function for showing detailed error modal
@@ -17,14 +20,21 @@ function exposeGlobalFunctions() {
 // Expose immediately
 exposeGlobalFunctions();
 
-document.addEventListener('DOMContentLoaded', function() {
-    initializeFileUpload();
-});
+// Only initialize once
+if (!window.fileUploadInitialized) {
+    document.addEventListener('DOMContentLoaded', function() {
+        initializeFileUpload();
+        window.fileUploadInitialized = true;
+    });
 
-// Also initialize when Livewire navigates (for SPA-like behavior)
-document.addEventListener('livewire:navigated', function() {
-    initializeFileUpload();
-});
+    // Also initialize when Livewire navigates (for SPA-like behavior)
+    document.addEventListener('livewire:navigated', function() {
+        if (!window.fileUploadInitialized) {
+            initializeFileUpload();
+            window.fileUploadInitialized = true;
+        }
+    });
+}
 
 function initializeFileUpload() {
     const fileInput = document.getElementById('file-input');
@@ -37,7 +47,15 @@ function initializeFileUpload() {
         return;
     }
 
+    // Check if already initialized to prevent duplicate listeners
+    if (fileInput.hasAttribute('data-initialized')) {
+        return;
+    }
+
     console.log('✅ Upload form initialized successfully');
+
+    // Mark as initialized
+    fileInput.setAttribute('data-initialized', 'true');
 
     // File input change handler
     fileInput.addEventListener('change', function(e) {
@@ -177,19 +195,33 @@ function initializeFileUpload() {
             // Success!
             updateProgress('🎉 Upload hoàn tất!', 100);
             
-            // Notify Livewire component or call custom success handler
-            if (typeof window.uploadSuccessHandler === 'function') {
-                window.uploadSuccessHandler({
-                    file_name: file.name,
-                    file_id: confirmData.file.id,
-                    file_size: file.size
-                });
-            } else if (window.Livewire) {
-                window.Livewire.dispatch('fileUploaded', {
-                    file_name: file.name,
-                    file_id: confirmData.file.id, // Sửa lại đường dẫn
-                    file_size: file.size
-                });
+            // Notify Livewire component or call custom success handler (only once)
+            if (!window.uploadNotificationSent) {
+                window.uploadNotificationSent = true;
+
+                if (typeof window.uploadSuccessHandler === 'function') {
+                    window.uploadSuccessHandler({
+                        file_name: file.name,
+                        file_id: confirmData.file.id,
+                        file_size: file.size
+                    });
+                } else if (window.Livewire) {
+                    window.Livewire.dispatch('fileUploaded', {
+                        file_name: file.name,
+                        file_id: confirmData.file.id,
+                        file_size: file.size
+                    });
+                } else {
+                    // For non-Livewire pages (like files/index), reload page
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1500);
+                }
+
+                // Reset flag after delay
+                setTimeout(() => {
+                    window.uploadNotificationSent = false;
+                }, 1000);
             }
 
             // Reset form after delay
@@ -210,10 +242,15 @@ function initializeFileUpload() {
     }
 
     function showDetailedError(errorData) {
+        // Check if modal already exists and remove it
+        const existingModal = document.querySelector('.error-modal-overlay');
+        if (existingModal) {
+            existingModal.remove();
+        }
 
         // Create modal overlay
         const modalOverlay = document.createElement('div');
-        modalOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+        modalOverlay.className = 'error-modal-overlay fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
         modalOverlay.style.zIndex = '9999';
 
         // Create modal content
@@ -419,6 +456,9 @@ function initializeFileUpload() {
         progressBar.style.width = '0%';
         uploadStatus.textContent = 'Đang chuẩn bị...';
         progressBar.className = 'bg-blue-600 h-2 rounded-full transition-all duration-300';
+
+        // Clear global flags
+        window.uploadNotificationSent = false;
     }
 
     function formatFileSize(bytes) {

@@ -220,7 +220,6 @@
 </div>
 
 @push('scripts')
-<script src="{{ asset('js/file-upload.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const fileInput = document.getElementById('file-input');
