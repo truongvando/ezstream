@@ -154,7 +154,8 @@ php artisan storage:link
 echo -e "${YELLOW}⚡ Optimizing application...${NC}"
 php artisan config:cache
 php artisan route:cache
-php artisan view:cache
+# Skip view:cache for Livewire compatibility
+echo -e "${BLUE}   Skipping view:cache (Livewire compatibility)${NC}"
 
 # Set permissions
 echo -e "${YELLOW}🔐 Setting permissions...${NC}"
