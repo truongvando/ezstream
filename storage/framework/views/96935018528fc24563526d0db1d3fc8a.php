@@ -44,14 +44,12 @@
             </div>
         </div>
     <?php else: ?>
-        <!-- User layout with wrapper -->
-        <div class="py-12">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                <?php echo $__env->make('livewire.shared.stream-cards', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
-                <?php echo $__env->make('livewire.shared.stream-form-modal', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
-                <?php echo $__env->make('livewire.shared.quick-stream-modal', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
-                
-                <!-- Delete Modal -->
+        <!-- User layout without wrapper (consistent with other pages) -->
+        <?php echo $__env->make('livewire.shared.stream-cards', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+        <?php echo $__env->make('livewire.shared.stream-form-modal', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+        <?php echo $__env->make('livewire.shared.quick-stream-modal', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+
+        <!-- Delete Modal -->
                 <div x-show="$wire.showDeleteModal" x-cloak
                      class="fixed inset-0 z-50 overflow-y-auto">
                     <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">

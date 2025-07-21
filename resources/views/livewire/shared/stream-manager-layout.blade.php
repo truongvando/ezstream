@@ -44,14 +44,12 @@
             </div>
         </div>
     @else
-        <!-- User layout with wrapper -->
-        <div class="py-12">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                @include('livewire.shared.stream-cards')
-                @include('livewire.shared.stream-form-modal')
-                @include('livewire.shared.quick-stream-modal')
-                
-                <!-- Delete Modal -->
+        <!-- User layout without wrapper (consistent with other pages) -->
+        @include('livewire.shared.stream-cards')
+        @include('livewire.shared.stream-form-modal')
+        @include('livewire.shared.quick-stream-modal')
+
+        <!-- Delete Modal -->
                 <div x-show="$wire.showDeleteModal" x-cloak
                      class="fixed inset-0 z-50 overflow-y-auto">
                     <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
