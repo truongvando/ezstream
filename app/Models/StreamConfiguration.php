@@ -73,6 +73,8 @@ class StreamConfiguration extends Model
         return $this->belongsTo(UserFile::class);
     }
 
+
+
     /**
      * Boot method to add model event listeners
      */

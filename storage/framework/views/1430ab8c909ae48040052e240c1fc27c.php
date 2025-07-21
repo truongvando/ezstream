@@ -6,7 +6,7 @@
                 <p class="mt-2 text-sm text-gray-700 dark:text-gray-300">A list of all the streams in the system including their status and owner.</p>
             </div>
             <div class="mt-4 sm:mt-0 sm:flex-none">
-                <a href="{{ route('user.stream.manager') }}" class="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:w-auto">
+                <a href="<?php echo e(route('user.stream.manager')); ?>" class="inline-flex items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:w-auto">
                     Create New Stream
                 </a>
             </div>
@@ -23,18 +23,18 @@
                     <label for="filterStatus" class="sr-only">Filter by Status</label>
                     <select wire:model="filterStatus" id="filterStatus" class="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm">
                         <option value="">All Statuses</option>
-                        @foreach($statuses as $status)
-                            <option value="{{ $status }}">{{ ucfirst(strtolower($status)) }}</option>
-                        @endforeach
+                        <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $statuses; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $status): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <option value="<?php echo e($status); ?>"><?php echo e(ucfirst(strtolower($status))); ?></option>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
                     </select>
                 </div>
                 <div>
                     <label for="filterUserId" class="sr-only">Filter by User</label>
                     <select wire:model="filterUserId" id="filterUserId" class="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm">
                         <option value="">All Users</option>
-                        @foreach($users as $user)
-                            <option value="{{ $user->id }}">{{ $user->name }}</option>
-                        @endforeach
+                        <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $users; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $user): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                            <option value="<?php echo e($user->id); ?>"><?php echo e($user->name); ?></option>
+                        <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
                     </select>
                 </div>
             </div>
@@ -60,70 +60,73 @@
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200 dark:divide-gray-700 bg-white dark:bg-gray-800">
-                                @forelse($streams as $stream)
+                                <!--[if BLOCK]><![endif]--><?php $__empty_1 = true; $__currentLoopData = $streams; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $stream): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                                     <tr>
                                         <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 dark:text-white sm:pl-6">
                                             <div class="flex items-center space-x-2">
                                                 <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                                                    #{{ $stream->id }}
+                                                    #<?php echo e($stream->id); ?>
+
                                                 </span>
-                                                <span>{{ $stream->title }}</span>
+                                                <span><?php echo e($stream->title); ?></span>
                                             </div>
                                         </td>
                                         <td class="whitespace-nowrap px-3 py-4 text-sm">
-                                            @if($stream->is_quick_stream)
+                                            <!--[if BLOCK]><![endif]--><?php if($stream->is_quick_stream): ?>
                                                 <span class="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-800 dark:text-purple-100">
                                                     ⚡️ Quick
                                                 </span>
-                                            @else
+                                            <?php else: ?>
                                                 <span class="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800 dark:bg-blue-800 dark:text-blue-100">
                                                     Normal
                                                 </span>
-                                            @endif
+                                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                         </td>
                                         <td class="whitespace-nowrap px-3 py-4 text-sm">
                                             <span class="inline-flex items-center rounded-md px-2 py-1 text-xs font-medium 
-                                                @switch($stream->status)
-                                                    @case('STREAMING') bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100 @break
-                                                    @case('STARTING')
-                                                    @case('STOPPING') bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100 @break
-                                                    @case('ERROR') bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100 @break
-                                                    @default bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-100
-                                                @endswitch
+                                                <?php switch($stream->status):
+                                                    case ('STREAMING'): ?> bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-100 <?php break; ?>
+                                                    <?php case ('STARTING'): ?>
+                                                    <?php case ('STOPPING'): ?> bg-yellow-100 text-yellow-800 dark:bg-yellow-800 dark:text-yellow-100 <?php break; ?>
+                                                    <?php case ('ERROR'): ?> bg-red-100 text-red-800 dark:bg-red-800 dark:text-red-100 <?php break; ?>
+                                                    <?php default: ?> bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-100
+                                                <?php endswitch; ?>
                                             ">
-                                                {{ $stream->status }}
+                                                <?php echo e($stream->status); ?>
+
                                             </span>
                                         </td>
-                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300">{{ $stream->user->name ?? 'N/A' }}</td>
-                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300">{{ $stream->vpsServer->name ?? 'N/A' }}</td>
-                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300">{{ $stream->updated_at->diffForHumans() }}</td>
+                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300"><?php echo e($stream->user->name ?? 'N/A'); ?></td>
+                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300"><?php echo e($stream->vpsServer->name ?? 'N/A'); ?></td>
+                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 dark:text-gray-300"><?php echo e($stream->updated_at->diffForHumans()); ?></td>
                                         <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
-                                            @if(in_array($stream->status, ['STREAMING', 'STARTING', 'ERROR', 'STOPPING']))
-                                                <button wire:click="forceStopStream({{ $stream->id }})" class="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-200">Force Stop</button>
-                                            @endif
-                                            <button wire:click="confirmDelete({{ $stream }})" class="ml-4 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200">Delete</button>
+                                            <!--[if BLOCK]><![endif]--><?php if(in_array($stream->status, ['STREAMING', 'STARTING', 'ERROR', 'STOPPING'])): ?>
+                                                <button wire:click="forceStopStream(<?php echo e($stream->id); ?>)" class="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-200">Force Stop</button>
+                                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                            <button wire:click="confirmDelete(<?php echo e($stream); ?>)" class="ml-4 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-200">Delete</button>
                                         </td>
                                     </tr>
-                                @empty
+                                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                                     <tr>
                                         <td colspan="7" class="whitespace-nowrap px-3 py-4 text-sm text-center text-gray-500 dark:text-gray-300">
                                             No streams found matching your criteria.
                                         </td>
                                     </tr>
-                                @endforelse
+                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
             <div class="mt-4">
-                {{ $streams->links() }}
+                <?php echo e($streams->links()); ?>
+
             </div>
         </div>
     </div>
 
     <!-- Delete Confirmation Modal -->
-    <div x-data="{ show: @entangle('showDeleteModal') }" x-show="show" x-cloak class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div x-data="{ show: <?php if ((object) ('showDeleteModal') instanceof \Livewire\WireDirective) : ?>window.Livewire.find('<?php echo e($__livewire->getId()); ?>').entangle('<?php echo e('showDeleteModal'->value()); ?>')<?php echo e('showDeleteModal'->hasModifier('live') ? '.live' : ''); ?><?php else : ?>window.Livewire.find('<?php echo e($__livewire->getId()); ?>').entangle('<?php echo e('showDeleteModal'); ?>')<?php endif; ?> }" x-show="show" x-cloak class="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
         <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div x-show="show" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" @click="show = false" aria-hidden="true"></div>
 
@@ -143,7 +146,7 @@
                             </h3>
                             <div class="mt-2">
                                 <p class="text-sm text-gray-500 dark:text-gray-300">
-                                    Are you sure you want to delete the stream "<strong>{{ $deletingStream->title ?? '' }}</strong>"? This action cannot be undone.
+                                    Are you sure you want to delete the stream "<strong><?php echo e($deletingStream->title ?? ''); ?></strong>"? This action cannot be undone.
                                 </p>
                             </div>
                         </div>
@@ -161,3 +164,4 @@
         </div>
     </div>
 </div>
+<?php /**PATH D:\laragon\www\ezstream\resources\views/livewire/admin/admin-stream-manager.blade.php ENDPATH**/ ?>

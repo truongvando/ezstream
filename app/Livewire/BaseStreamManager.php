@@ -92,6 +92,15 @@ abstract class BaseStreamManager extends Component
     }
 
     /**
+     * Check if there are active streams for conditional polling
+     */
+    public function getHasActiveStreamsProperty()
+    {
+        $query = $this->getStreamsQuery();
+        return $query->whereIn('status', ['STREAMING', 'STARTING', 'STOPPING'])->exists();
+    }
+
+    /**
      * Enhanced cleanup for streams stuck in various states
      */
     private function cleanupHangingStreams()
@@ -137,7 +146,14 @@ abstract class BaseStreamManager extends Component
 
         foreach ($stuckStreams as $stream) {
             $timeField = $status === 'STARTING' ? 'last_started_at' : 'updated_at';
-            $stuckDuration = now()->diffInMinutes($stream->$timeField);
+            $timeValue = $stream->$timeField;
+
+            // Fix negative time calculation
+            if (!$timeValue || $timeValue->isFuture()) {
+                $stuckDuration = 0;
+            } else {
+                $stuckDuration = abs(now()->diffInMinutes($timeValue));
+            }
 
             Log::warning("🔧 [BaseStreamManager] Auto-fixing stream #{$stream->id} stuck in {$status} for {$stuckDuration} minutes");
 
@@ -166,8 +182,26 @@ abstract class BaseStreamManager extends Component
 
     protected function rules()
     {
+        $titleRule = [
+            'required',
+            'string',
+            'max:255'
+        ];
+
+        // Add unique rule based on context
+        if ($this->editingStream) {
+            // When editing, ignore current stream
+            $titleRule[] = \Illuminate\Validation\Rule::unique('stream_configurations', 'title')
+                ->where('user_id', Auth::id())
+                ->ignore($this->editingStream->id);
+        } else {
+            // When creating, check uniqueness for current user
+            $titleRule[] = \Illuminate\Validation\Rule::unique('stream_configurations', 'title')
+                ->where('user_id', Auth::id());
+        }
+
         return [
-            'title' => 'required|string|max:255',
+            'title' => $titleRule,
             'description' => 'nullable|string',
             'user_file_ids' => 'required|array|min:1',
             'user_file_ids.*' => 'exists:user_files,id',
@@ -177,6 +211,15 @@ abstract class BaseStreamManager extends Component
             'loop' => 'boolean',
             'scheduled_at' => 'nullable|date',
             'playlist_order' => 'required|in:sequential,random',
+        ];
+    }
+
+    protected function messages()
+    {
+        return [
+            'title.unique' => 'Bạn đã có stream với tiêu đề này. Vui lòng chọn tiêu đề khác.',
+            'title.required' => 'Tiêu đề stream là bắt buộc.',
+            'title.max' => 'Tiêu đề stream không được vượt quá 255 ký tự.',
         ];
     }
 
@@ -508,6 +551,108 @@ abstract class BaseStreamManager extends Component
     }
 
     /**
+     * Create Quick Stream - Base implementation
+     */
+    public function createQuickStream()
+    {
+        Log::info('🎬 Creating Quick Stream', [
+            'quickTitle' => $this->quickTitle,
+            'quickPlatform' => $this->quickPlatform,
+            'quickStreamKey' => $this->quickStreamKey,
+            'quickSelectedFiles' => $this->quickSelectedFiles,
+            'video_source_id' => $this->video_source_id
+        ]);
+
+        try {
+            // Validation
+            $this->validate([
+                'quickTitle' => 'required|string|max:255',
+                'quickPlatform' => 'required|string|in:youtube,facebook,twitch,tiktok,custom',
+                'quickStreamKey' => 'required|string',
+            ]);
+
+            // Check if we have files
+            if (empty($this->quickSelectedFiles) && empty($this->video_source_id)) {
+                session()->flash('error', 'Vui lòng chọn ít nhất một video để stream.');
+                return;
+            }
+
+            $user = Auth::user();
+
+            // Check subscription requirement
+            if ($this->requiresSubscription() && !$user->isAdmin()) {
+                $activeSubscription = $user->subscriptions()->where('status', 'ACTIVE')->first();
+                if (!$activeSubscription) {
+                    session()->flash('error', 'Bạn cần có gói dịch vụ đang hoạt động để tạo stream.');
+                    return;
+                }
+            }
+
+            // Determine RTMP URL
+            $rtmpUrl = $this->quickPlatform === 'custom' ? $this->quickRtmpUrl : $this->getPlatformUrl($this->quickPlatform);
+
+            // Collect file IDs
+            $fileIds = [];
+            if (!empty($this->video_source_id)) {
+                $fileIds[] = $this->video_source_id;
+            }
+            if (!empty($this->quickSelectedFiles)) {
+                $fileIds = array_merge($fileIds, $this->quickSelectedFiles);
+            }
+
+            // Prepare file list for video_source_path
+            $fileList = [];
+            foreach ($fileIds as $fileId) {
+                $fileList[] = ['file_id' => $fileId];
+            }
+
+            // Create stream
+            $stream = StreamConfiguration::create([
+                'user_id' => $user->id,
+                'title' => $this->quickTitle,
+                'description' => $this->quickDescription ?? '',
+                'video_source_path' => $fileList, // Required field
+                'rtmp_url' => $rtmpUrl,
+                'stream_key' => $this->quickStreamKey,
+                'loop' => $this->quickLoop,
+                'playlist_order' => $this->quickPlaylistOrder,
+                'enable_schedule' => $this->quickEnableSchedule,
+                'scheduled_at' => $this->quickScheduledAt,
+                'scheduled_end' => $this->quickScheduledEnd,
+                'status' => 'INACTIVE',
+                'is_quick_stream' => true,
+                'user_file_id' => !empty($fileIds) ? $fileIds[0] : null, // Set primary file
+            ]);
+
+            // Files are already included in video_source_path field
+
+            // Start stream immediately with a small delay to avoid race conditions
+            StartMultistreamJob::dispatch($stream)->delay(now()->addSeconds(2));
+
+            $this->showQuickStreamModal = false;
+            $this->resetQuickStreamForm();
+
+            session()->flash('success', '🚀 Quick Stream đã được tạo và sẽ bắt đầu trong vài giây!');
+
+            Log::info('✅ Quick Stream created successfully', [
+                'stream_id' => $stream->id,
+                'title' => $stream->title,
+                'delayed_start' => true
+            ]);
+
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            Log::error('❌ Failed to create Quick Stream', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            session()->flash('error', 'Có lỗi xảy ra khi tạo Quick Stream: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Reset quick stream form
      */
     protected function resetQuickStreamForm()
@@ -523,5 +668,6 @@ abstract class BaseStreamManager extends Component
         $this->quickScheduledAt = '';
         $this->quickScheduledEnd = '';
         $this->quickSelectedFiles = [];
+        $this->video_source_id = null;
     }
 }

@@ -209,13 +209,30 @@ class UserStreamManager extends BaseStreamManager
             'last_started_at' => $this->enable_schedule ? null : ($this->editingStream->last_started_at ?: now()),
         ];
 
-        // Simple status handling: Reset failed streams to INACTIVE, keep active streams unchanged
+        // ✅ FIXED: Smart status handling to prevent auto-restart
         $currentStatus = $this->editingStream->status;
         if (in_array($currentStatus, ['STOPPED', 'ERROR'])) {
-            // Reset failed streams to INACTIVE so they can be started again
-            $updateData['status'] = 'INACTIVE';
+            // Only reset to INACTIVE if schedule is disabled
+            // If schedule is enabled, keep STOPPED to prevent auto-restart
+            if (!$this->enable_schedule) {
+                $updateData['status'] = 'INACTIVE';
+            } else {
+                // Keep STOPPED status for scheduled streams to prevent auto-restart
+                // User must manually start or wait for next scheduled time
+                $updateData['status'] = 'STOPPED';
+            }
         }
         // Keep STREAMING, STARTING, STOPPING, INACTIVE unchanged
+
+        // Log the update for debugging
+        Log::info("🔧 [UserStreamManager] Updating stream", [
+            'stream_id' => $this->editingStream->id,
+            'title' => $this->title,
+            'old_status' => $currentStatus,
+            'new_status' => $updateData['status'] ?? $currentStatus,
+            'enable_schedule' => $this->enable_schedule,
+            'user_id' => Auth::id()
+        ]);
 
         $this->editingStream->update($updateData);
 
@@ -224,7 +241,14 @@ class UserStreamManager extends BaseStreamManager
             \App\Jobs\UpdateMultistreamJob::dispatch($this->editingStream);
             session()->flash('success', 'Stream đã được cập nhật! Thay đổi sẽ có hiệu lực trong vài giây.');
         } else {
-            session()->flash('success', 'Đã cập nhật cấu hình stream thành công.');
+            $message = 'Đã cập nhật cấu hình stream thành công.';
+
+            // Add warning for scheduled streams that were stopped
+            if ($this->enable_schedule && in_array($currentStatus, ['STOPPED', 'ERROR'])) {
+                $message .= ' ⚠️ Stream có lịch phát được giữ ở trạng thái STOPPED để tránh tự khởi động. Bạn có thể start thủ công hoặc chờ lịch phát tiếp theo.';
+            }
+
+            session()->flash('success', $message);
         }
 
         $this->showEditModal = false;

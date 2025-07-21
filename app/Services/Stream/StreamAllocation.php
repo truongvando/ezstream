@@ -25,7 +25,7 @@ class StreamAllocation
         $activeVpsCollection = VpsServer::where('status', 'ACTIVE')->get();
 
         if ($activeVpsCollection->isEmpty()) {
-            Log.warning("No active VPS servers found in the system.");
+            Log::warning("No active VPS servers found in the system.");
             return null;
         }
 
@@ -48,7 +48,19 @@ class StreamAllocation
         })->filter(); // Loại bỏ các VPS không khỏe mạnh (null)
 
         if ($healthyVps->isEmpty()) {
-            Log::warning("No healthy VPS available for stream #{$stream->id}. All servers are overloaded or offline.");
+            Log::warning("No healthy VPS available for stream #{$stream->id}. All servers are overloaded or offline.", [
+                'total_active_vps' => $activeVpsCollection->count(),
+                'vps_details' => $activeVpsCollection->map(function($vps) {
+                    $stats = $this->getVpsStatsFromRedis($vps->id);
+                    return [
+                        'id' => $vps->id,
+                        'name' => $vps->name,
+                        'has_stats' => !is_null($stats),
+                        'cpu_usage' => $stats['cpu_usage'] ?? 'N/A',
+                        'ram_usage' => $stats['ram_usage'] ?? 'N/A',
+                    ];
+                })->toArray()
+            ]);
             return null;
         }
 

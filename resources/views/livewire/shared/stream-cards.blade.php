@@ -71,7 +71,7 @@
         @if($streams && $streams->count() > 0)
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 auto-rows-fr">
             @foreach($streams as $stream)
-            <div wire:key="stream-card-{{ $stream->id }}-{{ $stream->status }}-{{ $stream->updated_at }}"
+            <div wire:key="stream-card-{{ $stream->id }}"
                  class="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 flex flex-col min-h-[380px]">
                 
                 {{-- Header: Title + Status --}}
@@ -82,6 +82,9 @@
                                 <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100 truncate">
                                     {{ Str::limit($stream->title, 25) }}
                                 </h3>
+                                <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300 flex-shrink-0">
+                                    #{{ $stream->id }}
+                                </span>
                                 @if($stream->is_quick_stream)
                                     <span class="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-800 dark:text-purple-100 flex-shrink-0">
                                         ⚡️ Quick

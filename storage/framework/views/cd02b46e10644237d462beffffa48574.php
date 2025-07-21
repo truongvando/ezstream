@@ -71,7 +71,7 @@
         <!--[if BLOCK]><![endif]--><?php if($streams && $streams->count() > 0): ?>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4 auto-rows-fr">
             <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $streams; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $stream): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-            <div wire:key="stream-card-<?php echo e($stream->id); ?>-<?php echo e($stream->status); ?>-<?php echo e($stream->updated_at); ?>"
+            <div wire:key="stream-card-<?php echo e($stream->id); ?>"
                  class="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg shadow-sm hover:shadow-md transition-shadow duration-200 flex flex-col min-h-[380px]">
                 
                 
@@ -83,6 +83,10 @@
                                     <?php echo e(Str::limit($stream->title, 25)); ?>
 
                                 </h3>
+                                <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-300 flex-shrink-0">
+                                    #<?php echo e($stream->id); ?>
+
+                                </span>
                                 <!--[if BLOCK]><![endif]--><?php if($stream->is_quick_stream): ?>
                                     <span class="inline-flex items-center rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-800 dark:bg-purple-800 dark:text-purple-100 flex-shrink-0">
                                         ⚡️ Quick
