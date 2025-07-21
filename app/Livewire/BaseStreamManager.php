@@ -32,10 +32,17 @@ abstract class BaseStreamManager extends Component
     public $showEditModal = false;
     public $showDeleteModal = false;
     public $showQuickStreamModal = false;
-    
+    public $showLimitExceededModal = false;
+
     // Models
     public $editingStream;
     public $deletingStream;
+
+    // Limit exceeded modal data
+    public $limitExceededMessage = '';
+    public $currentStreamsCount = 0;
+    public $allowedStreamsCount = 0;
+    public $packageName = '';
 
     // Filter properties
     public $filterStatus = '';
@@ -669,5 +676,29 @@ abstract class BaseStreamManager extends Component
         $this->quickScheduledEnd = '';
         $this->quickSelectedFiles = [];
         $this->video_source_id = null;
+    }
+
+    /**
+     * Show limit exceeded modal
+     */
+    public function showLimitExceededModal($currentStreams, $allowedStreams, $packageName)
+    {
+        $this->currentStreamsCount = $currentStreams;
+        $this->allowedStreamsCount = $allowedStreams;
+        $this->packageName = $packageName;
+        $this->limitExceededMessage = "Vượt quá giới hạn streams đồng thời. Gói {$packageName} cho phép tối đa {$allowedStreams} streams. Hiện tại: {$currentStreams} streams đang chạy.";
+        $this->showLimitExceededModal = true;
+    }
+
+    /**
+     * Close limit exceeded modal
+     */
+    public function closeLimitExceededModal()
+    {
+        $this->showLimitExceededModal = false;
+        $this->limitExceededMessage = '';
+        $this->currentStreamsCount = 0;
+        $this->allowedStreamsCount = 0;
+        $this->packageName = '';
     }
 }

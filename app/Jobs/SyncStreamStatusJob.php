@@ -111,7 +111,7 @@ class SyncStreamStatusJob implements ShouldQueue
         // Check if stream stuck in STOPPING
         if ($stream->status === 'STOPPING') {
             $minutesSinceStopping = $stream->updated_at ?
-                now()->diffInMinutes($stream->updated_at) : 999;
+                abs(now()->diffInMinutes($stream->updated_at)) : 999;
 
             // If stuck in STOPPING for more than 2 minutes, force to STOPPED
             if ($minutesSinceStopping > 2) {

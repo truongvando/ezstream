@@ -355,3 +355,127 @@
 
     </div>
 </div>
+
+@push('scripts')
+<script>
+document.addEventListener('livewire:init', () => {
+    // Listen for session flash messages and show as notifications
+    @if(session('error'))
+        showNotification('error', @json(session('error')));
+    @endif
+
+    @if(session('success'))
+        showNotification('success', @json(session('success')));
+    @endif
+
+    @if(session('message'))
+        showNotification('info', @json(session('message')));
+    @endif
+
+    // Listen for limit exceeded event
+    Livewire.on('show-limit-exceeded', (event) => {
+        const data = event[0] || event;
+        showLimitExceededAlert(data);
+    });
+});
+
+function showNotification(type, message) {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-md transform transition-all duration-300 ${
+        type === 'error' ? 'bg-red-100 border border-red-400 text-red-700' :
+        type === 'success' ? 'bg-green-100 border border-green-400 text-green-700' :
+        'bg-blue-100 border border-blue-400 text-blue-700'
+    }`;
+
+    notification.innerHTML = `
+        <div class="flex items-start">
+            <svg class="w-5 h-5 mr-2 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                ${type === 'error' ?
+                    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z"></path>' :
+                    type === 'success' ?
+                    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>' :
+                    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>'
+                }
+            </svg>
+            <div class="flex-1">
+                <p class="text-sm font-medium">${message}</p>
+                ${type === 'error' && message.includes('Vượt quá giới hạn') ?
+                    '<a href="/billing" class="text-xs underline mt-1 inline-block">Nâng cấp gói ngay</a>' : ''
+                }
+            </div>
+            <button onclick="this.parentElement.parentElement.remove()" class="ml-2 text-gray-400 hover:text-gray-600">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+    `;
+
+    // Add to page
+    document.body.appendChild(notification);
+
+    // Animate in
+    setTimeout(() => {
+        notification.style.transform = 'translateX(0)';
+    }, 100);
+
+    // Auto remove after 8 seconds (longer for error messages)
+    const timeout = type === 'error' ? 8000 : 5000;
+    setTimeout(() => {
+        if (notification.parentElement) {
+            notification.style.transform = 'translateX(100%)';
+            setTimeout(() => notification.remove(), 300);
+        }
+    }, timeout);
+}
+
+function showLimitExceededAlert(data) {
+    // Create a more prominent alert for limit exceeded
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50';
+    alertDiv.innerHTML = `
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md mx-4 shadow-xl">
+            <div class="flex items-center mb-4">
+                <div class="flex-shrink-0 w-10 h-10 bg-red-100 dark:bg-red-900 rounded-full flex items-center justify-center">
+                    <svg class="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16c-.77.833.192 2.5 1.732 2.5z"></path>
+                    </svg>
+                </div>
+                <h3 class="ml-3 text-lg font-medium text-gray-900 dark:text-white">Vượt quá giới hạn streams</h3>
+            </div>
+            <div class="mb-4">
+                <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">${data.message}</p>
+                <div class="grid grid-cols-2 gap-3 text-sm">
+                    <div class="bg-red-50 dark:bg-red-900/20 p-3 rounded text-center">
+                        <div class="text-lg font-bold text-red-600 dark:text-red-400">${data.current}</div>
+                        <div class="text-gray-500 dark:text-gray-400">Đang chạy</div>
+                    </div>
+                    <div class="bg-green-50 dark:bg-green-900/20 p-3 rounded text-center">
+                        <div class="text-lg font-bold text-green-600 dark:text-green-400">${data.allowed}</div>
+                        <div class="text-gray-500 dark:text-gray-400">Giới hạn</div>
+                    </div>
+                </div>
+            </div>
+            <div class="flex space-x-3">
+                <button onclick="this.closest('.fixed').remove()" class="flex-1 px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-500">
+                    Đóng
+                </button>
+                <a href="/billing" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-center">
+                    Nâng cấp gói
+                </a>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(alertDiv);
+
+    // Auto remove after 10 seconds
+    setTimeout(() => {
+        if (alertDiv.parentElement) {
+            alertDiv.remove();
+        }
+    }, 10000);
+}
+</script>
+@endpush

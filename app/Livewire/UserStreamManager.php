@@ -347,7 +347,13 @@ class UserStreamManager extends BaseStreamManager
             $package = $user->currentPackage();
             $packageName = $package ? $package->name : 'Không xác định';
 
-            session()->flash('error', "❌ Vượt quá giới hạn streams đồng thời. Gói {$packageName} cho phép tối đa {$allowedStreams} streams. Hiện tại: {$currentActiveStreams} streams đang chạy.");
+            // Emit event for immediate notification
+            $this->dispatch('show-limit-exceeded', [
+                'message' => "❌ Vượt quá giới hạn streams đồng thời. Gói {$packageName} cho phép tối đa {$allowedStreams} streams. Hiện tại: {$currentActiveStreams} streams đang chạy.",
+                'current' => $currentActiveStreams,
+                'allowed' => $allowedStreams,
+                'package' => $packageName
+            ]);
             return;
         }
 
@@ -465,7 +471,13 @@ class UserStreamManager extends BaseStreamManager
             $package = $user->currentPackage();
             $packageName = $package ? $package->name : 'Không xác định';
 
-            session()->flash('error', "❌ Vượt quá giới hạn streams đồng thời. Gói {$packageName} cho phép tối đa {$allowedStreams} streams. Hiện tại: {$currentActiveStreams} streams đang chạy.");
+            // Emit event for immediate notification
+            $this->dispatch('show-limit-exceeded', [
+                'message' => "❌ Vượt quá giới hạn streams đồng thời. Gói {$packageName} cho phép tối đa {$allowedStreams} streams. Hiện tại: {$currentActiveStreams} streams đang chạy.",
+                'current' => $currentActiveStreams,
+                'allowed' => $allowedStreams,
+                'package' => $packageName
+            ]);
             return;
         }
 

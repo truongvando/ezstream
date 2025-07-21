@@ -415,8 +415,8 @@ class StreamStatusListener extends Command
 
         foreach ($stoppingStreams as $stream) {
             $timeSinceStop = $stream->last_stopped_at ?
-                now()->diffInMinutes($stream->last_stopped_at) :
-                now()->diffInMinutes($stream->updated_at);
+                abs(now()->diffInMinutes($stream->last_stopped_at)) :
+                abs(now()->diffInMinutes($stream->updated_at));
 
             $this->info("⏱️ [Timeout] Checking STOPPING stream #{$stream->id} - {$timeSinceStop} minutes since stop command");
 
@@ -523,7 +523,18 @@ class StreamStatusListener extends Command
             $oldVpsId = $stream->vps_server_id;
             $this->warn("🔄 [Recovery] Stream #{$stream->id} running on VPS #{$vpsId} but DB shows VPS #{$oldVpsId}");
 
-            // Update to correct VPS
+            // 🚨 CRITICAL: Don't recover streams that user wants to stop
+            if (in_array($stream->status, ['STOPPING', 'INACTIVE', 'ERROR'])) {
+                $this->warn("🛑 [Recovery] Stream #{$stream->id} is {$stream->status} - sending FORCE_KILL instead of recovery");
+
+                // Send kill command instead of recovery
+                $this->sendAgentCommand($vpsId, $stream->id, 'FORCE_KILL_STREAM', [
+                    'reason' => "Stream should be {$stream->status}, not STREAMING"
+                ]);
+                continue;
+            }
+
+            // Update to correct VPS only if stream should be running
             $stream->update([
                 'vps_server_id' => $vpsId,
                 'status' => 'STREAMING',
