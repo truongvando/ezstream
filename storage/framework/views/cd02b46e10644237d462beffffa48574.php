@@ -15,6 +15,7 @@
                 <div class="flex space-x-3">
                     
                     <button wire:click="openQuickStreamModal"
+                            onclick="console.log('🚀 Quick Stream button clicked - preventing bubbling'); event.stopPropagation();"
                             class="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors duration-200">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
@@ -24,6 +25,7 @@
 
                     
                     <button wire:click="create"
+                            onclick="console.log('📝 Create Stream button clicked - preventing bubbling'); event.stopPropagation();"
                             class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg shadow-sm transition-colors duration-200">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>

@@ -1,9 +1,9 @@
 <div wire:poll.5s="refreshStreams">
-    @if(isset($isAdmin) && $isAdmin)
+    <!--[if BLOCK]><![endif]--><?php if(isset($isAdmin) && $isAdmin): ?>
         <!-- Admin layout without extra wrapper -->
-        @include('livewire.shared.stream-cards')
-        @include('livewire.shared.stream-form-modal')
-        @include('livewire.shared.quick-stream-modal')
+        <?php echo $__env->make('livewire.shared.stream-cards', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+        <?php echo $__env->make('livewire.shared.stream-form-modal', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+        <?php echo $__env->make('livewire.shared.quick-stream-modal', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
         
         <!-- Delete Modal -->
         <div x-show="$wire.showDeleteModal" x-cloak
@@ -23,11 +23,11 @@
                         </div>
                         <div class="text-center">
                             <h3 class="text-lg font-medium text-gray-900 dark:text-white mb-2">Xóa Stream</h3>
-                            @if($deletingStream)
+                            <!--[if BLOCK]><![endif]--><?php if($deletingStream): ?>
                                 <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
-                                    Bạn có chắc chắn muốn xóa stream "<strong>{{ $deletingStream->title }}</strong>"? Hành động này không thể hoàn tác.
+                                    Bạn có chắc chắn muốn xóa stream "<strong><?php echo e($deletingStream->title); ?></strong>"? Hành động này không thể hoàn tác.
                                 </p>
-                            @endif
+                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                             <div class="flex justify-center space-x-3">
                                 <button @click="$wire.showDeleteModal = false"
                                         class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -43,13 +43,13 @@
                 </div>
             </div>
         </div>
-    @else
+    <?php else: ?>
         <!-- User layout with wrapper -->
         <div class="py-12">
             <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                @include('livewire.shared.stream-cards')
-                @include('livewire.shared.stream-form-modal')
-                @include('livewire.shared.quick-stream-modal')
+                <?php echo $__env->make('livewire.shared.stream-cards', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+                <?php echo $__env->make('livewire.shared.stream-form-modal', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
+                <?php echo $__env->make('livewire.shared.quick-stream-modal', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
                 
                 <!-- Delete Modal -->
                 <div x-show="$wire.showDeleteModal" x-cloak
@@ -68,7 +68,7 @@
                                     </div>
                                     <h3 class="mt-4 text-lg font-medium text-gray-900 dark:text-white">Xóa Stream</h3>
                                     <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                                        Bạn có chắc chắn muốn xóa stream <strong class="font-medium text-gray-900 dark:text-white">{{ $deletingStream->title ?? '' }}</strong>? Hành động này không thể hoàn tác.
+                                        Bạn có chắc chắn muốn xóa stream <strong class="font-medium text-gray-900 dark:text-white"><?php echo e($deletingStream->title ?? ''); ?></strong>? Hành động này không thể hoàn tác.
                                     </p>
                                     <div class="mt-6 flex justify-center space-x-3">
                                         <button @click="$wire.showDeleteModal = false"
@@ -87,5 +87,6 @@
                 </div>
             </div>
         </div>
-    @endif
+    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 </div>
+<?php /**PATH D:\laragon\www\ezstream\resources\views/livewire/shared/stream-manager-layout.blade.php ENDPATH**/ ?>
