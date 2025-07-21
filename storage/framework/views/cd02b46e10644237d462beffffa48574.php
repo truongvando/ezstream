@@ -264,10 +264,26 @@
                                     <svg wire:loading.remove wire:target="startStream(<?php echo e($stream->id); ?>)" class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                                     </svg>
-                                    <svg wire:loading wire:target="startStream(<?php echo e($stream->id); ?>)" class="animate-spin w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
+                                    <?php if (isset($component)) { $__componentOriginal5c29929acf227acd7c5fa56a39e71fcc = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal5c29929acf227acd7c5fa56a39e71fcc = $attributes; } ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.loading-spinner','data' => ['wire:loading' => true,'wire:target' => 'startStream('.e($stream->id).')','size' => 'w-3 h-3','class' => 'mr-1']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('loading-spinner'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes(['wire:loading' => true,'wire:target' => 'startStream('.e($stream->id).')','size' => 'w-3 h-3','class' => 'mr-1']); ?>
+<?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal5c29929acf227acd7c5fa56a39e71fcc)): ?>
+<?php $attributes = $__attributesOriginal5c29929acf227acd7c5fa56a39e71fcc; ?>
+<?php unset($__attributesOriginal5c29929acf227acd7c5fa56a39e71fcc); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal5c29929acf227acd7c5fa56a39e71fcc)): ?>
+<?php $component = $__componentOriginal5c29929acf227acd7c5fa56a39e71fcc; ?>
+<?php unset($__componentOriginal5c29929acf227acd7c5fa56a39e71fcc); ?>
+<?php endif; ?>
                                     <span wire:loading.remove wire:target="startStream(<?php echo e($stream->id); ?>)">Bắt đầu</span>
                                     <span wire:loading wire:target="startStream(<?php echo e($stream->id); ?>)">Đang bắt đầu...</span>
                                 </button>
@@ -288,7 +304,7 @@
                                 <button disabled class="inline-flex items-center px-3 py-1.5 bg-gray-400 text-white text-sm font-medium rounded-md shadow-sm cursor-not-allowed">
                                     <svg class="animate-spin w-4 h-4 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 718-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 0 1 4 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
                                     <?php echo e($stream->status === 'STARTING' ? 'Đang khởi động...' : 'Đang dừng...'); ?>
 

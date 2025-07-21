@@ -195,8 +195,9 @@ abstract class BaseStreamManager extends Component
             }
         }
         
-        // Reset all modal states first
-        $this->reset(['showCreateModal', 'showEditModal', 'showQuickStreamModal']);
+        // Reset all modal states first - ensure only create modal opens
+        $this->showQuickStreamModal = false;
+        $this->showEditModal = false;
         $this->resetValidation();
 
         // Reset form fields
@@ -323,6 +324,10 @@ abstract class BaseStreamManager extends Component
                 return redirect()->route('billing.manager');
             }
         }
+
+        // Reset other modal states first - ensure only quick stream modal opens
+        $this->showCreateModal = false;
+        $this->showEditModal = false;
 
         // Reset quick stream fields
         $this->reset([
