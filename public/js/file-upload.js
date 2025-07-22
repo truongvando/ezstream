@@ -199,20 +199,55 @@ function initializeFileUpload() {
             if (!window.uploadNotificationSent) {
                 window.uploadNotificationSent = true;
 
+                // Try multiple notification methods for better compatibility
+                let notificationSent = false;
+
+                // Method 1: Custom success handler (highest priority)
                 if (typeof window.uploadSuccessHandler === 'function') {
+                    console.log('📤 Using custom upload success handler');
                     window.uploadSuccessHandler({
                         file_name: file.name,
                         file_id: confirmData.file.id,
                         file_size: file.size
                     });
-                } else if (window.Livewire) {
-                    window.Livewire.dispatch('fileUploaded', {
-                        file_name: file.name,
-                        file_id: confirmData.file.id,
-                        file_size: file.size
-                    });
-                } else {
-                    // For non-Livewire pages (like files/index), reload page
+                    notificationSent = true;
+                }
+
+                // Method 2: Livewire dispatch (for Livewire components)
+                if (window.Livewire && !notificationSent) {
+                    try {
+                        window.Livewire.dispatch('fileUploaded', {
+                            file_name: file.name,
+                            file_id: confirmData.file.id,
+                            file_size: file.size
+                        });
+                        notificationSent = true;
+                        console.log('✅ Livewire notification sent');
+                    } catch (e) {
+                        console.warn('⚠️ Livewire dispatch failed:', e);
+                    }
+                }
+
+                // Method 3: Global event (for any page listening)
+                if (!notificationSent) {
+                    try {
+                        window.dispatchEvent(new CustomEvent('fileUploaded', {
+                            detail: {
+                                file_name: file.name,
+                                file_id: confirmData.file.id,
+                                file_size: file.size
+                            }
+                        }));
+                        notificationSent = true;
+                        console.log('✅ Global event dispatched');
+                    } catch (e) {
+                        console.warn('⚠️ Global event failed:', e);
+                    }
+                }
+
+                // Method 4: Fallback - reload page (last resort)
+                if (!notificationSent) {
+                    console.log('📄 No notification method worked, falling back to page reload');
                     setTimeout(() => {
                         location.reload();
                     }, 1500);

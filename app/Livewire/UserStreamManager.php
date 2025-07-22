@@ -238,8 +238,24 @@ class UserStreamManager extends BaseStreamManager
 
         // If stream is currently running, dispatch update job
         if ($this->editingStream->status === 'STREAMING') {
+            // Count file changes for better user feedback
+            $oldFileIds = collect($this->editingStream->getOriginal('video_source_path'))->pluck('file_id')->toArray();
+            $newFileIds = $this->user_file_ids;
+            $addedFiles = array_diff($newFileIds, $oldFileIds);
+            $removedFiles = array_diff($oldFileIds, $newFileIds);
+
             \App\Jobs\UpdateMultistreamJob::dispatch($this->editingStream);
-            session()->flash('success', 'Stream đã được cập nhật! Thay đổi sẽ có hiệu lực trong vài giây.');
+
+            $message = 'Stream đang chạy đã được cập nhật! ';
+            if (count($addedFiles) > 0) {
+                $message .= '✅ Đã thêm ' . count($addedFiles) . ' file mới. ';
+            }
+            if (count($removedFiles) > 0) {
+                $message .= '🗑️ Đã xóa ' . count($removedFiles) . ' file. ';
+            }
+            $message .= 'Thay đổi sẽ có hiệu lực trong vài giây.';
+
+            session()->flash('success', $message);
         } else {
             $message = 'Đã cập nhật cấu hình stream thành công.';
 

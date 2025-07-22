@@ -159,6 +159,37 @@
             uploadForm.setAttribute('data-click-initialized', 'true');
         }
 
+        // Listen for file upload completion events
+        window.addEventListener('fileUploaded', function(event) {
+            console.log('🎉 [UserFiles] File upload completed, refreshing page...', event.detail);
+
+            // Show success message
+            const successMessage = document.createElement('div');
+            successMessage.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50';
+            successMessage.innerHTML = `✅ File "${event.detail.file_name}" đã upload thành công!`;
+            document.body.appendChild(successMessage);
+
+            // Auto-remove message after 3 seconds
+            setTimeout(() => {
+                successMessage.remove();
+            }, 3000);
+
+            // Refresh page after short delay to show new file
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+        });
+
+        // Custom upload success handler for this page
+        window.uploadSuccessHandler = function(data) {
+            console.log('📤 [UserFiles] Upload success handler called:', data);
+
+            // Dispatch global event
+            window.dispatchEvent(new CustomEvent('fileUploaded', {
+                detail: data
+            }));
+        };
+
         // File input change handler is now handled by file-upload.js globally
         // Remove duplicate handler to prevent double uploads
 

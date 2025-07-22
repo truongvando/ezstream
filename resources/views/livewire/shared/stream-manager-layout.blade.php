@@ -1,4 +1,16 @@
-<div @if($hasActiveStreams ?? false) wire:poll.5s="refreshStreams" @else wire:poll.15s="refreshStreams" @endif>
+<div @if($hasActiveStreams ?? false) wire:poll.5s="refreshStreams" @else wire:poll.15s="refreshStreams" @endif
+     x-data="{
+         init() {
+             // Listen for global file upload events
+             window.addEventListener('fileUploaded', (event) => {
+                 console.log('🎉 Global fileUploaded event received:', event.detail);
+                 // Trigger Livewire refresh
+                 if (window.Livewire) {
+                     window.Livewire.dispatch('fileUploaded', event.detail);
+                 }
+             });
+         }
+     }">
     @if(isset($isAdmin) && $isAdmin)
         <!-- Admin layout without extra wrapper -->
         @include('livewire.shared.stream-cards')

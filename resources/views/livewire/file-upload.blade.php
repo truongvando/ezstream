@@ -1,4 +1,15 @@
-<div>
+<div x-data="{
+    init() {
+        // Listen for global file upload events
+        window.addEventListener('fileUploaded', (event) => {
+            console.log('🎉 [FileUpload] Global fileUploaded event received:', event.detail);
+            // Trigger Livewire refresh
+            if (window.Livewire) {
+                window.Livewire.dispatch('fileUploaded', event.detail);
+            }
+        });
+    }
+}">
     <!-- Delete Confirmation Modal -->
     <x-modal-v2 wire:model.live="showDeleteModal" max-width="lg">
         <div class="p-6">
@@ -352,13 +363,74 @@ document.addEventListener('DOMContentLoaded', function() {
             // Success!
             updateProgress('🎉 Upload hoàn tất!', 100);
 
-            // Notify Livewire
+            // Enhanced notification system for file upload page
+            let notificationSent = false;
+
+            // Method 1: Livewire dispatch (primary method for this page)
             if (window.Livewire) {
-                window.Livewire.dispatch('fileUploaded', {
-                    file_name: file.name,
-                    file_id: confirmData.file_id,
-                    file_size: file.size
-                });
+                try {
+                    // Debug: Log confirmData structure
+                    console.log('🔍 confirmData structure:', confirmData);
+
+                    const eventData = {
+                        file_name: file.name,
+                        file_id: confirmData.file_id || confirmData.id || confirmData.file?.id,
+                        file_size: file.size
+                    };
+
+                    console.log('📤 Dispatching Livewire event with data:', eventData);
+
+                    window.Livewire.dispatch('fileUploaded', eventData);
+                    notificationSent = true;
+                    console.log('✅ Livewire fileUploaded event dispatched successfully');
+                } catch (e) {
+                    console.error('❌ Livewire dispatch failed:', e);
+                }
+            }
+
+            // Method 2: Direct Livewire component refresh (more reliable)
+            if (!notificationSent && window.Livewire) {
+                try {
+                    // Find the FileUpload component and refresh it directly
+                    const fileUploadComponent = window.Livewire.find('file-upload');
+                    if (fileUploadComponent) {
+                        fileUploadComponent.$refresh();
+                        console.log('✅ Direct component refresh triggered');
+                        notificationSent = true;
+                    } else {
+                        // Try to refresh all components
+                        window.Livewire.rescan();
+                        console.log('✅ Livewire rescan triggered');
+                        notificationSent = true;
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Direct refresh failed:', e);
+                }
+            }
+
+            // Method 3: Global event (for any other components listening)
+            if (!notificationSent) {
+                try {
+                    window.dispatchEvent(new CustomEvent('fileUploaded', {
+                        detail: {
+                            file_name: file.name,
+                            file_id: confirmData.file_id || confirmData.id || confirmData.file?.id,
+                            file_size: file.size
+                        }
+                    }));
+                    notificationSent = true;
+                    console.log('✅ Global fileUploaded event dispatched');
+                } catch (e) {
+                    console.warn('⚠️ Global event failed:', e);
+                }
+            }
+
+            // Method 3: Force refresh as fallback (should rarely be needed)
+            if (!notificationSent) {
+                console.log('📄 No notification method worked, forcing page refresh');
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
             }
 
             setTimeout(resetForm, 2000);

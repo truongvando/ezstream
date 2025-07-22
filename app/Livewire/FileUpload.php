@@ -52,10 +52,52 @@ class FileUpload extends Component
         }
     }
 
-    public function handleFileUploaded($file_name, $file_id, $file_size)
+    public function handleFileUploaded($data = null)
     {
-        $this->calculateStorage();
-        session()->flash('message', "✅ File '{$file_name}' đã upload thành công!");
+        try {
+            // Debug: Log all arguments received
+            \Log::info('🔍 [FileUpload] handleFileUploaded called', [
+                'data' => $data,
+                'all_args' => func_get_args(),
+                'data_type' => gettype($data)
+            ]);
+
+            // Handle both old format (individual params) and new format (array)
+            if (is_array($data)) {
+                $fileName = $data['file_name'] ?? 'unknown';
+                $fileId = $data['file_id'] ?? null;
+                $fileSize = $data['file_size'] ?? 0;
+            } else {
+                // Legacy support for old format
+                $fileName = $data ?? 'unknown';
+                $fileId = func_get_arg(1) ?? null;
+                $fileSize = func_get_arg(2) ?? 0;
+            }
+
+            \Log::info('📁 [FileUpload] Processing file upload', [
+                'file_name' => $fileName,
+                'file_id' => $fileId,
+                'file_size' => $fileSize
+            ]);
+
+            // Recalculate storage usage
+            $this->calculateStorage();
+
+            // Force refresh the component to show new file
+            $this->dispatch('$refresh');
+
+            // Show success message
+            session()->flash('message', "✅ File '{$fileName}' đã upload thành công! Danh sách đã được cập nhật.");
+
+            \Log::info('✅ [FileUpload] File upload handled successfully');
+
+        } catch (\Exception $e) {
+            \Log::error('❌ [FileUpload] Error handling file upload: ' . $e->getMessage(), [
+                'exception' => $e,
+                'data' => $data
+            ]);
+            session()->flash('error', 'Có lỗi xảy ra khi cập nhật danh sách file.');
+        }
     }
 
     public function confirmDelete($fileId)

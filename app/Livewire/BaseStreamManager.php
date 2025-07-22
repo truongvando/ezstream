@@ -24,7 +24,8 @@ abstract class BaseStreamManager extends Component
 
     protected $listeners = [
         'refreshComponent' => '$refresh',
-        'refreshStreams' => '$refresh'
+        'refreshStreams' => '$refresh',
+        'fileUploaded' => 'handleFileUploaded'
     ];
 
     // Modals
@@ -96,6 +97,34 @@ abstract class BaseStreamManager extends Component
 
         // Force component re-render
         $this->render();
+    }
+
+    /**
+     * Handle file uploaded event - refresh user files and component
+     */
+    public function handleFileUploaded($data = null)
+    {
+        try {
+            // Reload user files to include the new upload
+            $this->loadUserFiles();
+
+            // Refresh the component to show new file
+            $this->dispatch('refreshComponent');
+
+            // Log for debugging
+            if ($data) {
+                \Log::info('📁 [BaseStreamManager] File uploaded, refreshing component', [
+                    'file_name' => $data['file_name'] ?? 'unknown',
+                    'file_id' => $data['file_id'] ?? 'unknown'
+                ]);
+            }
+
+            // Show success message
+            session()->flash('success', 'File đã được upload thành công và danh sách đã được cập nhật!');
+
+        } catch (\Exception $e) {
+            \Log::error('❌ [BaseStreamManager] Error handling file upload: ' . $e->getMessage());
+        }
     }
 
     /**
