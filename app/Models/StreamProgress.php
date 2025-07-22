@@ -188,6 +188,29 @@ class StreamProgress extends Model
                 'percentage' => 100,
                 'message' => 'Stream đang phát trực tiếp!'
             ],
+
+            // Update stream stages
+            'updating' => [
+                'percentage' => 10,
+                'message' => 'Đang cập nhật cấu hình stream...'
+            ],
+            'downloading_new' => [
+                'percentage' => 30,
+                'message' => 'Đang tải file mới...'
+            ],
+            'updating_playlist' => [
+                'percentage' => 80,
+                'message' => 'Đang cập nhật playlist...'
+            ],
+            'restarting' => [
+                'percentage' => 90,
+                'message' => 'Đang khởi động lại với cấu hình mới...'
+            ],
+            'updated' => [
+                'percentage' => 100,
+                'message' => 'Stream đã được cập nhật thành công!'
+            ],
+
             'error' => [
                 'percentage' => 0,
                 'message' => 'Có lỗi xảy ra'

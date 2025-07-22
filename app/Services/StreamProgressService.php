@@ -175,6 +175,17 @@ class StreamProgressService
             'starting_ffmpeg' => ['percentage' => 80, 'message' => 'Đang khởi động dịch vụ...'],
             'ffmpeg_started' => ['percentage' => 90, 'message' => 'Dịch vụ đã khởi động...'],
             'streaming' => ['percentage' => 100, 'message' => 'Đang phát trực tiếp!'],
+
+            // Update stream stages
+            'updating' => ['percentage' => 10, 'message' => 'Đang cập nhật cấu hình stream...'],
+            'downloading_new' => ['percentage' => 30, 'message' => 'Đang tải file mới...'],
+            'downloading_file' => ['percentage' => 50, 'message' => 'Đang tải file...'],
+            'updating_playlist' => ['percentage' => 80, 'message' => 'Đang cập nhật playlist...'],
+            'restarting' => ['percentage' => 90, 'message' => 'Đang khởi động lại với cấu hình mới...'],
+            'updated' => ['percentage' => 100, 'message' => 'Stream đã được cập nhật thành công!'],
+
+            // Other stages
+            'stopped' => ['percentage' => 100, 'message' => 'Stream đã dừng'],
             'error' => ['percentage' => 0, 'message' => 'Có lỗi xảy ra']
         ];
         
