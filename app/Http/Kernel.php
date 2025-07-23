@@ -59,7 +59,7 @@ class Kernel extends HttpKernel
         'signed' => \Illuminate\Routing\Middleware\ValidateSignature::class,
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
-        'agent.token' => \App\Http\Middleware\VerifyAgentToken::class,
+        // 'agent.token' => \App\Http\Middleware\VerifyAgentToken::class, // Moved to bootstrap/app.php for Laravel 11
     ];
 
     /**

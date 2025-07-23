@@ -37,6 +37,7 @@ return [
 
     'agent' => [
         'secret_token' => env('AGENT_SECRET_TOKEN'),
+        'webhook_url' => env('AGENT_WEBHOOK_URL'),
     ],
 
     'slack' => [

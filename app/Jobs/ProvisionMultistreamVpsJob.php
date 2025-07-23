@@ -141,11 +141,13 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         $redisHost = config('database.redis.default.host', '127.0.0.1');
         $redisPort = config('database.redis.default.port', 6379);
         $redisPassword = config('database.redis.default.password', null);
+        $webhookUrl = config('services.agent.webhook_url', '');
+        $secretToken = config('services.agent.secret_token', '');
         $redisPasswordCmd = $redisPassword ? "'{$redisPassword}'" : '';
 
         // 4. Create systemd service file on the VPS
         $serviceName = 'ezstream-agent.service';
-        $serviceContent = $this->generateAgentSystemdService($remoteAgentPath, $redisHost, $redisPort, $redisPasswordCmd);
+        $serviceContent = $this->generateAgentSystemdService($remoteAgentPath, $redisHost, $redisPort, $webhookUrl, $secretToken, $redisPasswordCmd);
         
         // Use a heredoc to safely write the multi-line content
         $sshService->execute("cat > /etc/systemd/system/{$serviceName} << 'EOF'\n{$serviceContent}\nEOF");
@@ -170,19 +172,15 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         Log::info("✅ [VPS #{$this->vps->id}] Redis Agent service started successfully");
     }
     
-    private function generateAgentSystemdService(string $agentPath, string $redisHost, int $redisPort, string $redisPassword): string
+    private function generateAgentSystemdService(string $agentPath, string $redisHost, int $redisPort, string $webhookUrl, string $secretToken, string $redisPassword): string
     {
-        // Check if venv exists, use it if available
         $pythonCmd = "/usr/bin/python3";
         $venvPath = "/opt/ezstream-venv";
-
-        // Create ExecStartPre to check and activate venv if needed
         $execStartPre = "";
-        $command = "{$pythonCmd} {$agentPath} {$this->vps->id} {$redisHost} {$redisPort} {$redisPassword}";
-
-        // If venv exists, use it
+        // Đúng thứ tự: vps_id redis_host redis_port webhook_url secret_token [redis_password]
+        $command = "{$pythonCmd} {$agentPath} {$this->vps->id} {$redisHost} {$redisPort} '{$webhookUrl}' '{$secretToken}' {$redisPassword}";
         $venvCheck = "test -d {$venvPath}";
-        $venvCommand = "{$venvPath}/bin/python {$agentPath} {$this->vps->id} {$redisHost} {$redisPort} {$redisPassword}";
+        $venvCommand = "{$venvPath}/bin/python {$agentPath} {$this->vps->id} {$redisHost} {$redisPort} '{$webhookUrl}' '{$secretToken}' {$redisPassword}";
 
         return "[Unit]
 Description=EZStream Redis Agent v2.0

@@ -98,6 +98,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => \App\Http\Middleware\EnsureUserHasRole::class,
             'locale' => \App\Http\Middleware\SetLocale::class,
+            'agent.token' => \App\Http\Middleware\VerifyAgentToken::class,
             // 'auth' => \App\Http\Middleware\Authenticate::class,
             // 'auth.basic' => \Illuminate\Auth\Middleware\AuthenticateWithBasicAuth::class,
             // 'bindings' => \Illuminate\Routing\Middleware\SubstituteBindings::class,
