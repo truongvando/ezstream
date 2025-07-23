@@ -37,7 +37,7 @@
 
             <!-- Form Body (Scrollable) -->
             <div class="flex-grow overflow-y-auto">
-                <form wire:submit.prevent="createQuickStream" class="p-6">
+                <div class="p-6">
                     <!-- Auto-Delete Warning -->
                     <div class="mb-6 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
                         <div class="flex">
@@ -123,30 +123,19 @@
                                 <h4 class="font-semibold text-gray-900 dark:text-gray-100 border-b pb-2">2. Video & Cài đặt</h4>
 
                                 <!-- Upload hoặc Library tabs -->
-                                <div x-data="{
-                                    videoSource: 'upload',
-                                    init() {
-                                        console.log('🎯 Alpine tabs initialized, videoSource:', this.videoSource);
-                                    },
-                                    switchTab(tab) {
-                                        console.log('🔄 Switching to tab:', tab);
-                                        this.videoSource = tab;
-                                    }
-                                }" class="space-y-4">
+                                <div class="space-y-4">
                                     <div class="flex space-x-2">
                                         <button type="button"
-                                                @click="switchTab('upload')"
-                                                :class="videoSource === 'upload' ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'bg-gray-100 text-gray-700 border-gray-300'"
-                                                class="px-3 py-2 text-sm font-medium border rounded-md transition-colors flex items-center">
+                                                wire:click.prevent="switchTab('upload')"
+                                                class="px-3 py-2 text-sm font-medium border rounded-md transition-colors flex items-center {{ $videoSource === 'upload' ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'bg-gray-100 text-gray-700 border-gray-300' }}">
                                             <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
                                             </svg>
                                             Upload nhanh
                                         </button>
                                         <button type="button"
-                                                @click="switchTab('library')"
-                                                :class="videoSource === 'library' ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'bg-gray-100 text-gray-700 border-gray-300'"
-                                                class="px-3 py-2 text-sm font-medium border rounded-md transition-colors flex items-center">
+                                                wire:click.prevent="switchTab('library')"
+                                                class="px-3 py-2 text-sm font-medium border rounded-md transition-colors flex items-center {{ $videoSource === 'library' ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'bg-gray-100 text-gray-700 border-gray-300' }}">
                                             <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
                                             </svg>
@@ -155,28 +144,28 @@
                                     </div>
 
                                     <!-- Upload Section -->
-                                    <div x-show="videoSource === 'upload'">
+                                    @if($videoSource === 'upload')
+                                    <div>
                                         @include('livewire.shared.quick-upload-area')
                                     </div>
+                                    @endif
                                     
                                     <!-- Library Selection -->
-                                    <div x-show="videoSource === 'library'" x-transition>
+                                    @if($videoSource === 'library')
+                                    <div>
                                         <div class="border border-gray-300 dark:border-gray-600 rounded-lg">
                                             @if(isset($userFiles) && count($userFiles) > 0)
                                                 <div class="p-2 bg-gray-50 dark:bg-gray-700 text-xs text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-600">
-                                                    Đã chọn: <span x-text="$wire.quickSelectedFiles.length"></span> file(s)
+                                                    Đã chọn: <span>{{ count($quickSelectedFiles) }}</span> file(s)
                                                 </div>
                                                 <!-- Scrollable file list with fixed height -->
                                                 <div class="max-h-48 overflow-y-auto">
                                                     @foreach($userFiles as $file)
-                                                    <label class="quick-stream-file-label flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors"
-                                                           @click="console.log('📋 File label clicked for file:', {{ $file->id }})">
+                                                    <label wire:key="file-{{ $file->id }}" class="quick-stream-file-label flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors">
                                                         <input type="checkbox"
-                                                               wire:model.live="quickSelectedFiles"
-                                                               value="{{ $file->id }}"
-                                                               class="quick-stream-checkbox form-checkbox h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
-                                                               @change="console.log('✅ Checkbox changed, selected files:', $wire.quickSelectedFiles)"
-                                                               @click.stop="console.log('📋 Direct checkbox click for file:', {{ $file->id }})">
+                                                               wire:click="toggleFileSelection({{ $file->id }})"
+                                                               @if(in_array($file->id, $quickSelectedFiles)) checked @endif
+                                                               class="quick-stream-checkbox form-checkbox h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer">
                                                         <div class="ml-3 flex-1">
                                                             <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $file->original_name }}</p>
                                                             <p class="text-xs text-gray-500">{{ number_format($file->size / 1024 / 1024, 1) }}MB • {{ $file->created_at->format('d/m/Y') }}</p>
@@ -192,6 +181,7 @@
                                             @endif
                                         </div>
                                     </div>
+                                    @endif
                                 </div>
                             </div>
                             
@@ -243,28 +233,37 @@
                             </div>
                         </div>
                     </div>
-                </form>
+                </div>
             </div>
 
             <!-- Footer -->
             <div class="bg-gray-50 dark:bg-gray-900 flex justify-end space-x-3 border-t pt-4 p-6 flex-shrink-0">
                 <button type="button" @click="$wire.showQuickStreamModal = false" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">Hủy</button>
                 <button id="quickStreamSubmitButton"
-                        wire:click="createQuickStream"
+                        wire:click.prevent="createQuickStream"
                         wire:loading.attr="disabled"
                         wire:loading.class="opacity-50 cursor-not-allowed"
+                        wire:target="createQuickStream"
                         type="button"
-                        class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-md transition-all duration-200">
+                        class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        x-data="{ clicked: false }"
+                        x-on:click="if (clicked) return false; clicked = true; setTimeout(() => clicked = false, 3000)"
+                        :disabled="clicked">
                     <span wire:loading.remove wire:target="createQuickStream" class="flex items-center">
-                        <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-                        </svg>
-                        Tạo & Stream Ngay
+                        @if ($editingStream)
+                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                            Cập nhật Stream
+                        @else
+                            <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                            </svg>
+                            Tạo & Stream Ngay
+                        @endif
                     </span>
                     <span wire:loading wire:target="createQuickStream" class="flex items-center">
                         <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                         </svg>
                         Đang tạo...
                     </span>
@@ -293,29 +292,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 100);
     });
 
-    // Debug Quick Stream creation
-    document.addEventListener('click', function(e) {
-        if (e.target.id === 'quickStreamSubmitButton' || e.target.closest('#quickStreamSubmitButton')) {
-            console.log('🚀 Quick Stream button clicked!', {
-                quickTitle: window.Livewire.find(document.querySelector('[wire\\:id]').getAttribute('wire:id')).get('quickTitle'),
-                quickPlatform: window.Livewire.find(document.querySelector('[wire\\:id]').getAttribute('wire:id')).get('quickPlatform'),
-                quickStreamKey: window.Livewire.find(document.querySelector('[wire\\:id]').getAttribute('wire:id')).get('quickStreamKey'),
-                quickSelectedFiles: window.Livewire.find(document.querySelector('[wire\\:id]').getAttribute('wire:id')).get('quickSelectedFiles'),
-                video_source_id: window.Livewire.find(document.querySelector('[wire\\:id]').getAttribute('wire:id')).get('video_source_id')
-            });
-        }
-    });
-
     // Debug checkbox interactions with more detail
     document.addEventListener('click', function(e) {
-        if (e.target.type === 'checkbox' && e.target.hasAttribute('wire:model.live')) {
-            console.log('📋 Checkbox clicked:', {
+        if (e.target.type === 'checkbox' && e.target.classList.contains('quick-stream-checkbox')) {
+            console.log('📋 Checkbox clicked via new method:', {
                 value: e.target.value,
-                checked: e.target.checked,
-                wireModel: e.target.getAttribute('wire:model.live'),
-                element: e.target,
-                computedStyle: window.getComputedStyle(e.target),
-                pointerEvents: window.getComputedStyle(e.target).pointerEvents
+                checked: e.target.checked
             });
         }
 

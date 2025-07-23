@@ -49,21 +49,16 @@ class StartMultistreamJob implements ShouldQueue
             StreamProgressService::createStageProgress($this->stream->id, 'preparing', 'Đang gửi lệnh tới VPS...');
 
             // 1. Tìm VPS tốt nhất để chạy stream
+            Log::info("🛰️ [Stream #{$this->stream->id}] Finding optimal VPS...");
             $vps = $streamAllocation->findOptimalVps($this->stream);
             if (!$vps) {
                 throw new \Exception("No suitable VPS found for the stream requirements.");
             }
+            Log::info("✅ [Stream #{$this->stream->id}] Found optimal VPS: #{$vps->id} ({$vps->ip_address})");
             $this->stream->update(['vps_server_id' => $vps->id]);
 
             // 2. Xây dựng gói tin cấu hình cho agent.py
-            Log::info("🔍 [Stream #{$this->stream->id}] Debug stream_key value", [
-                'stream_key' => $this->stream->stream_key,
-                'stream_key_type' => gettype($this->stream->stream_key),
-                'stream_key_empty' => empty($this->stream->stream_key),
-                'stream_key_null' => is_null($this->stream->stream_key),
-                'stream_key_length' => strlen($this->stream->stream_key ?? ''),
-            ]);
-
+            Log::info("📦 [Stream #{$this->stream->id}] Building config payload...");
             $configPayload = [
                 'id' => $this->stream->id,
                 'stream_key' => $this->stream->stream_key,
@@ -84,17 +79,17 @@ class StartMultistreamJob implements ShouldQueue
             $channel = "vps-commands:{$vps->id}";
             $publishResult = $this->publishWithRetry($channel, $redisCommand);
 
-            Log::info("✅ [Stream #{$this->stream->id}] Start command published to Redis channel '{$channel}'", [
+            Log::info("📡 [Stream #{$this->stream->id}] Redis publish result to '{$channel}': {$publishResult} subscribers received the command.", [
                 'vps_id' => $vps->id,
-                'command' => $redisCommand,
-                'publish_result' => $publishResult,
-                'subscribers' => $publishResult > 0 ? 'YES' : 'NO',
-                'json_payload' => json_encode($redisCommand), // Log the actual JSON being sent
+                'json_payload_preview' => substr(json_encode($redisCommand), 0, 200) . '...'
             ]);
 
             // Check if agent received the command
             if ($publishResult > 0) {
                 StreamProgressService::createStageProgress($this->stream->id, 'command_sent', 'Lệnh đã gửi tới VPS, đang chờ agent xử lý...');
+                // 🚀 BƯỚC CẢI TIẾN: Lên lịch một Job giám sát
+                HandleStoppingTimeoutJob::dispatch($this->stream)->delay(now()->addMinutes(5));
+                Log::info("💂 [Stream #{$this->stream->id}] Scheduled a monitoring job (HandleStoppingTimeoutJob) to run in 5 minutes to prevent getting stuck.");
             } else {
                 throw new \Exception("No agent listening on VPS {$vps->id}. Agent may not be running.");
             }

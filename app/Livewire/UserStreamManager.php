@@ -42,6 +42,8 @@ class UserStreamManager extends BaseStreamManager
      */
     protected $listeners = ['refreshStreams' => 'refreshStreams'];
 
+    public $videoSource = 'upload'; // Quản lý tab active trong Quick Stream Modal
+
     /**
      * Refresh streams method for polling
      */
@@ -112,6 +114,12 @@ class UserStreamManager extends BaseStreamManager
         $stream = StreamConfiguration::where('id', $streamId)
             ->where('user_id', Auth::id())
             ->firstOrFail();
+
+        // Check if this is a quick stream - use quick stream modal
+        if ($stream->is_quick_stream) {
+            $this->editQuickStream($stream);
+            return;
+        }
 
         // Reset all form state first
         $this->resetValidation();
@@ -278,6 +286,22 @@ class UserStreamManager extends BaseStreamManager
         $this->resetValidation();
     }
 
+    public function toggleFileSelection($fileId)
+    {
+        $fileId = (int) $fileId;
+        if (in_array($fileId, $this->quickSelectedFiles)) {
+            $this->quickSelectedFiles = array_diff($this->quickSelectedFiles, [$fileId]);
+        } else {
+            $this->quickSelectedFiles[] = $fileId;
+        }
+        $this->quickSelectedFiles = array_values($this->quickSelectedFiles); // Re-index array
+    }
+
+    public function switchTab($tab)
+    {
+        $this->videoSource = $tab;
+    }
+
     // confirmDelete and delete methods inherited from BaseStreamManager
 
     public function confirmDelete(StreamConfiguration $stream)
@@ -409,14 +433,94 @@ class UserStreamManager extends BaseStreamManager
         $this->dispatch('refreshComponent');
     }
 
+    /**
+     * Edit Quick Stream - Load data into quick stream modal
+     */
+    public function editQuickStream($stream)
+    {
+        // Reset other modals
+        $this->showCreateModal = false;
+        $this->showEditModal = false;
+
+        // Load stream data into quick stream fields
+        $this->editingStream = $stream;
+        $this->quickTitle = $stream->title;
+        $this->quickDescription = $stream->description;
+        $this->quickPlatform = $this->detectPlatformFromUrl($stream->rtmp_url) ?? 'youtube';
+        $this->quickRtmpUrl = $stream->rtmp_url;
+        $this->quickStreamKey = $stream->stream_key;
+        $this->quickLoop = $stream->loop ?? false;
+        $this->quickPlaylistOrder = $stream->playlist_order ?? 'sequential';
+        $this->quickEnableSchedule = $stream->enable_schedule ?? false;
+        $this->quickScheduledAt = $stream->scheduled_at ? $stream->scheduled_at->format('Y-m-d\TH:i') : '';
+        $this->quickScheduledEnd = $stream->scheduled_end ? $stream->scheduled_end->format('Y-m-d\TH:i') : '';
+
+        // Load selected files
+        $this->quickSelectedFiles = collect($stream->video_source_path)->pluck('file_id')->toArray();
+
+        // Load user files for selection
+        $this->loadUserFiles();
+
+        // Open quick stream modal
+        $this->showQuickStreamModal = true;
+
+        Log::info('✏️ Quick Stream loaded for editing', [
+            'stream_id' => $stream->id,
+            'title' => $stream->title
+        ]);
+    }
+
     public function createQuickStream()
     {
-        Log::info('🚀 [QuickStream] Starting createQuickStream', [
+        // Check if we're editing an existing stream
+        if ($this->editingStream && $this->editingStream->is_quick_stream) {
+            $this->updateQuickStream();
+            return;
+        }
+
+        Log::info(' [QuickStream] Starting createQuickStream', [
             'quickTitle' => $this->quickTitle,
             'quickPlatform' => $this->quickPlatform,
             'quickSelectedFiles' => $this->quickSelectedFiles,
             'video_source_id' => $this->video_source_id,
         ]);
+
+        // 🔍 DEBUG: Log form data before validation
+        Log::info('🔍 [QuickStream] Form data debug', [
+            'quickSelectedFiles' => $this->quickSelectedFiles,
+            'quickSelectedFiles_type' => gettype($this->quickSelectedFiles),
+            'quickSelectedFiles_count' => is_array($this->quickSelectedFiles) ? count($this->quickSelectedFiles) : 'not_array',
+            'video_source_id' => $this->video_source_id,
+        ]);
+
+        // 🔧 CRITICAL FIX: Convert Proxy(Array) to real array
+        if (is_object($this->quickSelectedFiles) && method_exists($this->quickSelectedFiles, 'toArray')) {
+            $this->quickSelectedFiles = $this->quickSelectedFiles->toArray();
+        } elseif (is_object($this->quickSelectedFiles)) {
+            // Handle Livewire Proxy Array
+            $this->quickSelectedFiles = collect($this->quickSelectedFiles)->toArray();
+        }
+
+        // Ensure it's an array
+        if (!is_array($this->quickSelectedFiles)) {
+            $this->quickSelectedFiles = [];
+        }
+
+        Log::info('🔧 [QuickStream] After conversion', [
+            'quickSelectedFiles_type' => gettype($this->quickSelectedFiles),
+            'quickSelectedFiles_count' => count($this->quickSelectedFiles),
+            'quickSelectedFiles_values' => $this->quickSelectedFiles,
+        ]);
+
+        // 🚨 CRITICAL FIX: Validate files FIRST before other fields
+        if (empty($this->video_source_id) && count($this->quickSelectedFiles) === 0) {
+            session()->flash('error', '❌ Vui lòng chọn ít nhất một video từ thư viện hoặc upload file mới.');
+            Log::warning('🚨 [QuickStream] No files selected in validation', [
+                'video_source_id' => $this->video_source_id,
+                'quickSelectedFiles_count' => count($this->quickSelectedFiles)
+            ]);
+            return;
+        }
 
         // First validate basic fields (OUTSIDE try-catch so validation errors show)
         $this->validate([
@@ -713,6 +817,124 @@ class UserStreamManager extends BaseStreamManager
         } catch (\Exception $e) {
             Log::error("Error getting stream progress for stream {$streamId}: " . $e->getMessage());
             return null;
+        }
+    }
+
+    /**
+     * Update Quick Stream
+     */
+    public function updateQuickStream()
+    {
+        // 🔧 CRITICAL FIX: Convert Proxy(Array) to real array for update
+        if (is_object($this->quickSelectedFiles) && method_exists($this->quickSelectedFiles, 'toArray')) {
+            $this->quickSelectedFiles = $this->quickSelectedFiles->toArray();
+        } elseif (is_object($this->quickSelectedFiles)) {
+            $this->quickSelectedFiles = collect($this->quickSelectedFiles)->toArray();
+        }
+
+        if (!is_array($this->quickSelectedFiles)) {
+            $this->quickSelectedFiles = [];
+        }
+
+        Log::info('✏️ [QuickStream] Starting updateQuickStream', [
+            'stream_id' => $this->editingStream->id,
+            'quickTitle' => $this->quickTitle,
+            'quickSelectedFiles' => $this->quickSelectedFiles,
+            'quickSelectedFiles_count' => count($this->quickSelectedFiles),
+        ]);
+
+        try {
+            // Validation
+            $this->validate([
+                'quickTitle' => 'required|string|max:255',
+                'quickPlatform' => 'required|string',
+                'quickStreamKey' => 'required|string',
+                'quickSelectedFiles' => 'required|array|min:1',
+            ]);
+
+            // Get user files
+            $userFiles = UserFile::whereIn('id', $this->quickSelectedFiles)
+                                ->where('user_id', Auth::id())
+                                ->get();
+
+            if ($userFiles->isEmpty()) {
+                session()->flash('error', 'Không tìm thấy file nào được chọn.');
+                return;
+            }
+
+            // Build file list to be consistent with normal stream updates
+            $fileList = $userFiles->map(function ($file) {
+                return [
+                    'file_id' => $file->id,
+                    'filename' => $file->original_name,
+                    'path' => $file->disk === 'google_drive' ? $file->google_drive_file_id : $file->path,
+                    'disk' => $file->disk,
+                    'size' => $file->size,
+                ];
+            })->toArray();
+
+            // Handle scheduling
+            $enableSchedule = $this->quickEnableSchedule;
+            $scheduledAt = null;
+            $scheduledEnd = null;
+
+            if ($enableSchedule && !empty($this->quickScheduledAt)) {
+                $scheduledAt = Carbon::parse($this->quickScheduledAt);
+                if (!empty($this->quickScheduledEnd)) {
+                    $scheduledEnd = Carbon::parse($this->quickScheduledEnd);
+                }
+            }
+
+            // Determine RTMP URLs
+            $rtmpUrl = $this->quickPlatform === 'custom' ? $this->quickRtmpUrl : $this->getPlatformUrl($this->quickPlatform);
+            $backupRtmpUrl = $this->quickPlatform === 'youtube' ? 'rtmp://b.rtmp.youtube.com/live2' : null;
+
+            // Update stream
+            $this->editingStream->update([
+                'title' => $this->quickTitle,
+                'description' => $this->quickDescription,
+                'video_source_path' => $fileList,
+                'rtmp_url' => $rtmpUrl,
+                'rtmp_backup_url' => $backupRtmpUrl,
+                'stream_key' => $this->quickStreamKey,
+                'loop' => $this->quickLoop,
+                'playlist_order' => 'sequential',
+                'scheduled_at' => $scheduledAt,
+                'scheduled_end' => $scheduledEnd,
+                'enable_schedule' => $enableSchedule,
+                // Quick stream always auto-delete
+                'is_quick_stream' => true,
+                'auto_delete_from_cdn' => true,
+            ]);
+
+            // Mark files for auto-deletion
+            $userFiles->each(function ($file) {
+                $file->update(['auto_delete_after_stream' => true]);
+            });
+
+            // If stream is running, dispatch update job
+            if ($this->editingStream->status === 'STREAMING') {
+                \App\Jobs\UpdateMultistreamJob::dispatch($this->editingStream);
+                session()->flash('success', 'Quick Stream đang chạy đã được cập nhật! Thay đổi sẽ có hiệu lực trong vài giây.');
+            } else {
+                session()->flash('success', 'Quick Stream đã được cập nhật thành công!');
+            }
+
+            $this->showQuickStreamModal = false;
+            $this->resetQuickStreamForm();
+
+            Log::info('✅ [QuickStream] Updated successfully', [
+                'stream_id' => $this->editingStream->id,
+                'title' => $this->quickTitle
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('❌ Failed to update Quick Stream', [
+                'stream_id' => $this->editingStream->id ?? 'unknown',
+                'error' => $e->getMessage()
+            ]);
+
+            session()->flash('error', 'Có lỗi xảy ra khi cập nhật Quick Stream: ' . $e->getMessage());
         }
     }
 

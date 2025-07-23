@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\SecureDownloadController;
 use App\Http\Controllers\Api\DirectUploadController;
 use App\Http\Controllers\Api\WebhookController;
 use App\Http\Controllers\FileUploadController;
+use App\Http\Controllers\Api\AgentReportController;
 
 /*
 |--------------------------------------------------------------------------
@@ -101,3 +102,9 @@ Route::prefix('public')->middleware('throttle:60,1')->group(function () {
 // - /api/webhook/* (WebhookController)
 // - /api/stream/* (StreamController)
 // - /api/vps/* (VpsController)
+
+Route::prefix('v1')->group(function () {
+    Route::post('/agent/report', [AgentReportController::class, 'handleReport'])
+        ->middleware('agent.token')
+        ->name('agent.report');
+});
