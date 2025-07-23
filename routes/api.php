@@ -42,7 +42,7 @@ Route::middleware(['web', 'auth'])->group(function () {
 });
 
 // 🔥 NEW UNIFIED WEBHOOK ENDPOINTS
-Route::prefix('webhook')->group(function () {
+Route::prefix('webhook')->middleware('agent.token')->group(function () {
     // Single webhooks
     Route::post('/vps', [\App\Http\Controllers\Api\WebhookController::class, 'handleVpsStats'])
         ->middleware('throttle:120,1');

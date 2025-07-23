@@ -162,7 +162,9 @@ class StreamProgressService
     public static function createStageProgress(
         int $streamId,
         string $stage,
-        string $customMessage = null
+        string $customMessage = null,
+        int $customPercentage = null,
+        array $details = null
     ): bool {
         $stages = [
             'preparing' => ['percentage' => 5, 'message' => 'Đang chuẩn bị stream...'],
@@ -196,12 +198,14 @@ class StreamProgressService
         
         $stageData = $stages[$stage];
         $message = $customMessage ?: $stageData['message'];
-        
+        $percentage = $customPercentage !== null ? $customPercentage : $stageData['percentage'];
+
         return self::setProgress(
             $streamId,
             $stage,
-            $stageData['percentage'],
-            $message
+            $percentage,
+            $message,
+            $details
         );
     }
 }

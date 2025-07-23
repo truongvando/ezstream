@@ -69,6 +69,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('streams:stop-expired-users')
                  ->hourly()
                  ->withoutOverlapping();
+
+        // 🚦 Process stream queue (when VPS overloaded)
+        $schedule->job(new \App\Jobs\ProcessStreamQueueJob())
+                 ->everyThirtySeconds()
+                 ->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->use([

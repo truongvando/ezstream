@@ -102,10 +102,20 @@
                                     Live
                                 </span>
                             @elseif($stream->status === 'STARTING')
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                                    <div class="w-2 h-2 bg-blue-400 rounded-full mr-1 animate-spin"></div>
-                                    Starting
-                                </span>
+                                <div class="flex flex-col items-end space-y-1">
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                        <div class="w-2 h-2 bg-blue-400 rounded-full mr-1 animate-spin"></div>
+                                        Starting
+                                    </span>
+                                    {{-- Progress Bar --}}
+                                    <div class="w-20 bg-gray-200 rounded-full h-1.5 dark:bg-gray-700">
+                                        <div class="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                                             style="width: 0%"
+                                             data-stream-progress="{{ $stream->id }}"></div>
+                                    </div>
+                                    <span class="text-xs text-gray-500 dark:text-gray-400"
+                                          data-stream-message="{{ $stream->id }}">Đang chuẩn bị...</span>
+                                </div>
                             @elseif($stream->status === 'STOPPING')
                                 <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
                                     <div class="w-2 h-2 bg-orange-400 rounded-full mr-1 animate-pulse"></div>
@@ -253,7 +263,7 @@
                     <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 w-full">
                         {{-- Main Action (Left) --}}
                         <div class="flex-1">
-                            @if($stream->status === 'INACTIVE')
+                            @if(in_array($stream->status, ['INACTIVE', 'STOPPED', 'COMPLETED', 'PENDING']))
                                 <button wire:click="startStream({{ $stream->id }})" wire:loading.attr="disabled" wire:target="startStream({{ $stream->id }})"
                                         class="inline-flex items-center px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors duration-200 disabled:opacity-50">
                                     <svg wire:loading.remove wire:target="startStream({{ $stream->id }})" class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -294,6 +304,17 @@
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 714 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
+                                    <span wire:loading.remove wire:target="startStream({{ $stream->id }})">Bắt đầu</span>
+                                    <span wire:loading wire:target="startStream({{ $stream->id }})">Đang khởi động...</span>
+                                </button>
+                            @else
+                                {{-- Fallback for unknown status - show start button --}}
+                                <button wire:click="startStream({{ $stream->id }})" wire:loading.attr="disabled" wire:target="startStream({{ $stream->id }})"
+                                        class="inline-flex items-center px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors duration-200 disabled:opacity-50">
+                                    <svg wire:loading.remove wire:target="startStream({{ $stream->id }})" class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                                    </svg>
+                                    <x-loading-spinner wire:loading wire:target="startStream({{ $stream->id }})" size="w-3 h-3" class="mr-1" />
                                     <span wire:loading.remove wire:target="startStream({{ $stream->id }})">Bắt đầu</span>
                                     <span wire:loading wire:target="startStream({{ $stream->id }})">Đang khởi động...</span>
                                 </button>
@@ -355,6 +376,81 @@
 
     </div>
 </div>
+
+{{-- Progress Tracking JavaScript --}}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Track streams that are starting
+    const startingStreams = new Set();
+
+    // Find all STARTING streams on page load
+    document.querySelectorAll('[data-stream-progress]').forEach(element => {
+        const streamId = element.getAttribute('data-stream-progress');
+        startingStreams.add(parseInt(streamId));
+    });
+
+    // Poll progress for starting streams
+    function pollStreamProgress() {
+        startingStreams.forEach(streamId => {
+            fetch(`/api/stream/${streamId}/progress`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        updateProgressUI(streamId, data.data);
+
+                        // Remove from tracking if completed
+                        if (data.data.stage === 'streaming' || data.data.progress_percentage >= 100) {
+                            startingStreams.delete(streamId);
+                            // Refresh component after completion
+                            setTimeout(() => {
+                                @this.call('$refresh');
+                            }, 2000);
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error(`Error fetching progress for stream ${streamId}:`, error);
+                });
+        });
+    }
+
+    // Update progress UI
+    function updateProgressUI(streamId, progressData) {
+        const progressBar = document.querySelector(`[data-stream-progress="${streamId}"]`);
+        const messageElement = document.querySelector(`[data-stream-message="${streamId}"]`);
+
+        if (progressBar) {
+            progressBar.style.width = `${progressData.progress_percentage || 0}%`;
+        }
+
+        if (messageElement) {
+            messageElement.textContent = progressData.message || 'Đang xử lý...';
+        }
+    }
+
+    // Start polling if there are starting streams
+    if (startingStreams.size > 0) {
+        const pollInterval = setInterval(() => {
+            if (startingStreams.size === 0) {
+                clearInterval(pollInterval);
+                return;
+            }
+            pollStreamProgress();
+        }, 2000); // Poll every 2 seconds
+    }
+
+    // Listen for new streams starting
+    window.addEventListener('stream-started', function(event) {
+        const streamId = event.detail.streamId;
+        startingStreams.add(streamId);
+
+        // Start polling if not already running
+        if (startingStreams.size === 1) {
+            pollStreamProgress();
+        }
+    });
+});
+</script>
 
 @push('scripts')
 <script>

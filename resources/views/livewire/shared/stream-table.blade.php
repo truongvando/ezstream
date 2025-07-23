@@ -233,7 +233,7 @@
                                             <div class="absolute top-full left-0 right-0 mt-1 bg-gray-200 rounded-full h-1.5 overflow-hidden">
                                                 <div id="progress-bar-{{ $stream->id }}" class="bg-blue-600 h-full rounded-full transition-all duration-300" style="width: 10%"></div>
                                             </div>
-                                        @elseif(in_array($stream->status, ['PENDING', 'INACTIVE', 'STOPPED', 'ERROR']))
+                                        @elseif(in_array($stream->status, ['PENDING', 'INACTIVE', 'STOPPED', 'COMPLETED', 'ERROR']))
                                             <!-- Start Button -->
                                             <button wire:click="startStream({{ $stream }})"
                                                     wire:loading.attr="disabled"

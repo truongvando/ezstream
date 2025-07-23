@@ -405,6 +405,9 @@ class UserStreamManager extends BaseStreamManager
 
         StartMultistreamJob::dispatch($stream);
         session()->flash('message', 'Lệnh bắt đầu stream đã được gửi đi.');
+
+        // Trigger JavaScript event for progress tracking
+        $this->dispatch('stream-started', streamId: $stream->id);
     }
 
 

@@ -8,6 +8,7 @@ use App\Livewire\Admin\TransactionManagement as AdminTransactionManagement;
 use App\Livewire\Admin\UserManagement as AdminUserManagement;
 use App\Livewire\Admin\AdminStreamManager;
 use App\Livewire\Admin\VpsMonitoring;
+
 use App\Livewire\ServicePackageManager;
 use App\Models\VpsServer;
 use App\Http\Controllers\VpsProvisionController;
@@ -545,6 +546,17 @@ Route::middleware(['auth', 'locale'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Debug blog images
+    // Test routes for queue monitoring
+    Route::get('/test/queue-monitor', function () {
+        return view('test.queue-monitor');
+    })->name('test.queue-monitor');
+
+    Route::get('/test/process-queue', function () {
+        $allocation = app(\App\Services\Stream\StreamAllocation::class);
+        $allocation->processQueue();
+        return redirect()->route('test.queue-monitor')->with('success', 'Queue processed!');
+    })->name('test.process-queue');
+
     Route::get('/debug-blog-images', function () {
         $posts = \App\Models\Post::whereNotNull('featured_image')->get();
 
@@ -653,7 +665,7 @@ Route::middleware(['auth', 'locale'])->group(function () {
         $vps = VpsServer::create($validatedData + ['is_active' => true, 'status' => 'PENDING']);
         
         // Dispatch the job
-        ProvisionMultistreamVpsJob::dispatch($vps)->onConnection('database'); // Ensure it uses the database queue
+        ProvisionMultistreamVpsJob::dispatch($vps->id)->onConnection('database'); // Ensure it uses the database queue
 
         session()->flash('message', "VPS '{$vps->name}' đã được thêm. Job cài đặt đã được gửi vào hàng đợi.");
 
@@ -675,7 +687,7 @@ Route::middleware(['auth', 'locale'])->group(function () {
     Route::get('/run-provision-job-directly/{vps}', function (VpsServer $vps) {
         echo "<!DOCTYPE html><body style='background:#111; color:#eee; font-family:monospace; padding:15px; white-space:pre-wrap;'>";
         try {
-            $job = new \App\Jobs\ProvisionMultistreamVpsJob($vps);
+            $job = new \App\Jobs\ProvisionMultistreamVpsJob($vps->id);
             $sshService = new \App\Services\SshService();
             $job->handle($sshService);
             echo "✅ Job handle completed without exceptions.";

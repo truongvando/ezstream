@@ -3,8 +3,9 @@
 namespace App\Jobs;
 
 use App\Models\StreamConfiguration;
-use App\Services\Stream\StreamAllocation;
+
 use App\Services\StreamProgressService;
+use App\Services\Stream\StreamAllocation;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -41,21 +42,41 @@ class StartMultistreamJob implements ShouldQueue
                 return;
             }
 
-            // Đánh dấu stream đang bắt đầu
-            $this->stream->update(['status' => 'STARTING']);
+            // 🚦 CHECK STREAM ALLOCATION: If stream doesn't have VPS assigned, use allocation service
+            if (!$this->stream->vps_server_id) {
+                Log::info("🚦 [Stream #{$this->stream->id}] No VPS assigned, using stream allocation");
+
+                $result = $streamAllocation->assignStreamToVps($this->stream);
+
+                if ($result['action'] === 'queued') {
+                    Log::info("⏳ [Stream #{$this->stream->id}] Stream queued due to VPS capacity");
+                    StreamProgressService::createStageProgress($this->stream->id, 'queued', $result['message']);
+                    return; // Job ends here, queue processor will handle later
+                } elseif (!$result['success']) {
+                    Log::error("❌ [Stream #{$this->stream->id}] Stream allocation failed: {$result['message']}");
+                    $this->stream->update(['status' => 'ERROR', 'error_message' => $result['message']]);
+                    return;
+                }
+
+                // If we reach here, stream was assigned to VPS and status is already STARTING
+                $this->stream->refresh();
+            }
 
             // Clear old progress - agent.py sẽ báo cáo progress thực tế
             StreamProgressService::clearProgress($this->stream->id);
             StreamProgressService::createStageProgress($this->stream->id, 'preparing', 'Đang gửi lệnh tới VPS...');
 
-            // 1. Tìm VPS tốt nhất để chạy stream
-            Log::info("🛰️ [Stream #{$this->stream->id}] Finding optimal VPS...");
-            $vps = $streamAllocation->findOptimalVps($this->stream);
-            if (!$vps) {
-                throw new \Exception("No suitable VPS found for the stream requirements.");
+            // 1. Ensure stream has VPS assigned (should be done by load balancer already)
+            if (!$this->stream->vps_server_id) {
+                throw new \Exception("Stream has no VPS assigned. Load balancer should have handled this.");
             }
-            Log::info("✅ [Stream #{$this->stream->id}] Found optimal VPS: #{$vps->id} ({$vps->ip_address})");
-            $this->stream->update(['vps_server_id' => $vps->id]);
+
+            $vps = \App\Models\VpsServer::find($this->stream->vps_server_id);
+            if (!$vps) {
+                throw new \Exception("Assigned VPS not found: #{$this->stream->vps_server_id}");
+            }
+
+            Log::info("✅ [Stream #{$this->stream->id}] Using assigned VPS: #{$vps->id} ({$vps->ip_address})");
 
             // 2. Xây dựng gói tin cấu hình cho agent.py
             Log::info("📦 [Stream #{$this->stream->id}] Building config payload...");
