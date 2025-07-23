@@ -18,7 +18,7 @@ class StreamProgressService
         string $stage,
         int $progressPercentage,
         string $message,
-        array $details = null
+        ?array $details = []
     ): bool {
         try {
             $key = self::PROGRESS_KEY_PREFIX . $streamId;

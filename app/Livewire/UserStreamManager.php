@@ -408,6 +408,9 @@ class UserStreamManager extends BaseStreamManager
 
         // Trigger JavaScript event for progress tracking
         $this->dispatch('stream-started', streamId: $stream->id);
+
+        // Sửa: Thêm refresh để cập nhật UI ngay lập tức
+        $this->dispatch('$refresh');
     }
 
 
@@ -706,8 +709,8 @@ class UserStreamManager extends BaseStreamManager
 
         session()->flash('success', $message);
 
-        // Refresh the streams list to show the new stream
-        $this->dispatch('refreshStreams');
+        // Sửa: Dùng $this->dispatch thay vì 'refreshStreams'
+        $this->dispatch('$refresh');
 
         } catch (\Illuminate\Validation\ValidationException $e) {
             // Re-throw validation exceptions so they show in UI

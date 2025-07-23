@@ -79,7 +79,22 @@ class AgentReportController extends Controller
 
             // --- TÁCH LOGIC XỬ LÝ ---
 
-            // A. Nếu đây là báo cáo PROGRESS
+            // A. Nếu là báo cáo STARTING
+            if ($validatedData['status'] === 'STARTING') {
+                $stream->status = 'STARTING';
+                $stream->vps_server_id = $validatedData['vps_id'];
+                $stream->last_status_update = now();
+                $stream->save();
+
+                Log::info("[AgentReport] Stream #{$stream->id} is STARTING on VPS #{$validatedData['vps_id']}");
+                
+                return response()->json([
+                    'status' => 'success',
+                    'message' => "Stream #{$stream->id} acknowledged as STARTING."
+                ]);
+            }
+
+            // B. Nếu đây là báo cáo PROGRESS
             if ($validatedData['status'] === 'PROGRESS') {
                 $progressData = $validatedData['extra_data']['progress_data'] ?? null;
 
@@ -103,7 +118,7 @@ class AgentReportController extends Controller
                 ]);
             }
 
-            // B. Nếu đây là báo cáo thay đổi TRẠNG THÁI (status)
+            // C. Nếu đây là báo cáo thay đổi TRẠNG THÁI (status) khác
             $oldStatus = $stream->status;
             $newStatus = $validatedData['status'];
 

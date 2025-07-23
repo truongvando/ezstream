@@ -391,25 +391,46 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Poll progress for starting streams
     function pollStreamProgress() {
+        if (startingStreams.size === 0) return;
+
         startingStreams.forEach(streamId => {
             fetch(`/api/stream/${streamId}/progress`)
-                .then(response => response.json())
+                .then(response => {
+                    // Sửa: Kiểm tra response có OK không (status 200-299)
+                    if (!response.ok) {
+                        // Nếu stream không tìm thấy (404) hoặc lỗi khác, dừng polling cho nó
+                        if (response.status === 404) {
+                            console.log(`Stream ${streamId} progress not found. Stopping poll.`);
+                            startingStreams.delete(streamId);
+                        }
+                        // Ném lỗi để đi vào .catch()
+                        throw new Error(`Network response was not ok: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    if (data.success) {
+                    // Sửa: Kiểm tra data và data.data tồn tại
+                    if (data && data.data) {
                         updateProgressUI(streamId, data.data);
 
-                        // Remove from tracking if completed
-                        if (data.data.stage === 'streaming' || data.data.progress_percentage >= 100) {
+                        // Remove from tracking if completed or streaming
+                        if (data.data.stage === 'streaming' || data.data.stage === 'error' || data.data.progress_percentage >= 100) {
                             startingStreams.delete(streamId);
-                            // Refresh component after completion
+                            // Refresh component after 2s to show final status
                             setTimeout(() => {
                                 @this.call('$refresh');
                             }, 2000);
                         }
+                    } else {
+                        // Nếu API trả về success=true nhưng không có data.data, dừng polling
+                        console.warn(`No progress data for stream ${streamId}. Stopping poll.`);
+                        startingStreams.delete(streamId);
                     }
                 })
                 .catch(error => {
                     console.error(`Error fetching progress for stream ${streamId}:`, error);
+                    // Sửa: Xóa streamId khỏi polling khi có lỗi để tránh lặp vô hạn
+                    startingStreams.delete(streamId);
                 });
         });
     }
@@ -442,11 +463,30 @@ document.addEventListener('DOMContentLoaded', function() {
     // Listen for new streams starting
     window.addEventListener('stream-started', function(event) {
         const streamId = event.detail.streamId;
+        if (!streamId) return;
+
+        console.log(`Event: stream-started received for streamId: ${streamId}`);
         startingStreams.add(streamId);
 
         // Start polling if not already running
-        if (startingStreams.size === 1) {
-            pollStreamProgress();
+        if (startingStreams.size > 0 && !window.streamProgressPoller) {
+            console.log("Starting progress poller...");
+            window.streamProgressPoller = setInterval(() => {
+                if (startingStreams.size === 0) {
+                    console.log("All streams done, stopping poller.");
+                    clearInterval(window.streamProgressPoller);
+                    window.streamProgressPoller = null; // Reset poller
+                    return;
+                }
+                pollStreamProgress();
+            }, 2000);
+        }
+    });
+
+    // Bổ sung: Dừng polling khi người dùng rời khỏi trang
+    window.addEventListener('beforeunload', () => {
+        if (window.streamProgressPoller) {
+            clearInterval(window.streamProgressPoller);
         }
     });
 });
