@@ -51,9 +51,6 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
             // 2. Upload and set up the new Redis Agent
             $this->uploadAndSetupRedisAgent($sshService, $vps);
 
-            // 3. Setup log rotation for the agent
-            $this->setupLogrotate($sshService, $vps);
-
             // 3. Verify services and dependencies
             $this->verifyBaseServices($sshService, $vps);
             $this->verifyPythonDependencies($sshService, $vps);
@@ -128,28 +125,46 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         $remoteDir = '/opt/ezstream-agent';
         $sshService->execute("mkdir -p {$remoteDir}");
 
-        // 2. Upload the agent script
-        $localAgentPath = storage_path('app/ezstream-agent/agent.py');
-        $remoteAgentPath = "{$remoteDir}/agent.py";
-        if (!file_exists($localAgentPath)) {
-            throw new \Exception('Redis Agent script (agent.py) not found');
+        // 2. Upload all agent files
+        $agentFiles = [
+            'agent.py',           // Main entry point
+            'config.py',          // Configuration management
+            'stream_manager.py',  // Stream lifecycle management
+            'process_manager.py', // FFmpeg process management
+            'file_manager.py',    // File download/cleanup
+            'status_reporter.py', // Status reporting
+            'command_handler.py', // Command processing
+            'utils.py'            // Shared utilities
+        ];
+
+        foreach ($agentFiles as $filename) {
+            $localPath = storage_path("app/ezstream-agent/{$filename}");
+            $remotePath = "{$remoteDir}/{$filename}";
+
+            if (!file_exists($localPath)) {
+                Log::warning("Agent file not found: {$filename}");
+                continue;
+            }
+
+            if (!$sshService->uploadFile($localPath, $remotePath)) {
+                throw new \Exception("Failed to upload agent file: {$filename}");
+            }
+
+            if ($filename === 'agent.py') {
+                $sshService->execute("chmod +x {$remotePath}");
+            }
         }
-        if (!$sshService->uploadFile($localAgentPath, $remoteAgentPath)) {
-            throw new \Exception('Failed to upload Redis Agent script');
-        }
-        $sshService->execute("chmod +x {$remoteAgentPath}");
+
+        Log::info("✅ [VPS #{$vps->id}] Uploaded " . count($agentFiles) . " agent files");
 
         // 3. Get Redis connection details from Laravel's config
         $redisHost = config('database.redis.default.host', '127.0.0.1');
         $redisPort = config('database.redis.default.port', 6379);
         $redisPassword = config('database.redis.default.password', null);
-        $webhookUrl = config('services.agent.webhook_url', '');
-        $secretToken = config('services.agent.secret_token', '');
-        $redisPasswordCmd = $redisPassword ? "'{$redisPassword}'" : '';
 
         // 4. Create systemd service file on the VPS
         $serviceName = 'ezstream-agent.service';
-        $serviceContent = $this->generateAgentSystemdService($remoteAgentPath, $redisHost, $redisPort, $webhookUrl, $secretToken, $redisPasswordCmd, $vps);
+        $serviceContent = $this->generateAgentSystemdService($remoteAgentPath, $redisHost, $redisPort, $redisPassword, $vps);
         
         // Use a heredoc to safely write the multi-line content
         $sshService->execute("cat > /etc/systemd/system/{$serviceName} << 'EOF'\n{$serviceContent}\nEOF");
@@ -174,18 +189,23 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         Log::info("✅ [VPS #{$vps->id}] Redis Agent service started successfully");
     }
     
-    private function generateAgentSystemdService(string $agentPath, string $redisHost, int $redisPort, string $webhookUrl, string $secretToken, string $redisPassword, VpsServer $vps): string
+    private function generateAgentSystemdService(string $agentPath, string $redisHost, int $redisPort, ?string $redisPassword, VpsServer $vps): string
     {
         $pythonCmd = "/usr/bin/python3";
         $venvPath = "/opt/ezstream-venv";
-        $execStartPre = "";
-        // Đúng thứ tự: vps_id redis_host redis_port webhook_url secret_token [redis_password]
-        $command = "{$pythonCmd} {$agentPath} {$vps->id} {$redisHost} {$redisPort} '{$webhookUrl}' '{$secretToken}' {$redisPassword}";
+
+        // Build the command arguments dynamically.
+        $commandArgs = "{$vps->id} {$redisHost} {$redisPort}";
+        if ($redisPassword) {
+            $commandArgs .= " '{$redisPassword}'"; // Append password only if it exists
+        }
+
+        $command = "{$pythonCmd} {$agentPath} {$commandArgs}";
         $venvCheck = "test -d {$venvPath}";
-        $venvCommand = "{$venvPath}/bin/python {$agentPath} {$vps->id} {$redisHost} {$redisPort} '{$webhookUrl}' '{$secretToken}' {$redisPassword}";
+        $venvCommand = "{$venvPath}/bin/python {$agentPath} {$commandArgs}";
 
         return "[Unit]
-Description=EZStream Redis Agent v2.0
+Description=EZStream Redis Agent v3.0
 After=network.target nginx.service
 Requires=nginx.service
 
@@ -206,21 +226,9 @@ WantedBy=multi-user.target";
 
     private function setupLogrotate(SshService $sshService, VpsServer $vps): void
     {
-        Log::info("📜 [VPS #{$vps->id}] Setting up log rotation for agent");
-        $logrotateConfig = <<<CONF
- /var/log/ezstream-agent.log {
-     daily
-     rotate 7
-     compress
-     delaycompress
-     missingok
-     notifempty
-     create 0644 root root
- }
- CONF;
-        // Use a heredoc to safely write the multi-line content
-        $sshService->execute("cat > /etc/logrotate.d/ezstream-agent << 'EOF'\n{$logrotateConfig}\nEOF");
-        Log::info("✅ [VPS #{$vps->id}] Logrotate configured successfully");
+        // This is now handled by provision-vps.sh to keep all base setup in one place.
+        // This function is kept here to avoid breaking old calls, but it does nothing.
+        Log::info("☑️ [VPS #{$vps->id}] Logrotate setup is now handled by provision-vps.sh, skipping.");
     }
 
     private function verifyBaseServices(SshService $sshService, VpsServer $vps): void
@@ -254,7 +262,7 @@ WantedBy=multi-user.target";
         Log::info("✅ [VPS #{$vps->id}] Python version: " . trim($pythonVersion));
 
         // Test required Python packages
-        $requiredPackages = ['redis', 'psutil', 'requests', 'flask'];
+        $requiredPackages = ['redis', 'psutil', 'requests'];
 
         foreach ($requiredPackages as $package) {
             $testResult = $sshService->execute("python3 -c 'import {$package}; print(\"{$package} OK\")'");
@@ -302,12 +310,12 @@ WantedBy=multi-user.target";
             // Get RAM in GB
             $ramGB = (int) trim($sshService->execute("free -g | grep Mem | awk '{print \$2}'"));
             
-            // Conservative calculation
-            // Each stream needs ~15% CPU and ~200MB RAM
-            $maxByCpu = max(1, intval($cpuCores * 0.8 / 0.15));
-            $maxByRam = max(1, intval($ramGB * 0.8 / 0.2));
+            // Realistic calculation based on actual usage
+            // Each stream needs ~2% CPU and ~100MB RAM (more accurate)
+            $maxByCpu = max(1, intval($cpuCores * 0.8 / 0.02));  // 2% CPU per stream
+            $maxByRam = max(1, intval($ramGB * 0.8 / 0.1));      // 100MB RAM per stream
             
-            $maxStreams = min($maxByCpu, $maxByRam, 20); // Hard limit of 20 for Redis agent
+            $maxStreams = min($maxByCpu, $maxByRam, 50); // Increased hard limit to 50 streams
             
             Log::info("📊 [VPS #{$vps->id}] Calculated capacity", [
                 'cpu_cores' => $cpuCores,

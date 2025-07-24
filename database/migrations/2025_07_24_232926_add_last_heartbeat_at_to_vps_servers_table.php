@@ -11,11 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('system_events', function (Blueprint $table) {
-            $table->id();
-            $table->string('event_type');
-            $table->json('event_data')->nullable();
-            $table->timestamps();
+        Schema::table('vps_servers', function (Blueprint $table) {
+            $table->timestamp('last_heartbeat_at')->nullable()->after('last_seen_at');
         });
     }
 
@@ -24,6 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('system_events');
+        Schema::table('vps_servers', function (Blueprint $table) {
+            $table->dropColumn('last_heartbeat_at');
+        });
     }
 };

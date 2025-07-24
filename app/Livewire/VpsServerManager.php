@@ -122,7 +122,7 @@ class VpsServerManager extends Component
                 Log::info("VPS created successfully: {$server->name} (ID: {$server->id})");
 
                 // Dispatch provision job to the database queue for consistency
-                ProvisionMultistreamVpsJob::dispatch($server->id)->onConnection('database');
+                ProvisionMultistreamVpsJob::dispatch($server->id)->onQueue('vps-provisioning');
                 Log::info("ProvisionMultistreamVpsJob dispatched for VPS ID: {$server->id} on 'database' queue");
 
                 session()->flash('message', 'VPS Server đã được thêm và đang được cài đặt tự động!');

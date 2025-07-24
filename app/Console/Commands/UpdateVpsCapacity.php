@@ -57,7 +57,7 @@ class UpdateVpsCapacity extends Command
 
         // Trường hợp 1: Không có stream nào chạy -> Dùng giá trị mặc định an toàn
         if ($currentStreams < self::MIN_STREAMS_FOR_AVG) {
-            return 10; // Giả định một VPS trống có thể chạy ít nhất 10 stream
+            return 20; // Giả định một VPS trống có thể chạy ít nhất 20 stream (với công thức mới)
         }
 
         // Trường hợp 2: Có stream đang chạy -> Tính toán

@@ -178,10 +178,20 @@ class StreamProgressService
             'ffmpeg_started' => ['percentage' => 90, 'message' => 'Dịch vụ đã khởi động...'],
             'streaming' => ['percentage' => 100, 'message' => 'Đang phát trực tiếp!'],
 
-            // Update stream stages
+            // Update stream stages (new logic)
+            'starting_update' => ['percentage' => 5, 'message' => 'Đang cập nhật stream - tải file mới...'],
+            'updating_config' => ['percentage' => 10, 'message' => 'Đang cập nhật cấu hình...'],
+            'downloading_new' => ['percentage' => 20, 'message' => 'Đang tải file mới...'],
+            'downloading_file' => ['percentage' => 40, 'message' => 'Đang tải file...'],
+            'creating_playlist' => ['percentage' => 65, 'message' => 'Đang tạo playlist mới...'],
+            'preparing_restart' => ['percentage' => 75, 'message' => 'Chuẩn bị áp dụng thay đổi - stream sẽ tạm dừng 10-15 giây...'],
+            'stopping_for_restart' => ['percentage' => 80, 'message' => 'Đang dừng stream để áp dụng cấu hình mới...'],
+            'validating_files' => ['percentage' => 85, 'message' => 'Đang kiểm tra file trước khi khởi động...'],
+            'restarting_stream' => ['percentage' => 90, 'message' => 'Đang khởi động stream với cấu hình mới...'],
+            'update_completed' => ['percentage' => 100, 'message' => 'Cập nhật hoàn thành!'],
+
+            // Legacy update stages (for backward compatibility)
             'updating' => ['percentage' => 10, 'message' => 'Đang cập nhật cấu hình stream...'],
-            'downloading_new' => ['percentage' => 30, 'message' => 'Đang tải file mới...'],
-            'downloading_file' => ['percentage' => 50, 'message' => 'Đang tải file...'],
             'updating_playlist' => ['percentage' => 80, 'message' => 'Đang cập nhật playlist...'],
             'restarting' => ['percentage' => 90, 'message' => 'Đang khởi động lại với cấu hình mới...'],
             'updated' => ['percentage' => 100, 'message' => 'Stream đã được cập nhật thành công!'],

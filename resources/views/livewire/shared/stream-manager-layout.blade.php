@@ -1,4 +1,4 @@
-<div @if($hasActiveStreams ?? false) wire:poll.5s="refreshStreams" @else wire:poll.15s="refreshStreams" @endif
+<div @if($hasActiveStreams ?? false) wire:poll.2s="refreshStreams" @else wire:poll.10s="refreshStreams" @endif
      x-data="{
          init() {
              // Listen for global file upload events

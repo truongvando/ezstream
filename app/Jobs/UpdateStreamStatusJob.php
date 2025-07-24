@@ -55,23 +55,32 @@ class UpdateStreamStatusJob implements ShouldQueue
         switch ($status) {
             case 'RUNNING':
             case 'STREAMING':
+                Log::info("📨 [UpdateStreamStatus] Handling STREAMING status for stream #{$streamId} (current: {$stream->status})");
                 $this->handleStreamingStatus($stream, $vpsId, $message);
                 break;
 
             case 'STOPPED':
+                Log::info("📨 [UpdateStreamStatus] Handling STOPPED status for stream #{$streamId} (current: {$stream->status})");
                 $this->handleStoppedStatus($stream, $message);
                 break;
 
             case 'ERROR':
+                Log::info("📨 [UpdateStreamStatus] Handling ERROR status for stream #{$streamId} (current: {$stream->status})");
                 $this->handleErrorStatus($stream, $message);
                 break;
 
             case 'STARTING':
+                Log::info("📨 [UpdateStreamStatus] Handling STARTING status for stream #{$streamId} (current: {$stream->status})");
                 $this->handleStartingStatus($stream, $vpsId, $message);
                 break;
 
+            case 'PROGRESS':
+                Log::info("📨 [UpdateStreamStatus] Handling PROGRESS status for stream #{$streamId} (current: {$stream->status})");
+                $this->handleProgressStatus($stream, $vpsId, $message);
+                break;
+
             default:
-                Log::info("📨 [UpdateStreamStatus] Unknown status '{$status}' for stream #{$streamId}");
+                Log::warning("📨 [UpdateStreamStatus] Unknown status '{$status}' for stream #{$streamId}");
                 break;
         }
     }
@@ -164,6 +173,53 @@ class UpdateStreamStatusJob implements ShouldQueue
             // Just update timestamp
             $stream->update(['last_status_update' => now()]);
         }
+    }
+
+    private function handleProgressStatus(StreamConfiguration $stream, $vpsId, $message): void
+    {
+        $extraData = $this->data['extra_data'] ?? [];
+        $progressData = $extraData['progress_data'] ?? [];
+
+        $stage = $progressData['stage'] ?? 'processing';
+        $progressPercentage = $progressData['progress_percentage'] ?? 0;
+        $details = $progressData['details'] ?? [];
+
+        Log::info("📊 [UpdateStreamStatus] Stream #{$stream->id} progress: {$stage} ({$progressPercentage}%)", [
+            'message' => $message,
+            'stage' => $stage,
+            'progress' => $progressPercentage,
+            'current_status' => $stream->status
+        ]);
+
+        // PROGRESS should NOT override higher status levels
+        // Status hierarchy: INACTIVE < STARTING < STREAMING
+        $allowedToSetStarting = in_array($stream->status, ['INACTIVE', 'STOPPED', 'ERROR']);
+
+        if ($allowedToSetStarting) {
+            Log::info("📊 [UpdateStreamStatus] Setting status to STARTING for stream #{$stream->id} (was: {$stream->status})");
+            $stream->update([
+                'status' => 'STARTING',
+                'last_status_update' => now(),
+                'vps_server_id' => $vpsId
+            ]);
+        } else {
+            // Don't change status, just update timestamp and VPS if needed
+            Log::info("📊 [UpdateStreamStatus] Keeping current status '{$stream->status}' for stream #{$stream->id}, only updating progress");
+            $updateData = ['last_status_update' => now()];
+            if ($vpsId && !$stream->vps_server_id) {
+                $updateData['vps_server_id'] = $vpsId;
+            }
+            $stream->update($updateData);
+        }
+
+        // Always create progress update for UI
+        StreamProgressService::createStageProgress(
+            $stream->id,
+            $stage,
+            $message ?: 'Đang xử lý...',
+            $progressPercentage,
+            $details
+        );
     }
 
     public function failed(\Throwable $exception): void

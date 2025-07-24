@@ -58,6 +58,7 @@
                                         case ('ACTIVE'): ?> bg-green-100 text-green-800 <?php break; ?>
                                         <?php case ('PROVISIONING'): ?> bg-yellow-100 text-yellow-800 <?php break; ?>
                                         <?php case ('PROVISION_FAILED'): ?> bg-red-100 text-red-800 <?php break; ?>
+                                        <?php case ('FAILED'): ?> bg-red-100 text-red-800 <?php break; ?>
                                         <?php default: ?> bg-gray-100 text-gray-800
                                     <?php endswitch; ?>
                                 ">

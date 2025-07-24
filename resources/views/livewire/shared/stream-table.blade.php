@@ -436,7 +436,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
             // Continue polling if there are streams to track
             if (startingStreams.size > 0) {
-                setTimeout(pollProgress, 2000); // Poll every 2 seconds
+                setTimeout(pollProgress, 1000); // Poll every 1 second for faster updates
             } else {
                 console.log('No more streams to track, stopping polling');
             }

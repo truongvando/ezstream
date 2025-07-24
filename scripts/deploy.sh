@@ -170,21 +170,20 @@ echo -e "${YELLOW}🔄 Restarting services...${NC}"
 systemctl reload php8.2-fpm
 systemctl reload nginx
 
-# Restart background processes for Laravel
-echo -e "${YELLOW}🔄 Restarting Laravel background processes...${NC}"
+# Restart background processes for Laravel using Supervisor
+echo -e "${YELLOW}🔄 Restarting Laravel background processes via Supervisor...${NC}"
 if command -v supervisorctl &> /dev/null; then
-    supervisorctl restart ezstream-queue:* || echo "Queue processes not found, which is okay."
-    # The old listeners are removed, sync command will handle state.
-    # supervisorctl restart ezstream-stream:* || echo "Stream listener is deprecated."
-    # supervisorctl restart ezstream-redis:* || echo "Redis listener is deprecated."
-    echo -e "${BLUE}   Queue workers restarted. Listeners are deprecated in favor of sync command.${NC}"
+    # This restarts all processes defined in our ezstream.conf group
+    # (default worker, vps-provisioning worker, agent listener)
+    supervisorctl restart ezstream:*
+    echo -e "${GREEN}✅ Supervisor processes restarted successfully.${NC}"
 else
-    echo "⚠️ Supervisor not installed, skipping process restart."
+    echo -e "${YELLOW}⚠️ Supervisor not found. You will need to restart queue workers and listeners manually.${NC}"
 fi
 
-# Run the new VPS sync command to ensure consistency after deploy
-echo -e "${YELLOW}🔄 Syncing state with all VPS agents...${NC}"
-php artisan vps:sync
+# Run the stream sync command to ensure consistency after deploy
+echo -e "${YELLOW}🔄 Syncing stream state with all VPS agents...${NC}"
+php artisan stream:sync --force
 
 # Test application
 echo -e "${YELLOW}🧪 Testing application...${NC}"

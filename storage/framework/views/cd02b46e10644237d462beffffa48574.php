@@ -1,4 +1,4 @@
-<div class="h-full bg-gray-50 dark:bg-gray-900">
+<div class="h-full bg-gray-50 dark:bg-gray-900" wire:poll.5s>
     
     <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
         <div class="p-6">
@@ -428,143 +428,106 @@
     </div>
 </div>
 
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Track streams that are starting
-    const startingStreams = new Set();
-
-    // Find all STARTING streams on page load
-    document.querySelectorAll('[data-stream-progress]').forEach(element => {
-        const streamId = element.getAttribute('data-stream-progress');
-        startingStreams.add(parseInt(streamId));
-    });
-
-    // Poll progress for starting streams
-    function pollStreamProgress() {
-        if (startingStreams.size === 0) return;
-
-        startingStreams.forEach(streamId => {
-            fetch(`/api/stream/${streamId}/progress`)
-                .then(response => {
-                    // Sửa: Kiểm tra response có OK không (status 200-299)
-                    if (!response.ok) {
-                        // Nếu stream không tìm thấy (404) hoặc lỗi khác, dừng polling cho nó
-                        if (response.status === 404) {
-                            console.log(`Stream ${streamId} progress not found. Stopping poll.`);
-                            startingStreams.delete(streamId);
-                        }
-                        // Ném lỗi để đi vào .catch()
-                        throw new Error(`Network response was not ok: ${response.statusText}`);
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    // Sửa: Kiểm tra data và data.data tồn tại
-                    if (data && data.data) {
-                        updateProgressUI(streamId, data.data);
-
-                        // Remove from tracking if completed or streaming
-                        if (data.data.stage === 'streaming' || data.data.stage === 'error' || data.data.progress_percentage >= 100) {
-                            startingStreams.delete(streamId);
-                            // Refresh component after 2s to show final status
-                            setTimeout(() => {
-                                window.Livewire.find('<?php echo e($_instance->getId()); ?>').call('$refresh');
-                            }, 2000);
-                        }
-                    } else {
-                        // Nếu API trả về success=true nhưng không có data.data, dừng polling
-                        console.warn(`No progress data for stream ${streamId}. Stopping poll.`);
-                        startingStreams.delete(streamId);
-                    }
-                })
-                .catch(error => {
-                    console.error(`Error fetching progress for stream ${streamId}:`, error);
-                    // Sửa: Xóa streamId khỏi polling khi có lỗi để tránh lặp vô hạn
-                    startingStreams.delete(streamId);
-                });
-        });
-    }
-
-    // Update progress UI
-    function updateProgressUI(streamId, progressData) {
-        const progressBar = document.querySelector(`[data-stream-progress="${streamId}"]`);
-        const messageElement = document.querySelector(`[data-stream-message="${streamId}"]`);
-
-        if (progressBar) {
-            progressBar.style.width = `${progressData.progress_percentage || 0}%`;
-        }
-
-        if (messageElement) {
-            messageElement.textContent = progressData.message || 'Đang xử lý...';
-        }
-    }
-
-    // Start polling if there are starting streams
-    if (startingStreams.size > 0) {
-        const pollInterval = setInterval(() => {
-            if (startingStreams.size === 0) {
-                clearInterval(pollInterval);
-                return;
-            }
-            pollStreamProgress();
-        }, 2000); // Poll every 2 seconds
-    }
-
-    // Listen for new streams starting
-    window.addEventListener('stream-started', function(event) {
-        const streamId = event.detail.streamId;
-        if (!streamId) return;
-
-        console.log(`Event: stream-started received for streamId: ${streamId}`);
-        startingStreams.add(streamId);
-
-        // Start polling if not already running
-        if (startingStreams.size > 0 && !window.streamProgressPoller) {
-            console.log("Starting progress poller...");
-            window.streamProgressPoller = setInterval(() => {
-                if (startingStreams.size === 0) {
-                    console.log("All streams done, stopping poller.");
-                    clearInterval(window.streamProgressPoller);
-                    window.streamProgressPoller = null; // Reset poller
-                    return;
-                }
-                pollStreamProgress();
-            }, 2000);
-        }
-    });
-
-    // Bổ sung: Dừng polling khi người dùng rời khỏi trang
-    window.addEventListener('beforeunload', () => {
-        if (window.streamProgressPoller) {
-            clearInterval(window.streamProgressPoller);
-        }
-    });
-});
-</script>
-
 <?php $__env->startPush('scripts'); ?>
 <script>
+// Track starting streams for progress updates
+let startingStreams = new Set();
+
 document.addEventListener('livewire:init', () => {
     // Listen for session flash messages and show as notifications
-    <!--[if BLOCK]><![endif]--><?php if(session('error')): ?>
+    <?php if(session('error')): ?>
         showNotification('error', <?php echo json_encode(session('error'), 15, 512) ?>);
-    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+    <?php endif; ?>
 
-    <!--[if BLOCK]><![endif]--><?php if(session('success')): ?>
+    <?php if(session('success')): ?>
         showNotification('success', <?php echo json_encode(session('success'), 15, 512) ?>);
-    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+    <?php endif; ?>
 
-    <!--[if BLOCK]><![endif]--><?php if(session('message')): ?>
+    <?php if(session('message')): ?>
         showNotification('info', <?php echo json_encode(session('message'), 15, 512) ?>);
-    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+    <?php endif; ?>
 
     // Listen for limit exceeded event
     Livewire.on('show-limit-exceeded', (event) => {
         const data = event[0] || event;
         showLimitExceededAlert(data);
     });
+
+    // Initialize progress tracking for STARTING streams
+    initializeProgressTracking();
+
+    // Start progress polling
+    setInterval(pollStreamProgress, 1000); // Poll every 1 second
 });
+
+function initializeProgressTracking() {
+    // Find all streams with STARTING status
+    document.querySelectorAll('[data-stream-progress]').forEach(element => {
+        const streamId = element.getAttribute('data-stream-progress');
+        if (streamId) {
+            console.log(`Adding stream ${streamId} to progress tracking`);
+            startingStreams.add(parseInt(streamId));
+        }
+    });
+
+    console.log('Starting streams tracked:', Array.from(startingStreams));
+}
+
+function pollStreamProgress() {
+    if (startingStreams.size === 0) return;
+
+    startingStreams.forEach(streamId => {
+        fetch(`/api/stream/${streamId}/progress`)
+            .then(response => response.json())
+            .then(data => {
+                console.log(`Stream ${streamId} progress:`, data);
+
+                // Handle API response format
+                const progressData = data.success ? data.data : data;
+                updateProgressUICard(streamId, progressData);
+
+                // Remove from tracking if completed or error
+                if (progressData.stage === 'completed' || progressData.stage === 'error' || progressData.progress_percentage >= 100) {
+                    console.log(`Stream ${streamId} completed, removing from tracking`);
+                    startingStreams.delete(streamId);
+
+                    // Refresh page after completion to show new status
+                    setTimeout(() => {
+                        console.log('Refreshing page after stream completion');
+                        window.location.reload();
+                    }, 3000);
+                }
+
+                return progressData;
+            })
+            .catch(error => {
+                console.error(`Error fetching progress for stream ${streamId}:`, error);
+                // Don't remove on error, try again next time
+            });
+    });
+}
+
+function updateProgressUICard(streamId, progressData) {
+    const progressBar = document.querySelector(`[data-stream-progress="${streamId}"]`);
+    const messageElement = document.querySelector(`[data-stream-message="${streamId}"]`);
+
+    if (progressBar) {
+        progressBar.style.width = progressData.progress_percentage + '%';
+
+        // Change color based on stage
+        if (progressData.stage === 'error') {
+            progressBar.className = 'bg-red-600 h-1.5 rounded-full transition-all duration-300';
+        } else if (progressData.stage === 'completed') {
+            progressBar.className = 'bg-green-600 h-1.5 rounded-full transition-all duration-300';
+        } else {
+            progressBar.className = 'bg-blue-600 h-1.5 rounded-full transition-all duration-300';
+        }
+    }
+
+    if (messageElement) {
+        messageElement.textContent = progressData.message;
+    }
+}
 
 function showNotification(type, message) {
     // Create notification element

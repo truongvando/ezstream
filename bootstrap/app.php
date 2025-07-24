@@ -48,8 +48,8 @@ return Application::configure(basePath: dirname(__DIR__))
                  ->everyFiveMinutes()
                  ->withoutOverlapping();
 
-        // 🔄 Sync stream status with VPS reality (every 2 minutes - more responsive)
-        $schedule->job(new \App\Jobs\SyncStreamStatusJob())
+        // 🔄 Sync stream state with all VPS agents (the new Master-Slave sync)
+        $schedule->command('stream:sync')
                  ->everyTwoMinutes()
                  ->withoutOverlapping();
 
