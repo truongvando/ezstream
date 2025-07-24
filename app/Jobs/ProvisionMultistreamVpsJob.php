@@ -164,6 +164,7 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
 
         // 4. Create systemd service file on the VPS
         $serviceName = 'ezstream-agent.service';
+        $remoteAgentPath = "{$remoteDir}/agent.py"; // Đường dẫn đến agent.py trên VPS
         $serviceContent = $this->generateAgentSystemdService($remoteAgentPath, $redisHost, $redisPort, $redisPassword, $vps);
         
         // Use a heredoc to safely write the multi-line content
@@ -192,7 +193,6 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
     private function generateAgentSystemdService(string $agentPath, string $redisHost, int $redisPort, ?string $redisPassword, VpsServer $vps): string
     {
         $pythonCmd = "/usr/bin/python3";
-        $venvPath = "/opt/ezstream-venv";
 
         // Build the command arguments dynamically.
         $commandArgs = "{$vps->id} {$redisHost} {$redisPort}";
@@ -201,8 +201,6 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         }
 
         $command = "{$pythonCmd} {$agentPath} {$commandArgs}";
-        $venvCheck = "test -d {$venvPath}";
-        $venvCommand = "{$venvPath}/bin/python {$agentPath} {$commandArgs}";
 
         return "[Unit]
 Description=EZStream Redis Agent v3.0
@@ -212,8 +210,7 @@ Requires=nginx.service
 [Service]
 Type=simple
 User=root
-ExecStartPre=/bin/bash -c 'if {$venvCheck}; then echo \"Using venv\"; else echo \"Using system python\"; fi'
-ExecStart=/bin/bash -c 'if {$venvCheck}; then {$venvCommand}; else {$command}; fi'
+ExecStart={$command}
 Restart=always
 RestartSec=10
 StandardOutput=journal

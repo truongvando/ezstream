@@ -88,17 +88,29 @@
                                 </button>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <button wire:click="viewLogs(<?php echo e($server->id); ?>)" 
-                                        class="text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded p-1 mr-3 transition-all duration-150" 
+                                <button wire:click="viewLogs(<?php echo e($server->id); ?>)"
+                                        class="text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded p-1 mr-2 transition-all duration-150"
                                         title="Xem logs chi tiết">
                                     <svg class="w-4 h-4 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                     </svg>
                                 </button>
-                                <button wire:click="edit(<?php echo e($server->id); ?>)" class="text-indigo-600 hover:text-indigo-900 mr-3">
+
+                                <!--[if BLOCK]><![endif]--><?php if(in_array($server->status, ['ACTIVE', 'ERROR', 'PROVISIONED'])): ?>
+                                <button wire:click="updateAgent(<?php echo e($server->id); ?>)"
+                                        wire:confirm="Cập nhật Agent v3.0 cho VPS này? Quá trình sẽ mất 2-3 phút và có thể gián đoạn streams."
+                                        class="text-green-600 hover:text-green-900 hover:bg-green-50 rounded p-1 mr-2 transition-all duration-150"
+                                        title="Cập nhật Agent v3.0 (Fix lỗi và nâng cấp)">
+                                    <svg class="w-4 h-4 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                    </svg>
+                                </button>
+                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+
+                                <button wire:click="edit(<?php echo e($server->id); ?>)" class="text-indigo-600 hover:text-indigo-900 mr-2">
                                     Sửa
                                 </button>
-                                <button wire:click="delete(<?php echo e($server->id); ?>)" 
+                                <button wire:click="delete(<?php echo e($server->id); ?>)"
                                         wire:confirm="Bạn có chắc chắn muốn xóa VPS server này?"
                                         class="text-red-600 hover:text-red-900">
                                     Xóa

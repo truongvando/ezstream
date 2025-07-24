@@ -6,6 +6,7 @@ use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\VpsServer;
 use App\Jobs\ProvisionMultistreamVpsJob;
+use App\Jobs\UpdateAgentJob;
 use App\Services\SshService;
 use Illuminate\Support\Facades\Log;
 
@@ -108,12 +109,22 @@ class VpsServerManager extends Component
         // If editing, ignore unique validation for current record
         if ($this->editingServer) {
             $rules['ip_address'] = 'required|ip|unique:vps_servers,ip_address,' . $this->editingServer->id;
+            
+            // Nếu đang chỉnh sửa và không nhập mật khẩu mới, không yêu cầu mật khẩu
+            if (empty($this->ssh_password)) {
+                $rules['ssh_password'] = 'nullable|string';
+            }
         }
 
         $validatedData = $this->validate($rules);
 
         try {
             if ($this->editingServer) {
+                // Nếu không nhập mật khẩu mới, loại bỏ trường mật khẩu khỏi dữ liệu cập nhật
+                if (empty($validatedData['ssh_password'])) {
+                    unset($validatedData['ssh_password']);
+                }
+                
                 $this->editingServer->update($validatedData);
                 session()->flash('message', 'VPS Server đã được cập nhật thành công!');
                 Log::info("VPS updated successfully: {$this->editingServer->name}");
@@ -146,6 +157,34 @@ class VpsServerManager extends Component
                 'trace' => $e->getTraceAsString()
             ]);
             session()->flash('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+        }
+    }
+
+    public function updateAgent($serverId)
+    {
+        try {
+            $server = VpsServer::findOrFail($serverId);
+            
+            // Cập nhật trạng thái VPS
+            $server->update([
+                'status' => 'UPDATING',
+                'status_message' => 'Đang cập nhật Redis Agent...'
+            ]);
+            
+            // Dispatch job cập nhật agent
+            UpdateAgentJob::dispatch($serverId)->onQueue('vps-provisioning');
+            
+            session()->flash('message', "Đang cập nhật Redis Agent cho VPS {$server->name}. Quá trình sẽ mất 2-3 phút.");
+            
+            Log::info("UpdateAgentJob dispatched for VPS ID: {$serverId}");
+            
+        } catch (\Exception $e) {
+            Log::error('VPS agent update error: ' . $e->getMessage(), [
+                'vps_id' => $serverId,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            session()->flash('error', 'Không thể cập nhật agent: ' . $e->getMessage());
         }
     }
 
@@ -210,10 +249,10 @@ class VpsServerManager extends Component
             }
 
             $logPath = match($this->selectedLogType) {
-                'provision' => '/opt/streaming_agent/provision.log',
+                'provision' => '/var/log/ezstream-agent.log',
                 'system' => '/var/log/syslog',
-                'streaming' => '/opt/streaming_agent/streaming.log',
-                default => '/opt/streaming_agent/provision.log'
+                'streaming' => '/var/log/ezstream-agent.log',
+                default => '/var/log/ezstream-agent.log'
             };
 
             // Read last 100 lines of the log file

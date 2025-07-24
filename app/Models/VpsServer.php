@@ -58,7 +58,6 @@ class VpsServer extends Model
      */
     protected $casts = [
         'is_active' => 'boolean',
-        'ssh_password' => 'encrypted',
         'ssh_port' => 'integer',
         'provisioned_at' => 'datetime',
         'capabilities' => 'array',
@@ -70,6 +69,31 @@ class VpsServer extends Model
         'webhook_configured' => 'boolean',
         'last_webhook_setup' => 'datetime',
     ];
+
+    /**
+     * Tự động mã hóa mật khẩu SSH khi thiết lập
+     */
+    public function setSshPasswordAttribute($value)
+    {
+        if (!empty($value)) {
+            $this->attributes['ssh_password'] = Crypt::encryptString($value);
+        }
+    }
+
+    /**
+     * Giải mã mật khẩu SSH khi truy cập
+     */
+    public function getSshPasswordAttribute($value)
+    {
+        if (!empty($value)) {
+            try {
+                return Crypt::decryptString($value);
+            } catch (\Exception $e) {
+                return $value; // Trả về giá trị gốc nếu không giải mã được
+            }
+        }
+        return null;
+    }
 
     /**
      * Get active VPS servers

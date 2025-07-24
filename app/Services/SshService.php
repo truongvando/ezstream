@@ -58,8 +58,12 @@ class SshService
                 ]
             ]);
 
-            // Password is already decrypted by the model's encrypted cast
+            // Lấy mật khẩu từ model (đã được xử lý trong accessor)
             $password = $vps->ssh_password;
+            
+            if (empty($password)) {
+                throw new RuntimeException("No valid SSH password for VPS: {$vps->name}");
+            }
             
             Log::info("SSH connection established, attempting login", [
                 'vps_name' => $vps->name,
