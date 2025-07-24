@@ -3,4 +3,5 @@
 !public/
 !agent/
 !credentials/
+!ezstream-agent/
 !.gitignore
