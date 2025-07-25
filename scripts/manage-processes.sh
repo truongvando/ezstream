@@ -24,26 +24,32 @@ case $ACTION in
     "start")
         echo -e "${YELLOW}🚀 Starting all processes...${NC}"
         supervisorctl start ezstream-queue:*
+        supervisorctl start ezstream-agent:*
         supervisorctl start ezstream-stream:*
         supervisorctl start ezstream-redis:*
+        supervisorctl start ezstream-vps:*
         supervisorctl start ezstream-schedule:*
         echo -e "${GREEN}✅ All processes started${NC}"
         ;;
-        
+
     "stop")
         echo -e "${YELLOW}🛑 Stopping all processes...${NC}"
         supervisorctl stop ezstream-queue:*
+        supervisorctl stop ezstream-agent:*
         supervisorctl stop ezstream-stream:*
         supervisorctl stop ezstream-redis:*
+        supervisorctl stop ezstream-vps:*
         supervisorctl stop ezstream-schedule:*
         echo -e "${GREEN}✅ All processes stopped${NC}"
         ;;
-        
+
     "restart")
         echo -e "${YELLOW}🔄 Restarting all processes...${NC}"
         supervisorctl restart ezstream-queue:*
+        supervisorctl restart ezstream-agent:*
         supervisorctl restart ezstream-stream:*
         supervisorctl restart ezstream-redis:*
+        supervisorctl restart ezstream-vps:*
         supervisorctl restart ezstream-schedule:*
         echo -e "${GREEN}✅ All processes restarted${NC}"
         ;;

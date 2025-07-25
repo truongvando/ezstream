@@ -125,7 +125,7 @@ class ProcessManager:
                     
                     if success:
                         logging.info(f"✅ FFmpeg stopped for stream {stream_id} (reason: {reason})")
-                        if self.status_reporter and reason == "manual":
+                        if self.status_reporter and reason in ["manual", "command"]:
                             self.status_reporter.publish_stream_status(
                                 stream_id, 'STOPPED', 'Stream stopped by user'
                             )
@@ -275,8 +275,13 @@ class ProcessManager:
             return_code = process.returncode
             
             # If stream was stopped manually, stop_stream already sent a status
-            if return_code in [-9, -15]:  # SIGKILL or SIGTERM
+            if return_code in [-9, -15, 255]:  # SIGKILL, SIGTERM, or manual stop
                 logging.info(f"Stream {stream_id} terminated manually (code: {return_code})")
+                # Send STOPPED status for manual termination
+                if self.status_reporter:
+                    self.status_reporter.publish_stream_status(
+                        stream_id, 'STOPPED', 'Stream stopped by user'
+                    )
                 return
             
             # Analyze FFmpeg error and provide user-friendly message
@@ -309,7 +314,11 @@ class ProcessManager:
     def _analyze_ffmpeg_error(self, stderr_output: str, return_code: int) -> Optional[str]:
         """Analyze FFmpeg error and return user-friendly message"""
         stderr_lower = stderr_output.lower()
-        
+
+        # Check for manual termination signals first
+        if return_code in [-9, -15, 255]:  # SIGKILL, SIGTERM, or manual stop (255 = user stop)
+            return None  # Don't report as error for manual stops
+
         # Only report REAL crashes that prevent streaming
         if 'no such file or directory' in stderr_lower:
             return '❌ Không tìm thấy file video. File có thể đã bị xóa hoặc đường dẫn không đúng.'
@@ -319,9 +328,9 @@ class ProcessManager:
             return '❌ Lỗi kết nối RTMP server. Hãy kiểm tra stream key và thử lại.'
         elif return_code == 1 and 'invalid data found when processing input' in stderr_lower:
             return '❌ File video bị hỏng hoàn toàn. FFmpeg không thể đọc được file này.'
-        elif return_code != 0 and return_code not in [-9, -15]:  # Not manual termination
+        elif return_code != 0:  # Other non-zero exit codes
             return f'❌ FFmpeg không thể xử lý file này (exit code: {return_code}). Hãy thử file khác hoặc convert lại file.'
-        
+
         # If we get here, it's either a manual stop or FFmpeg can handle it
         return None
 

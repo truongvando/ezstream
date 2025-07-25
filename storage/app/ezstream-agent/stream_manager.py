@@ -143,8 +143,8 @@ class StreamManager:
                 stream_info.state = StreamState.STOPPING
                 stream_info.last_update = time.time()
                 
-                # Report stopping status
-                if self.status_reporter and reason == "manual":
+                # Report stopping status for manual or command stops
+                if self.status_reporter and reason in ["manual", "command"]:
                     self.status_reporter.publish_stream_status(
                         stream_id, 'STOPPING', 'Đang dừng stream...'
                     )
@@ -166,7 +166,7 @@ class StreamManager:
                 
                 logging.info(f"✅ Stream {stream_id} stopped (reason: {reason})")
                 
-                if self.status_reporter and reason == "manual":
+                if self.status_reporter and reason in ["manual", "command"]:
                     self.status_reporter.publish_stream_status(
                         stream_id, 'STOPPED', 'Stream đã được dừng'
                     )

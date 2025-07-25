@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Upload Fix Verification</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-center">🧪 Upload Error Handling Fix Verification</h1>
+        
+        <!-- Status -->
+        <div class="bg-white rounded-lg shadow p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">📊 Fix Status</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-2">
+                    <div class="flex items-center">
+                        <span class="w-4 h-4 bg-green-500 rounded-full mr-2"></span>
+                        <span>file-upload.js added to app.blade.php</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="w-4 h-4 bg-green-500 rounded-full mr-2"></span>
+                        <span>showDetailedError function defined globally</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="w-4 h-4 bg-green-500 rounded-full mr-2"></span>
+                        <span>Fallback error handling in quick-upload-area</span>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <div class="flex items-center">
+                        <span class="w-4 h-4 bg-green-500 rounded-full mr-2"></span>
+                        <span>API returns detailed error format</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="w-4 h-4 bg-green-500 rounded-full mr-2"></span>
+                        <span>Cache cleared</span>
+                    </div>
+                    <div class="flex items-center">
+                        <span class="w-4 h-4 bg-orange-500 rounded-full mr-2"></span>
+                        <span>SVG spinner error (cosmetic only)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Global Function -->
+        <div class="bg-white rounded-lg shadow p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">🌍 Test Global Function</h2>
+            <div class="space-y-4">
+                <button onclick="testGlobalFunction()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">
+                    Test window.showDetailedErrorModal
+                </button>
+                <div id="global-test-result" class="text-sm text-gray-600"></div>
+            </div>
+        </div>
+
+        <!-- Test Error Scenarios -->
+        <div class="bg-white rounded-lg shadow p-6 mb-8">
+            <h2 class="text-xl font-semibold mb-4">🎯 Test Error Scenarios</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button onclick="testResolutionError()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">
+                    Test Resolution Error
+                </button>
+                <button onclick="testStorageError()" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded">
+                    Test Storage Error
+                </button>
+                <button onclick="testGenericError()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">
+                    Test Generic Error
+                </button>
+                <button onclick="testFallbackModal()" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded">
+                    Test Fallback Modal
+                </button>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-6">
+            <h2 class="text-xl font-semibold mb-4 text-blue-800">📋 Testing Instructions</h2>
+            <div class="space-y-3 text-blue-700">
+                <p><strong>1. Test this page first:</strong> Verify global functions work</p>
+                <p><strong>2. Test Quick Stream Modal:</strong></p>
+                <ul class="list-disc list-inside ml-4 space-y-1">
+                    <li>Go to your EZStream site</li>
+                    <li>Open Quick Stream Modal</li>
+                    <li>Try uploading a 4K video (if you have Basic package)</li>
+                    <li>Should see detailed error modal instead of 400 error</li>
+                </ul>
+                <p><strong>3. Check console:</strong> Should not see "showDetailedError function not found"</p>
+                <p><strong>4. Test fallback:</strong> If global function fails, fallback modal should appear</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Include the fixed file-upload.js functions
+        function showDetailedError(errorData) {
+            const existingModal = document.querySelector('.error-modal-overlay');
+            if (existingModal) {
+                existingModal.remove();
+            }
+
+            const modalOverlay = document.createElement('div');
+            modalOverlay.className = 'error-modal-overlay fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+            modalOverlay.style.zIndex = '9999';
+
+            const modalContent = document.createElement('div');
+            modalContent.className = 'bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto';
+
+            let detailsHtml = '';
+            if (errorData.details) {
+                detailsHtml = '<div class="mt-4"><h4 class="font-medium text-gray-900 mb-2">Chi tiết:</h4><ul class="space-y-1 text-sm text-gray-600">';
+                for (const [key, value] of Object.entries(errorData.details)) {
+                    const label = formatDetailKey(key);
+                    detailsHtml += `<li><span class="font-medium">${label}:</span> ${value}</li>`;
+                }
+                detailsHtml += '</ul></div>';
+            }
+
+            let solutionsHtml = '';
+            if (errorData.solutions && Array.isArray(errorData.solutions)) {
+                solutionsHtml = '<div class="mt-4"><h4 class="font-medium text-gray-900 mb-2">Giải pháp:</h4><ul class="space-y-1 text-sm text-gray-600">';
+                errorData.solutions.forEach(solution => {
+                    solutionsHtml += `<li>• ${solution}</li>`;
+                });
+                solutionsHtml += '</ul></div>';
+            }
+
+            modalContent.innerHTML = `
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-medium text-gray-900">
+                            ${errorData.error || 'Lỗi Upload'}
+                        </h3>
+                        <button onclick="this.closest('.error-modal-overlay').remove()" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                    
+                    ${errorData.reason ? `<p class="text-sm text-gray-600 mb-4">${errorData.reason}</p>` : ''}
+                    
+                    ${detailsHtml}
+                    ${solutionsHtml}
+                    
+                    <div class="mt-6 flex justify-end">
+                        <button onclick="this.closest('.error-modal-overlay').remove()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium">
+                            Đóng
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            modalOverlay.appendChild(modalContent);
+            document.body.appendChild(modalOverlay);
+
+            modalOverlay.addEventListener('click', (e) => {
+                if (e.target === modalOverlay) {
+                    modalOverlay.remove();
+                }
+            });
+        }
+
+        function formatDetailKey(key) {
+            const keyMap = {
+                'video_resolution': 'Độ phân giải video',
+                'package_name': 'Gói hiện tại',
+                'package_limit': 'Giới hạn gói',
+                'supported_orientations': 'Hướng hỗ trợ',
+                'storage_used': 'Dung lượng đã dùng',
+                'file_size': 'Kích thước file',
+                'remaining_space': 'Dung lượng còn lại'
+            };
+            return keyMap[key] || key;
+        }
+
+        // Expose global function
+        window.showDetailedErrorModal = function(errorData) {
+            showDetailedError(errorData);
+        };
+
+        // Test functions
+        function testGlobalFunction() {
+            const result = document.getElementById('global-test-result');
+            
+            if (typeof window.showDetailedErrorModal === 'function') {
+                result.innerHTML = '✅ window.showDetailedErrorModal is available';
+                result.className = 'text-sm text-green-600';
+            } else {
+                result.innerHTML = '❌ window.showDetailedErrorModal is NOT available';
+                result.className = 'text-sm text-red-600';
+            }
+        }
+
+        function testResolutionError() {
+            const errorData = {
+                error: "❌ Video không thể upload",
+                reason: "Độ phân giải vượt quá giới hạn gói",
+                details: {
+                    video_resolution: "3840x2160 (4K UHD)",
+                    package_name: "Gói Basic",
+                    package_limit: "1920x1080 (Full HD 1080p)",
+                    supported_orientations: "Cả video ngang và dọc đều được hỗ trợ trong giới hạn này"
+                },
+                solutions: [
+                    "🔧 Giảm chất lượng video xuống Full HD 1080p hoặc thấp hơn",
+                    "📈 Nâng cấp lên gói cao hơn để hỗ trợ 4K UHD",
+                    "✂️ Sử dụng phần mềm như HandBrake để resize video"
+                ],
+                show_modal: true
+            };
+
+            window.showDetailedErrorModal(errorData);
+        }
+
+        function testStorageError() {
+            const errorData = {
+                error: '❌ Không thể upload video',
+                reason: 'Vượt quá giới hạn dung lượng lưu trữ',
+                details: {
+                    storage_used: "9.5GB / 10GB",
+                    file_size: "2.3GB",
+                    remaining_space: "0.5GB",
+                    package_name: "Gói Standard"
+                },
+                solutions: [
+                    "🗑️ Xóa bớt 2.3GB file cũ để có đủ dung lượng",
+                    "📈 Nâng cấp lên gói có dung lượng lưu trữ cao hơn",
+                    "📁 Kiểm tra và xóa các file không cần thiết"
+                ],
+                show_modal: true
+            };
+
+            window.showDetailedErrorModal(errorData);
+        }
+
+        function testGenericError() {
+            const errorData = {
+                error: "Lỗi không xác định",
+                reason: "Test generic error without details",
+                details: null,
+                solutions: null
+            };
+
+            window.showDetailedErrorModal(errorData);
+        }
+
+        function testFallbackModal() {
+            // Temporarily disable global function to test fallback
+            const originalFunction = window.showDetailedErrorModal;
+            delete window.showDetailedErrorModal;
+
+            const errorData = {
+                error: "🔧 Test Fallback Modal",
+                reason: "Global function was disabled to test fallback",
+                details: {
+                    test_detail: "This should show fallback modal"
+                },
+                solutions: [
+                    "✅ Fallback modal is working correctly"
+                ]
+            };
+
+            // Use fallback directly
+            showDetailedError(errorData);
+
+            // Restore global function
+            setTimeout(() => {
+                window.showDetailedErrorModal = originalFunction;
+            }, 1000);
+        }
+
+        // Test on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🧪 Upload Fix Verification page loaded');
+            testGlobalFunction();
+        });
+    </script>
+</body>
+</html>

@@ -74,6 +74,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->job(new \App\Jobs\ProcessStreamQueueJob())
                  ->everyThirtySeconds()
                  ->withoutOverlapping();
+
+        // 🗑️ Process scheduled file deletions (Quick Stream auto-delete)
+        $schedule->job(new \App\Jobs\ProcessScheduledDeletionsJob())
+                 ->hourly()
+                 ->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->use([

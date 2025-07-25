@@ -45,11 +45,12 @@
                                 <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
                             </svg>
                             <div class="ml-3">
-                                <h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">⚠️ Lưu ý về Quick Stream</h3>
+                                <h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">💡 Về Quick Stream</h3>
                                 <div class="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
                                     <ul class="list-disc list-inside space-y-1">
-                                        <li><strong>Video sẽ bị xóa vĩnh viễn</strong> sau khi stream kết thúc</li>
-                                        <li>Phù hợp cho stream <strong>một lần duy nhất</strong> và tiết kiệm dung lượng</li>
+                                        <li>Tạo và phát stream <strong>nhanh chóng</strong> chỉ trong vài bước</li>
+                                        <li>Có thể chọn <strong>tự động xóa video</strong> để tiết kiệm dung lượng</li>
+                                        <li>Phù hợp cho stream <strong>một lần</strong> hoặc <strong>thử nghiệm</strong></li>
                                     </ul>
                                 </div>
                             </div>
@@ -204,6 +205,36 @@
                                         <option value="random">Ngẫu nhiên</option>
                                     </select>
                                 </div>
+                            </div>
+
+                            <!-- Auto-delete Option -->
+                            <div class="space-y-3 pt-4 border-t">
+                                <div class="flex items-center">
+                                    <input type="checkbox" wire:model.live="quickAutoDelete" id="quickAutoDelete" class="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded" checked>
+                                    <label for="quickAutoDelete" class="ml-2 text-sm font-medium flex items-center">
+                                        <svg class="w-4 h-4 mr-1.5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                        </svg>
+                                        Tự động xóa video sau khi stream
+                                    </label>
+                                </div>
+                                @if($quickAutoDelete)
+                                <div class="ml-6 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-400">
+                                    <div class="flex items-start">
+                                        <svg class="w-4 h-4 mr-1.5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>
+                                        </svg>
+                                        <div>
+                                            <strong>Cảnh báo:</strong> Video sẽ bị xóa vĩnh viễn sau khi stream kết thúc (sau 5 phút).
+                                            <br>Bỏ tick nếu muốn giữ lại video.
+                                        </div>
+                                    </div>
+                                </div>
+                                @else
+                                <div class="ml-6 text-xs text-green-600 dark:text-green-400">
+                                    ✅ Video sẽ được giữ lại sau khi stream kết thúc
+                                </div>
+                                @endif
                             </div>
 
                             <!-- Schedule -->

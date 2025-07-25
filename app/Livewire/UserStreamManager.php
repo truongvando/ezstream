@@ -460,6 +460,7 @@ class UserStreamManager extends BaseStreamManager
         $this->quickEnableSchedule = $stream->enable_schedule ?? false;
         $this->quickScheduledAt = $stream->scheduled_at ? $stream->scheduled_at->format('Y-m-d\TH:i') : '';
         $this->quickScheduledEnd = $stream->scheduled_end ? $stream->scheduled_end->format('Y-m-d\TH:i') : '';
+        $this->quickAutoDelete = $stream->auto_delete_from_cdn ?? true;
 
         // Load selected files
         $this->quickSelectedFiles = collect($stream->video_source_path)->pluck('file_id')->toArray();
@@ -607,11 +608,11 @@ class UserStreamManager extends BaseStreamManager
             return;
         }
 
-        // Mark files for auto-deletion
+        // Mark files for auto-deletion (based on user choice)
         foreach ($userFiles as $userFile) {
             $userFile->update([
-                'auto_delete_after_stream' => true,
-                'scheduled_deletion_at' => now()->addDays(1) // Grace period
+                'auto_delete_after_stream' => $this->quickAutoDelete,
+                'scheduled_deletion_at' => $this->quickAutoDelete ? now()->addDays(1) : null // Grace period
             ]);
         }
 
@@ -671,6 +672,7 @@ class UserStreamManager extends BaseStreamManager
             'loop' => $this->quickLoop,
             'playlist_order' => 'sequential',
             'is_quick_stream' => true,
+            'auto_delete_from_cdn' => $this->quickAutoDelete, // User choice
             'user_file_id' => $userFiles->first()->id,
             'scheduled_at' => $scheduledAt,
             'scheduled_end' => $scheduledEnd,
@@ -769,6 +771,7 @@ class UserStreamManager extends BaseStreamManager
         $this->quickEnableSchedule = false;
         $this->quickScheduledAt = '';
         $this->quickScheduledEnd = '';
+        $this->quickAutoDelete = true; // Default to auto-delete
         $this->quickSelectedFiles = [];
         $this->video_source_id = null;
     }
@@ -908,14 +911,17 @@ class UserStreamManager extends BaseStreamManager
                 'scheduled_at' => $scheduledAt,
                 'scheduled_end' => $scheduledEnd,
                 'enable_schedule' => $enableSchedule,
-                // Quick stream always auto-delete
+                // Quick stream auto-delete based on user choice
                 'is_quick_stream' => true,
-                'auto_delete_from_cdn' => true,
+                'auto_delete_from_cdn' => $this->quickAutoDelete,
             ]);
 
-            // Mark files for auto-deletion
+            // Mark files for auto-deletion (based on user choice)
             $userFiles->each(function ($file) {
-                $file->update(['auto_delete_after_stream' => true]);
+                $file->update([
+                    'auto_delete_after_stream' => $this->quickAutoDelete,
+                    'scheduled_deletion_at' => $this->quickAutoDelete ? now()->addDays(1) : null
+                ]);
             });
 
             // If stream is running, dispatch update job

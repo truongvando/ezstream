@@ -72,6 +72,7 @@ abstract class BaseStreamManager extends Component
     public $quickPlaylistOrder = 'sequential';
     public $quickEnableSchedule = false;
     public $quickScheduledAt, $quickScheduledEnd;
+    public $quickAutoDelete = true; // Auto-delete files after stream ends
     public $quickSelectedFiles = [];
     public $video_source_id; // For quick upload
 

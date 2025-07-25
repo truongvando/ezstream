@@ -50,4 +50,34 @@ class UserFile extends Model
     {
         return $this->belongsTo(VpsServer::class);
     }
+
+    /**
+     * Get the CDN URL for the file
+     */
+    public function getCdnUrlAttribute(): string
+    {
+        if ($this->disk === 'bunny_cdn') {
+            $cdnUrl = config('bunnycdn.cdn_url');
+            if (empty($cdnUrl)) {
+                // Fallback to default BunnyCDN URL format
+                $storageZone = config('bunnycdn.storage_zone', 'ezstream');
+                $cdnUrl = "https://{$storageZone}.b-cdn.net";
+            }
+            return rtrim($cdnUrl, '/') . '/' . ltrim($this->path, '/');
+        }
+
+        return $this->path;
+    }
+
+    /**
+     * Get the filename from path or original_name
+     */
+    public function getFilenameAttribute(): string
+    {
+        if (!empty($this->original_name)) {
+            return $this->original_name;
+        }
+
+        return basename($this->path);
+    }
 }

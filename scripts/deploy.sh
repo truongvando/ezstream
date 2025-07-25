@@ -173,12 +173,34 @@ systemctl reload nginx
 # Restart background processes for Laravel using Supervisor
 echo -e "${YELLOW}🔄 Restarting Laravel background processes via Supervisor...${NC}"
 if command -v supervisorctl &> /dev/null; then
-    # This restarts all processes defined in our ezstream.conf group
-    # (default worker, vps-provisioning worker, agent listener)
-    supervisorctl restart ezstream:*
-    echo -e "${GREEN}✅ Supervisor processes restarted successfully.${NC}"
+    # Restart all EZSTREAM processes
+    echo -e "${BLUE}   Restarting queue workers...${NC}"
+    supervisorctl restart ezstream-queue:*
+    supervisorctl restart ezstream-vps:*
+
+    echo -e "${BLUE}   Restarting agent listener...${NC}"
+    supervisorctl restart ezstream-agent:*
+
+    echo -e "${BLUE}   Restarting stream listener...${NC}"
+    supervisorctl restart ezstream-stream:*
+
+    echo -e "${BLUE}   Restarting redis subscriber...${NC}"
+    supervisorctl restart ezstream-redis:*
+
+    echo -e "${BLUE}   Restarting scheduler...${NC}"
+    supervisorctl restart ezstream-schedule:*
+
+    echo -e "${GREEN}✅ All Supervisor processes restarted successfully.${NC}"
+
+    # Show status
+    echo -e "${BLUE}   Current process status:${NC}"
+    supervisorctl status | grep ezstream
 else
     echo -e "${YELLOW}⚠️ Supervisor not found. You will need to restart queue workers and listeners manually.${NC}"
+    echo -e "${YELLOW}   Manual commands:${NC}"
+    echo -e "${BLUE}     php artisan queue:work --queue=vps-provisioning --daemon &${NC}"
+    echo -e "${BLUE}     php artisan queue:work --daemon &${NC}"
+    echo -e "${BLUE}     php artisan stream:listen &${NC}"
 fi
 
 # Run the stream sync command to ensure consistency after deploy

@@ -40,7 +40,25 @@ stdout_logfile=$PROJECT_DIR/storage/logs/queue.log
 stopwaitsecs=3600
 EOF
 
-# Create Supervisor config for Stream Listener
+# Create Supervisor config for Agent Reports Listener (NEW)
+echo -e "${YELLOW}📝 Creating Agent Reports Listener config...${NC}"
+cat > /etc/supervisor/conf.d/ezstream-agent.conf << EOF
+[program:ezstream-agent]
+process_name=%(program_name)s
+command=php $PROJECT_DIR/artisan agent:listen
+directory=$PROJECT_DIR
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=$USER
+numprocs=1
+redirect_stderr=true
+stdout_logfile=$PROJECT_DIR/storage/logs/agent.log
+stopwaitsecs=60
+EOF
+
+# Create Supervisor config for Stream Listener (LEGACY - for compatibility)
 echo -e "${YELLOW}📝 Creating Stream Listener config...${NC}"
 cat > /etc/supervisor/conf.d/ezstream-stream.conf << EOF
 [program:ezstream-stream]
@@ -76,6 +94,24 @@ stdout_logfile=$PROJECT_DIR/storage/logs/redis.log
 stopwaitsecs=60
 EOF
 
+# Create Supervisor config for VPS Provisioning Queue Worker
+echo -e "${YELLOW}📝 Creating VPS Provisioning Queue Worker config...${NC}"
+cat > /etc/supervisor/conf.d/ezstream-vps.conf << EOF
+[program:ezstream-vps]
+process_name=%(program_name)s_%(process_num)02d
+command=php $PROJECT_DIR/artisan queue:work --queue=vps-provisioning --sleep=3 --tries=3 --max-time=3600
+directory=$PROJECT_DIR
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=$USER
+numprocs=1
+redirect_stderr=true
+stdout_logfile=$PROJECT_DIR/storage/logs/vps-queue.log
+stopwaitsecs=3600
+EOF
+
 # Create Supervisor config for Schedule Worker
 echo -e "${YELLOW}📝 Creating Schedule Worker config...${NC}"
 cat > /etc/supervisor/conf.d/ezstream-schedule.conf << EOF
@@ -97,8 +133,10 @@ EOF
 # Create log files
 echo -e "${YELLOW}📁 Creating log files...${NC}"
 touch $PROJECT_DIR/storage/logs/queue.log
+touch $PROJECT_DIR/storage/logs/agent.log
 touch $PROJECT_DIR/storage/logs/stream.log
 touch $PROJECT_DIR/storage/logs/redis.log
+touch $PROJECT_DIR/storage/logs/vps-queue.log
 touch $PROJECT_DIR/storage/logs/schedule.log
 
 # Set permissions
@@ -112,8 +150,10 @@ supervisorctl update
 # Start all processes
 echo -e "${YELLOW}🚀 Starting all processes...${NC}"
 supervisorctl start ezstream-queue:*
+supervisorctl start ezstream-agent:*
 supervisorctl start ezstream-stream:*
 supervisorctl start ezstream-redis:*
+supervisorctl start ezstream-vps:*
 supervisorctl start ezstream-schedule:*
 
 # Enable Supervisor auto-start
@@ -128,4 +168,5 @@ echo -e "${YELLOW}💡 Useful commands:${NC}"
 echo "  • Check status: supervisorctl status"
 echo "  • Restart all: supervisorctl restart all"
 echo "  • Stop all: supervisorctl stop all"
-echo "  • View logs: tail -f $PROJECT_DIR/storage/logs/queue.log"
+echo "  • View queue logs: tail -f $PROJECT_DIR/storage/logs/queue.log"
+echo "  • View VPS logs: tail -f $PROJECT_DIR/storage/logs/vps-queue.log"
