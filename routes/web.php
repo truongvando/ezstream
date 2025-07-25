@@ -664,8 +664,8 @@ Route::middleware(['auth', 'locale'])->group(function () {
         
         $vps = VpsServer::create($validatedData + ['is_active' => true, 'status' => 'PENDING']);
         
-        // Dispatch the job
-        ProvisionMultistreamVpsJob::dispatch($vps->id)->onConnection('database'); // Ensure it uses the database queue
+        // Dispatch the job to vps-provisioning queue
+        ProvisionMultistreamVpsJob::dispatch($vps->id)->onQueue('vps-provisioning');
 
         session()->flash('message', "VPS '{$vps->name}' đã được thêm. Job cài đặt đã được gửi vào hàng đợi.");
 

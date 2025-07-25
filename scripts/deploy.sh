@@ -181,8 +181,8 @@ if command -v supervisorctl &> /dev/null; then
     echo -e "${BLUE}   Restarting agent listener...${NC}"
     supervisorctl restart ezstream-agent:*
 
-    echo -e "${BLUE}   Restarting stream listener...${NC}"
-    supervisorctl restart ezstream-stream:*
+    # echo -e "${BLUE}   Restarting stream listener...${NC}"
+    # supervisorctl restart ezstream-stream:*  # DEPRECATED: stream:listen command removed
 
     echo -e "${BLUE}   Restarting redis subscriber...${NC}"
     supervisorctl restart ezstream-redis:*

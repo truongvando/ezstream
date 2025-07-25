@@ -58,23 +58,23 @@ stdout_logfile=$PROJECT_DIR/storage/logs/agent.log
 stopwaitsecs=60
 EOF
 
-# Create Supervisor config for Stream Listener (LEGACY - for compatibility)
-echo -e "${YELLOW}📝 Creating Stream Listener config...${NC}"
-cat > /etc/supervisor/conf.d/ezstream-stream.conf << EOF
-[program:ezstream-stream]
-process_name=%(program_name)s
-command=php $PROJECT_DIR/artisan stream:listen
-directory=$PROJECT_DIR
-autostart=true
-autorestart=true
-stopasgroup=true
-killasgroup=true
-user=$USER
-numprocs=1
-redirect_stderr=true
-stdout_logfile=$PROJECT_DIR/storage/logs/stream.log
-stopwaitsecs=60
-EOF
+# DEPRECATED: Stream Listener (stream:listen command no longer exists)
+# echo -e "${YELLOW}📝 Creating Stream Listener config...${NC}"
+# cat > /etc/supervisor/conf.d/ezstream-stream.conf << EOF
+# [program:ezstream-stream]
+# process_name=%(program_name)s
+# command=php $PROJECT_DIR/artisan stream:listen
+# directory=$PROJECT_DIR
+# autostart=true
+# autorestart=true
+# stopasgroup=true
+# killasgroup=true
+# user=$USER
+# numprocs=1
+# redirect_stderr=true
+# stdout_logfile=$PROJECT_DIR/storage/logs/stream.log
+# stopwaitsecs=60
+# EOF
 
 # Create Supervisor config for Redis Stats
 echo -e "${YELLOW}📝 Creating Redis Stats config...${NC}"
@@ -151,7 +151,7 @@ supervisorctl update
 echo -e "${YELLOW}🚀 Starting all processes...${NC}"
 supervisorctl start ezstream-queue:*
 supervisorctl start ezstream-agent:*
-supervisorctl start ezstream-stream:*
+# supervisorctl start ezstream-stream:*  # DEPRECATED: stream:listen command removed
 supervisorctl start ezstream-redis:*
 supervisorctl start ezstream-vps:*
 supervisorctl start ezstream-schedule:*

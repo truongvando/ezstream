@@ -25,7 +25,7 @@ case $ACTION in
         echo -e "${YELLOW}🚀 Starting all processes...${NC}"
         supervisorctl start ezstream-queue:*
         supervisorctl start ezstream-agent:*
-        supervisorctl start ezstream-stream:*
+        # supervisorctl start ezstream-stream:*  # DEPRECATED: stream:listen removed
         supervisorctl start ezstream-redis:*
         supervisorctl start ezstream-vps:*
         supervisorctl start ezstream-schedule:*
@@ -36,7 +36,7 @@ case $ACTION in
         echo -e "${YELLOW}🛑 Stopping all processes...${NC}"
         supervisorctl stop ezstream-queue:*
         supervisorctl stop ezstream-agent:*
-        supervisorctl stop ezstream-stream:*
+        # supervisorctl stop ezstream-stream:*  # DEPRECATED: stream:listen removed
         supervisorctl stop ezstream-redis:*
         supervisorctl stop ezstream-vps:*
         supervisorctl stop ezstream-schedule:*
@@ -47,7 +47,7 @@ case $ACTION in
         echo -e "${YELLOW}🔄 Restarting all processes...${NC}"
         supervisorctl restart ezstream-queue:*
         supervisorctl restart ezstream-agent:*
-        supervisorctl restart ezstream-stream:*
+        # supervisorctl restart ezstream-stream:*  # DEPRECATED: stream:listen removed
         supervisorctl restart ezstream-redis:*
         supervisorctl restart ezstream-vps:*
         supervisorctl restart ezstream-schedule:*
