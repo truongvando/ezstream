@@ -20,58 +20,60 @@
                 </tr>
             </thead>
             <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                @forelse ($events as $event)
+                <!--[if BLOCK]><![endif]--><?php $__empty_1 = true; $__currentLoopData = $events; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $event): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                     <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                            {{ $event->created_at->format('H:i:s') }}
-                            <div class="text-xs text-gray-400">{{ $event->created_at->diffForHumans() }}</div>
+                            <?php echo e($event->created_at->format('H:i:s')); ?>
+
+                            <div class="text-xs text-gray-400"><?php echo e($event->created_at->diffForHumans()); ?></div>
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap">
-                            @php
+                            <?php
                                 $sourceClass = [
                                     'VPS_STATS' => 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
                                     'STREAM_UPDATE' => 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
                                     'AGENT_REPORT' => 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
                                 ][$event->type] ?? 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
-                            @endphp
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $sourceClass }}">
-                                @if($event->type === 'VPS_STATS')
+                            ?>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo e($sourceClass); ?>">
+                                <!--[if BLOCK]><![endif]--><?php if($event->type === 'VPS_STATS'): ?>
                                     🖥️ VPS
-                                @elseif($event->type === 'STREAM_UPDATE')
+                                <?php elseif($event->type === 'STREAM_UPDATE'): ?>
                                     🎬 Stream
-                                @else
+                                <?php else: ?>
                                     🤖 Agent
-                                @endif
+                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                             </span>
                         </td>
                         <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                            {{ str_replace('_', ' ', $event->type) }}
+                            <?php echo e(str_replace('_', ' ', $event->type)); ?>
+
                         </td>
-                        <td class="px-4 py-3 text-sm text-gray-900 dark:text-white">{{ $event->message }}</td>
+                        <td class="px-4 py-3 text-sm text-gray-900 dark:text-white"><?php echo e($event->message); ?></td>
                         <td class="px-4 py-3 text-sm text-gray-500 dark:text-gray-400">
-                            @if($event->context && $event->type === 'VPS_STATS')
+                            <!--[if BLOCK]><![endif]--><?php if($event->context && $event->type === 'VPS_STATS'): ?>
                                 <div class="space-y-1">
                                     <div class="flex items-center space-x-2">
                                         <span class="text-xs">CPU:</span>
-                                        <span class="font-mono text-xs">{{ number_format($event->context['cpu_usage'] ?? 0, 1) }}%</span>
+                                        <span class="font-mono text-xs"><?php echo e(number_format($event->context['cpu_usage'] ?? 0, 1)); ?>%</span>
                                     </div>
                                     <div class="flex items-center space-x-2">
                                         <span class="text-xs">RAM:</span>
-                                        <span class="font-mono text-xs">{{ number_format($event->context['ram_usage'] ?? 0, 1) }}%</span>
+                                        <span class="font-mono text-xs"><?php echo e(number_format($event->context['ram_usage'] ?? 0, 1)); ?>%</span>
                                     </div>
                                     <div class="flex items-center space-x-2">
                                         <span class="text-xs">Streams:</span>
-                                        <span class="font-mono text-xs">{{ $event->context['active_streams'] ?? 0 }}</span>
+                                        <span class="font-mono text-xs"><?php echo e($event->context['active_streams'] ?? 0); ?></span>
                                     </div>
                                 </div>
-                            @elseif($event->context && $event->type === 'STREAM_UPDATE')
-                                <span class="text-xs font-mono">Stream #{{ $event->context['stream_id'] ?? 'N/A' }}</span>
-                            @else
+                            <?php elseif($event->context && $event->type === 'STREAM_UPDATE'): ?>
+                                <span class="text-xs font-mono">Stream #<?php echo e($event->context['stream_id'] ?? 'N/A'); ?></span>
+                            <?php else: ?>
                                 <span class="text-xs text-gray-400">-</span>
-                            @endif
+                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                         </td>
                     </tr>
-                @empty
+                <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                     <tr>
                         <td colspan="5" class="px-4 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                             <div class="flex flex-col items-center space-y-2">
@@ -83,8 +85,9 @@
                             </div>
                         </td>
                     </tr>
-                @endforelse
+                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
             </tbody>
         </table>
     </div>
 </div>
+<?php /**PATH D:\laragon\www\ezstream\resources\views/livewire/admin/system-event-monitor.blade.php ENDPATH**/ ?>

@@ -41,28 +41,28 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/confirm-upload', [FileUploadController::class, 'confirmUpload']);
 });
 
-// 🔥 NEW UNIFIED WEBHOOK ENDPOINTS
-Route::prefix('webhook')->middleware('agent.token')->group(function () {
-    // Single webhooks
-    Route::post('/vps', [\App\Http\Controllers\Api\WebhookController::class, 'handleVpsStats'])
-        ->middleware('throttle:120,1');
-    Route::post('/stream', [\App\Http\Controllers\Api\WebhookController::class, 'handleStreamStatus'])
-        ->middleware('throttle:300,1');
+// 🔥 DEPRECATED: OLD WEBHOOK ENDPOINTS (Now using Redis agent reports)
+// Route::prefix('webhook')->middleware('agent.token')->group(function () {
+//     // Single webhooks
+//     Route::post('/vps', [\App\Http\Controllers\Api\WebhookController::class, 'handleVpsStats'])
+//         ->middleware('throttle:120,1');
+//     Route::post('/stream', [\App\Http\Controllers\Api\WebhookController::class, 'handleStreamStatus'])
+//         ->middleware('throttle:300,1');
 
-    // 🚀 BATCH ENDPOINTS FOR HIGH SCALE (hàng nghìn streams)
-    Route::prefix('batch')->middleware('throttle:1800,1')->group(function () {
-        Route::post('/vps-stats', [\App\Http\Controllers\Api\WebhookController::class, 'batchVpsStats']);
-        Route::post('/stream-events', [\App\Http\Controllers\Api\WebhookController::class, 'batchStreamEvents']);
-    });
+//     // 🚀 BATCH ENDPOINTS FOR HIGH SCALE (hàng nghìn streams)
+//     Route::prefix('batch')->middleware('throttle:1800,1')->group(function () {
+//         Route::post('/vps-stats', [\App\Http\Controllers\Api\WebhookController::class, 'batchVpsStats']);
+//         Route::post('/stream-events', [\App\Http\Controllers\Api\WebhookController::class, 'batchStreamEvents']);
+//     });
 
-    // Health check
-    Route::post('/health', [\App\Http\Controllers\Api\WebhookController::class, 'handleHealthCheck'])
-        ->middleware('throttle:60,1');
+//     // Health check
+//     Route::post('/health', [\App\Http\Controllers\Api\WebhookController::class, 'handleHealthCheck'])
+//         ->middleware('throttle:60,1');
 
-    // System statistics (admin only)
-    Route::get('/system-stats', [\App\Http\Controllers\Api\WebhookController::class, 'systemStats'])
-        ->middleware(['auth', 'throttle:60,1']);
-});
+//     // System statistics (admin only)
+//     Route::get('/system-stats', [\App\Http\Controllers\Api\WebhookController::class, 'systemStats'])
+//         ->middleware(['auth', 'throttle:60,1']);
+// });
 
 // 🔥 NEW STREAM API ENDPOINTS
 Route::prefix('stream')->middleware('auth')->group(function () {

@@ -9,6 +9,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Redis;
 
+/**
+ * @deprecated This controller is deprecated. Webhooks are replaced by Redis agent reports.
+ * VPS agents now send reports directly via Redis channels instead of HTTP webhooks.
+ * See: agent:listen command and SystemEventMonitor component.
+ */
 class WebhookController extends Controller
 {
     /**

@@ -5,6 +5,10 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @deprecated This model is deprecated. System events are now handled via Redis agent reports.
+ * Use SystemEventMonitor component which reads from Redis instead.
+ */
 class SystemEvent extends Model
 {
     use HasFactory;

@@ -6,6 +6,10 @@ use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
+/**
+ * @deprecated This middleware is deprecated. Agent authentication is now handled via Redis.
+ * VPS agents authenticate using Redis connection instead of HTTP token authentication.
+ */
 class VerifyAgentToken
 {
     /**
