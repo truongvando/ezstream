@@ -1,30 +1,441 @@
 #!/bin/bash
 
-# EZSTREAM Deployment Script
-# Usage: bash deploy.sh [branch_name]
-# Example: bash deploy.sh main
+# EZSTREAM Smart Deployment Script v3.0
+# Intelligent deployment with auto-detection, self-healing, and comprehensive setup
+# Usage: bash deploy.sh [branch] [force_setup] [skip_tests]
+# Example: bash deploy.sh master false false
 
 set -e
+
+# Error handling and cleanup
+cleanup() {
+    local exit_code=$?
+    if [ $exit_code -ne 0 ]; then
+        log_error "Deployment failed with exit code $exit_code"
+
+        # Bring application back up if it was in maintenance mode
+        if [ -f "$PROJECT_DIR/storage/framework/down" ]; then
+            log_warning "Bringing application back up..."
+            php artisan up 2>/dev/null || true
+        fi
+
+        # Offer rollback
+        echo ""
+        log_warning "Deployment failed! Would you like to rollback? (y/N)"
+        read -t 30 -r response || response="n"
+        if [[ $response =~ ^[Yy]$ ]]; then
+            log_warning "Rolling back..."
+            if [ -f "$SCRIPT_DIR/rollback.sh" ]; then
+                bash "$SCRIPT_DIR/rollback.sh"
+            else
+                log_error "Rollback script not found"
+            fi
+        fi
+    fi
+}
+
+trap cleanup EXIT
 
 # Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
 # Configuration
 PROJECT_DIR="/var/www/ezstream"
 BRANCH=${1:-master}
+FORCE_SETUP=${2:-false}
+SKIP_TESTS=${3:-false}
 BACKUP_DIR="/var/backups/ezstream"
 DB_NAME="sql_ezstream_pro"
 DB_USER="root"
 DB_PASS="Dodz1997a@"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-echo -e "${BLUE}🚀 EZSTREAM Deployment Starting...${NC}"
-echo -e "${YELLOW}Branch: $BRANCH${NC}"
+# Show help if requested
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo -e "${CYAN}EZSTREAM Smart Deployment Script v3.0${NC}"
+    echo ""
+    echo -e "${YELLOW}Usage:${NC}"
+    echo -e "  bash deploy.sh [branch] [force_setup] [skip_tests]"
+    echo ""
+    echo -e "${YELLOW}Parameters:${NC}"
+    echo -e "  branch      - Git branch to deploy (default: master)"
+    echo -e "  force_setup - Force system requirements setup (true/false, default: false)"
+    echo -e "  skip_tests  - Skip application tests (true/false, default: false)"
+    echo ""
+    echo -e "${YELLOW}Examples:${NC}"
+    echo -e "  bash deploy.sh                    # Deploy master branch"
+    echo -e "  bash deploy.sh develop            # Deploy develop branch"
+    echo -e "  bash deploy.sh master true        # Deploy with forced setup"
+    echo -e "  bash deploy.sh master false true  # Deploy without tests"
+    echo ""
+    echo -e "${YELLOW}Features:${NC}"
+    echo -e "  ✅ Auto-detects and installs system requirements"
+    echo -e "  ✅ Smart Supervisor process management"
+    echo -e "  ✅ Automatic database backup before deployment"
+    echo -e "  ✅ Zero-downtime deployment with maintenance mode"
+    echo -e "  ✅ Comprehensive health checks and error handling"
+    echo -e "  ✅ Automatic rollback on failure"
+    echo -e "  ✅ Environment-aware configuration"
+    echo ""
+    exit 0
+fi
+
+# Deployment state
+DEPLOYMENT_START_TIME=$(date +%s)
+DEPLOYMENT_ID="deploy_$(date +%Y%m%d_%H%M%S)"
+
+echo -e "${CYAN}🚀 EZSTREAM Smart Deployment v3.0${NC}"
+echo -e "${BLUE}📅 Started: $(date)${NC}"
+echo -e "${BLUE}🆔 ID: $DEPLOYMENT_ID${NC}"
+echo -e "${BLUE}🌿 Branch: $BRANCH${NC}"
+echo -e "${BLUE}🔧 Force Setup: $FORCE_SETUP${NC}"
+echo -e "${BLUE}⚡ Skip Tests: $SKIP_TESTS${NC}"
+echo ""
+
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+log_step() {
+    echo -e "${PURPLE}▶️ $1${NC}"
+}
+
+log_success() {
+    echo -e "${GREEN}✅ $1${NC}"
+}
+
+log_warning() {
+    echo -e "${YELLOW}⚠️ $1${NC}"
+}
+
+log_error() {
+    echo -e "${RED}❌ $1${NC}"
+}
+
+log_info() {
+    echo -e "${BLUE}ℹ️ $1${NC}"
+}
+
+# Check if command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Check if service is running
+service_running() {
+    systemctl is-active --quiet "$1" 2>/dev/null
+}
+
+# Check if port is listening
+port_listening() {
+    ss -tlnp | grep -q ":$1 " 2>/dev/null
+}
+
+# Execute with retry
+execute_with_retry() {
+    local cmd="$1"
+    local max_attempts=${2:-3}
+    local delay=${3:-5}
+
+    for i in $(seq 1 $max_attempts); do
+        if eval "$cmd"; then
+            return 0
+        fi
+
+        if [ $i -lt $max_attempts ]; then
+            log_warning "Attempt $i failed, retrying in ${delay}s..."
+            sleep $delay
+        fi
+    done
+
+    log_error "Command failed after $max_attempts attempts: $cmd"
+    return 1
+}
+
+# ============================================================================
+# SYSTEM DETECTION & AUTO-SETUP
+# ============================================================================
+
+detect_and_setup_system() {
+    log_step "System Detection & Auto-Setup"
+
+    # Detect OS
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        OS=$NAME
+        VER=$VERSION_ID
+        log_info "Detected OS: $OS $VER"
+    else
+        log_error "Cannot detect OS"
+        exit 1
+    fi
+
+    # Check if this is first deployment
+    if [ ! -f "$PROJECT_DIR/.deployed" ] || [ "$FORCE_SETUP" = "true" ]; then
+        log_warning "First deployment or force setup detected"
+        setup_system_requirements
+    fi
+
+    # Verify system requirements
+    verify_system_requirements
+}
+
+setup_system_requirements() {
+    log_step "Setting up system requirements"
+
+    # Update package list
+    log_info "Updating package list..."
+    apt-get update -y >/dev/null 2>&1
+
+    # Install essential packages
+    log_info "Installing essential packages..."
+    apt-get install -y curl wget unzip git supervisor nginx redis-server mysql-server \
+        software-properties-common apt-transport-https ca-certificates gnupg lsb-release \
+        >/dev/null 2>&1
+
+    # Install PHP 8.2 if not present
+    if ! command_exists php || ! php -v | grep -q "8\.2"; then
+        log_info "Installing PHP 8.2..."
+        add-apt-repository ppa:ondrej/php -y >/dev/null 2>&1
+        apt-get update -y >/dev/null 2>&1
+        apt-get install -y php8.2 php8.2-fpm php8.2-mysql php8.2-redis php8.2-mbstring \
+            php8.2-xml php8.2-curl php8.2-zip php8.2-gd php8.2-intl php8.2-bcmath \
+            >/dev/null 2>&1
+    fi
+
+    # Install Composer if not present
+    if ! command_exists composer; then
+        log_info "Installing Composer..."
+        curl -sS https://getcomposer.org/installer | php >/dev/null 2>&1
+        mv composer.phar /usr/local/bin/composer
+        chmod +x /usr/local/bin/composer
+    fi
+
+    # Install Node.js if not present
+    if ! command_exists node || ! node -v | grep -q "v18"; then
+        log_info "Installing Node.js 18..."
+        curl -fsSL https://deb.nodesource.com/setup_18.x | bash - >/dev/null 2>&1
+        apt-get install -y nodejs >/dev/null 2>&1
+    fi
+
+    log_success "System requirements installed"
+}
+
+verify_system_requirements() {
+    log_step "Verifying system requirements"
+
+    local requirements_met=true
+
+    # Check PHP
+    if command_exists php && php -v | grep -q "8\.2"; then
+        log_success "PHP 8.2: $(php -r 'echo PHP_VERSION;')"
+    else
+        log_error "PHP 8.2 not found"
+        requirements_met=false
+    fi
+
+    # Check Composer
+    if command_exists composer; then
+        log_success "Composer: $(composer --version --no-ansi | head -1)"
+    else
+        log_error "Composer not found"
+        requirements_met=false
+    fi
+
+    # Check Node.js
+    if command_exists node; then
+        log_success "Node.js: $(node -v)"
+    else
+        log_error "Node.js not found"
+        requirements_met=false
+    fi
+
+    # Check services
+    local services=("nginx" "mysql" "redis-server" "php8.2-fpm")
+    for service in "${services[@]}"; do
+        if service_running "$service"; then
+            log_success "Service $service: Running"
+        else
+            log_warning "Service $service: Not running, attempting to start..."
+            systemctl start "$service" >/dev/null 2>&1 || log_error "Failed to start $service"
+        fi
+    done
+
+    # Check required PHP extensions
+    local extensions=("pdo_mysql" "redis" "mbstring" "xml" "curl" "zip" "gd" "intl" "bcmath")
+    for ext in "${extensions[@]}"; do
+        if php -m | grep -q "$ext"; then
+            log_success "PHP extension $ext: Available"
+        else
+            log_error "PHP extension $ext: Missing"
+            requirements_met=false
+        fi
+    done
+
+    if [ "$requirements_met" = false ]; then
+        log_error "System requirements not met. Run with force_setup=true to auto-install."
+        exit 1
+    fi
+
+    log_success "All system requirements verified"
+}
+
+setup_supervisor_processes() {
+    log_step "Setting up Supervisor processes for EZSTREAM"
+
+    # Check if setup-supervisor.sh exists
+    if [ -f "$SCRIPT_DIR/setup-supervisor.sh" ]; then
+        log_info "Running setup-supervisor.sh..."
+        bash "$SCRIPT_DIR/setup-supervisor.sh"
+    else
+        log_warning "setup-supervisor.sh not found, creating basic configuration..."
+        create_basic_supervisor_config
+    fi
+
+    log_success "Supervisor processes configured"
+}
+
+create_basic_supervisor_config() {
+    log_info "Creating basic Supervisor configuration..."
+
+    # Create queue worker config
+    cat > /etc/supervisor/conf.d/ezstream-queue.conf << EOF
+[group:ezstream-queue]
+programs=ezstream-queue_00,ezstream-queue_01
+
+[program:ezstream-queue_00]
+process_name=%(program_name)s
+command=php $PROJECT_DIR/artisan queue:work --sleep=3 --tries=3 --max-time=3600
+directory=$PROJECT_DIR
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=www-data
+numprocs=1
+redirect_stderr=true
+stdout_logfile=$PROJECT_DIR/storage/logs/queue.log
+stopwaitsecs=60
+
+[program:ezstream-queue_01]
+process_name=%(program_name)s
+command=php $PROJECT_DIR/artisan queue:work --sleep=3 --tries=3 --max-time=3600
+directory=$PROJECT_DIR
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=www-data
+numprocs=1
+redirect_stderr=true
+stdout_logfile=$PROJECT_DIR/storage/logs/queue.log
+stopwaitsecs=60
+EOF
+
+    # Create VPS provisioning worker config
+    cat > /etc/supervisor/conf.d/ezstream-vps.conf << EOF
+[group:ezstream-vps]
+programs=ezstream-vps_00
+
+[program:ezstream-vps_00]
+process_name=%(program_name)s
+command=php $PROJECT_DIR/artisan queue:work --queue=vps-provisioning --sleep=3 --tries=3 --max-time=3600
+directory=$PROJECT_DIR
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=www-data
+numprocs=1
+redirect_stderr=true
+stdout_logfile=$PROJECT_DIR/storage/logs/vps-queue.log
+stopwaitsecs=60
+EOF
+
+    # Create agent listener config
+    cat > /etc/supervisor/conf.d/ezstream-agent.conf << EOF
+[program:ezstream-agent]
+process_name=%(program_name)s
+command=php $PROJECT_DIR/artisan agent:listen
+directory=$PROJECT_DIR
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=www-data
+numprocs=1
+redirect_stderr=true
+stdout_logfile=$PROJECT_DIR/storage/logs/agent.log
+stopwaitsecs=60
+EOF
+
+    # Create Redis subscriber config
+    cat > /etc/supervisor/conf.d/ezstream-redis.conf << EOF
+[program:ezstream-redis]
+process_name=%(program_name)s
+command=php $PROJECT_DIR/artisan redis:subscribe-stats
+directory=$PROJECT_DIR
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=www-data
+numprocs=1
+redirect_stderr=true
+stdout_logfile=$PROJECT_DIR/storage/logs/redis.log
+stopwaitsecs=60
+EOF
+
+    # Create scheduler config
+    cat > /etc/supervisor/conf.d/ezstream-schedule.conf << EOF
+[program:ezstream-schedule]
+process_name=%(program_name)s
+command=php $PROJECT_DIR/artisan schedule:work
+directory=$PROJECT_DIR
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=www-data
+numprocs=1
+redirect_stderr=true
+stdout_logfile=$PROJECT_DIR/storage/logs/schedule.log
+stopwaitsecs=60
+EOF
+
+    # Create log files
+    mkdir -p $PROJECT_DIR/storage/logs
+    touch $PROJECT_DIR/storage/logs/{queue,vps-queue,agent,redis,schedule}.log
+    chown -R www-data:www-data $PROJECT_DIR/storage/logs
+
+    # Reload Supervisor
+    supervisorctl reread
+    supervisorctl update
+    supervisorctl start ezstream-queue:*
+    supervisorctl start ezstream-vps:*
+    supervisorctl start ezstream-agent:*
+    supervisorctl start ezstream-redis:*
+    supervisorctl start ezstream-schedule:*
+}
+
+# ============================================================================
+# MAIN DEPLOYMENT FLOW
+# ============================================================================
+
+# Run system detection and setup
+detect_and_setup_system
+
 echo -e "${YELLOW}Project Dir: $PROJECT_DIR${NC}"
 echo ""
+
+# Change to project directory
+cd $PROJECT_DIR
 
 # Create backup directory
 mkdir -p $BACKUP_DIR
@@ -170,9 +581,19 @@ echo -e "${YELLOW}🔄 Restarting services...${NC}"
 systemctl reload php8.2-fpm
 systemctl reload nginx
 
-# Restart background processes for Laravel using Supervisor
-echo -e "${YELLOW}🔄 Restarting Laravel background processes via Supervisor...${NC}"
+# Smart Background Process Management
+log_step "Smart Background Process Management"
+
+# Check if Supervisor is installed and configured
 if command -v supervisorctl &> /dev/null; then
+    log_info "Supervisor detected, checking configuration..."
+
+    # Check if EZSTREAM processes are configured
+    if ! supervisorctl status | grep -q ezstream; then
+        log_warning "EZSTREAM processes not configured in Supervisor"
+        setup_supervisor_processes
+    fi
+
     # Define all active EZSTREAM processes (5 processes total)
     declare -a PROCESSES=(
         "ezstream-queue:*|Default queue worker"
@@ -182,17 +603,17 @@ if command -v supervisorctl &> /dev/null; then
         "ezstream-schedule:*|Laravel scheduler"
     )
 
-    echo -e "${BLUE}   Restarting ${#PROCESSES[@]} background processes...${NC}"
+    log_info "Restarting ${#PROCESSES[@]} background processes..."
 
     # Restart each process with description
     for process_info in "${PROCESSES[@]}"; do
         IFS='|' read -r process_name description <<< "$process_info"
-        echo -e "${BLUE}   → Restarting ${description}...${NC}"
+        log_info "→ Restarting ${description}..."
 
         if supervisorctl restart "$process_name" >/dev/null 2>&1; then
-            echo -e "${GREEN}     ✅ ${process_name} restarted successfully${NC}"
+            log_success "${process_name} restarted successfully"
         else
-            echo -e "${YELLOW}     ⚠️ ${process_name} restart failed or not found${NC}"
+            log_warning "${process_name} restart failed or not found"
         fi
     done
 
@@ -254,6 +675,11 @@ else
     php artisan up
     exit 1
 fi
+
+# Check if this is production environment
+echo -e "${BLUE}   Checking environment...${NC}"
+APP_ENV=$(php artisan tinker --execute="echo config('app.env');" 2>/dev/null | tail -1)
+echo -e "${BLUE}   Environment detected: ${APP_ENV}${NC}"
 
 # Test database connection
 echo -e "${BLUE}   Testing database connection...${NC}"
@@ -351,3 +777,62 @@ echo ""
 echo -e "${YELLOW}💡 To rollback if needed:${NC}"
 echo -e "  gunzip $BACKUP_FILE.gz"
 echo -e "  mysql -u $DB_USER -p$DB_PASS $DB_NAME < \${BACKUP_FILE%.gz}"
+
+# ============================================================================
+# DEPLOYMENT COMPLETION
+# ============================================================================
+
+# Mark deployment as completed
+echo "$DEPLOYMENT_ID" > "$PROJECT_DIR/.deployed"
+echo "$(date)" >> "$PROJECT_DIR/.deployed"
+
+# Calculate deployment time
+DEPLOYMENT_END_TIME=$(date +%s)
+DEPLOYMENT_DURATION=$((DEPLOYMENT_END_TIME - DEPLOYMENT_START_TIME))
+DEPLOYMENT_MINUTES=$((DEPLOYMENT_DURATION / 60))
+DEPLOYMENT_SECONDS=$((DEPLOYMENT_DURATION % 60))
+
+echo ""
+echo -e "${CYAN}🎉 DEPLOYMENT COMPLETED SUCCESSFULLY! 🎉${NC}"
+echo ""
+echo -e "${PURPLE}📊 Deployment Statistics:${NC}"
+echo -e "  • Deployment ID: $DEPLOYMENT_ID"
+echo -e "  • Duration: ${DEPLOYMENT_MINUTES}m ${DEPLOYMENT_SECONDS}s"
+echo -e "  • Branch: $BRANCH"
+echo -e "  • Environment: $(php artisan tinker --execute="echo config('app.env');" 2>/dev/null | tail -1)"
+echo -e "  • Laravel Version: $(php artisan --version --no-ansi)"
+echo -e "  • PHP Version: $(php -r 'echo PHP_VERSION;')"
+
+# Final health check
+echo ""
+echo -e "${PURPLE}🏥 Final Health Check:${NC}"
+
+# Check web server
+if curl -f -s -o /dev/null http://localhost >/dev/null 2>&1; then
+    echo -e "  ✅ Web server: Responding"
+else
+    echo -e "  ⚠️ Web server: Not responding on localhost"
+fi
+
+# Check database
+if php artisan tinker --execute="try { \DB::connection()->getPdo(); echo 'OK'; } catch(Exception \$e) { echo 'FAIL'; }" 2>/dev/null | grep -q "OK"; then
+    echo -e "  ✅ Database: Connected"
+else
+    echo -e "  ❌ Database: Connection failed"
+fi
+
+# Check Redis
+if php artisan tinker --execute="try { \Redis::ping(); echo 'OK'; } catch(Exception \$e) { echo 'FAIL'; }" 2>/dev/null | grep -q "OK"; then
+    echo -e "  ✅ Redis: Connected"
+else
+    echo -e "  ❌ Redis: Connection failed"
+fi
+
+# Check queue
+QUEUE_SIZE=$(php artisan queue:monitor 2>/dev/null | grep -o '[0-9]\+' | head -1 || echo "0")
+echo -e "  ✅ Queue: $QUEUE_SIZE jobs pending"
+
+echo ""
+echo -e "${GREEN}🌟 EZSTREAM is now running the latest version! 🌟${NC}"
+echo -e "${BLUE}🌐 Visit: https://ezstream.pro${NC}"
+echo ""

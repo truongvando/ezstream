@@ -39,6 +39,13 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
                 'status_message' => 'Setting up base system and Redis Agent...'
             ]);
 
+            // Check if VPS operations are enabled for this environment
+            if (!config('deployment.vps_operations_enabled')) {
+                Log::info("🔧 [VPS #{$vps->id}] VPS operations disabled in " . config('app.env') . " environment - mocking provision");
+                $this->mockProvisionSuccess($vps);
+                return;
+            }
+
             if (!$sshService->connect($vps)) {
                 throw new \Exception('Failed to connect to VPS via SSH');
             }
@@ -360,5 +367,25 @@ WantedBy=multi-user.target";
             'status_message' => 'Provision failed: ' . Str::limit($exception->getMessage(), 250),
             'error_message' => $exception->getMessage(),
         ]);
+    }
+
+    private function mockProvisionSuccess(VpsServer $vps): void
+    {
+        Log::info("🎭 [VPS #{$vps->id}] Mocking provision success for development environment");
+
+        // Simulate provision delay
+        sleep(2);
+
+        $vps->update([
+            'status' => 'ACTIVE',
+            'last_provisioned_at' => now(),
+            'status_message' => 'Mocked provision completed (development)',
+            'capabilities' => json_encode(['multistream', 'nginx-rtmp', 'redis-agent']),
+            'max_concurrent_streams' => 5, // Mock value
+            'current_streams' => 0,
+            'webhook_configured' => false,
+        ]);
+
+        Log::info("✅ [VPS #{$vps->id}] Mock provision completed successfully");
     }
 }

@@ -36,6 +36,13 @@ class UpdateAgentJob implements ShouldQueue
                 'status_message' => 'Đang cập nhật Redis Agent...'
             ]);
 
+            // Check if VPS operations are enabled for this environment
+            if (!config('deployment.vps_operations_enabled')) {
+                Log::info("🔧 [VPS #{$vps->id}] VPS operations disabled in " . config('app.env') . " environment - mocking update");
+                $this->mockUpdateSuccess($vps);
+                return;
+            }
+
             // Connect to VPS
             if (!$sshService->connect($vps)) {
                 throw new \Exception('Không thể kết nối tới VPS qua SSH');
@@ -282,5 +289,21 @@ Environment=PYTHONUNBUFFERED=1
 
 [Install]
 WantedBy=multi-user.target";
+    }
+
+    private function mockUpdateSuccess(VpsServer $vps): void
+    {
+        Log::info("🎭 [VPS #{$vps->id}] Mocking agent update success for development environment");
+
+        // Simulate update delay
+        sleep(1);
+
+        $vps->update([
+            'status' => 'ACTIVE',
+            'status_message' => 'Redis Agent đã được cập nhật thành công (mocked)',
+            'last_updated_at' => now(),
+        ]);
+
+        Log::info("✅ [VPS #{$vps->id}] Mock agent update completed successfully");
     }
 }
