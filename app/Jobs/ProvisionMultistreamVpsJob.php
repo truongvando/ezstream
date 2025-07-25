@@ -106,12 +106,24 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         }
 
         $sshService->execute("chmod +x {$remoteScript}");
-        
-        $result = $sshService->execute($remoteScript, 300); // 5 minute timeout
-        
+
+        Log::info("🚀 [VPS #{$vps->id}] Running base provision script...");
+        $result = $sshService->execute($remoteScript, 600); // 10 minute timeout
+
+        // Log the full output for debugging
+        Log::info("📋 [VPS #{$vps->id}] Provision script output", ['output' => $result]);
+
         if (strpos($result, 'PROVISION COMPLETE') === false) {
-            Log::error("❌ [VPS #{$vps->id}] Base provision script failed", ['output' => $result]);
-            throw new \Exception('Base provision script execution failed');
+            Log::error("❌ [VPS #{$vps->id}] Base provision script failed", [
+                'output' => $result,
+                'script_path' => $remoteScript
+            ]);
+
+            // Try to get more detailed error info
+            $errorCheck = $sshService->execute('tail -20 /var/log/syslog | grep -i error || echo "No recent errors in syslog"');
+            Log::error("❌ [VPS #{$vps->id}] System error logs", ['syslog' => $errorCheck]);
+
+            throw new \Exception('Base provision script execution failed. Check logs for details.');
         }
 
         Log::info("✅ [VPS #{$vps->id}] Base provision script completed successfully");
@@ -204,8 +216,8 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
 
         return "[Unit]
 Description=EZStream Redis Agent v3.0
-After=network.target nginx.service
-Requires=nginx.service
+After=network.target
+Wants=nginx.service
 
 [Service]
 Type=simple
@@ -216,6 +228,7 @@ RestartSec=10
 StandardOutput=journal
 StandardError=journal
 Environment=PYTHONPATH=/opt/ezstream-agent
+WorkingDirectory=/opt/ezstream-agent
 
 [Install]
 WantedBy=multi-user.target";

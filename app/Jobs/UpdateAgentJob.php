@@ -194,19 +194,36 @@ class UpdateAgentJob implements ShouldQueue
     private function verifyAgentRunning(SshService $sshService, VpsServer $vps): void
     {
         Log::info("🔍 [VPS #{$vps->id}] Kiểm tra Redis Agent đang chạy");
-        
-        $status = $sshService->execute('systemctl is-active ezstream-agent');
-        
-        if (trim($status) !== 'active') {
-            $serviceLog = $sshService->execute("journalctl -u ezstream-agent --no-pager -n 50");
-            Log::error("❌ [VPS #{$vps->id}] Redis Agent không hoạt động", [
-                'status' => $status,
-                'log' => $serviceLog
-            ]);
-            throw new \Exception('Redis Agent không khởi động được. Kiểm tra log trên VPS.');
+
+        // Retry logic - wait up to 30 seconds for agent to start
+        $maxRetries = 6;
+        $retryDelay = 5;
+
+        for ($i = 0; $i < $maxRetries; $i++) {
+            $status = $sshService->execute('systemctl is-active ezstream-agent');
+
+            if (trim($status) === 'active') {
+                Log::info("✅ [VPS #{$vps->id}] Redis Agent đang hoạt động bình thường");
+                return;
+            }
+
+            if ($i < $maxRetries - 1) {
+                Log::info("⏳ [VPS #{$vps->id}] Agent chưa sẵn sàng, đợi {$retryDelay}s... (lần thử " . ($i + 1) . "/{$maxRetries})");
+                sleep($retryDelay);
+            }
         }
-        
-        Log::info("✅ [VPS #{$vps->id}] Redis Agent đang hoạt động bình thường");
+
+        // If we get here, agent failed to start
+        $serviceLog = $sshService->execute("journalctl -u ezstream-agent --no-pager -n 50");
+        $systemdStatus = $sshService->execute("systemctl status ezstream-agent --no-pager");
+
+        Log::error("❌ [VPS #{$vps->id}] Redis Agent không hoạt động sau {$maxRetries} lần thử", [
+            'status' => trim($status),
+            'systemd_status' => $systemdStatus,
+            'service_log' => $serviceLog
+        ]);
+
+        throw new \Exception('Redis Agent không khởi động được sau ' . ($maxRetries * $retryDelay) . ' giây. Kiểm tra log trên VPS.');
     }
 
     private function rollbackAgent(SshService $sshService, VpsServer $vps): void

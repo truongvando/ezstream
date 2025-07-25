@@ -1,158 +1,178 @@
 # 🚀 EZSTREAM VPS Deployment Scripts
 
-Bộ scripts tự động hóa việc deploy EZSTREAM project lên VPS mới và cập nhật code.
+Essential scripts for EZSTREAM application deployment and management.
 
-## 📋 Danh sách Scripts
+## 📋 **Available Scripts:**
 
-### 1. `install.sh` - Cài đặt VPS mới
-Cài đặt toàn bộ môi trường: PHP 8.2, MySQL, Nginx, Redis, Composer, Node.js
+### 🚀 **Deployment & Management:**
+- **`deploy.sh`** - Main deployment script with full automation
+- **`rollback.sh`** - Rollback deployment to previous state
+- **`manage-processes.sh`** - Start/stop/restart background processes
 
-### 2. `setup-project.sh` - Setup project Laravel
-Cài đặt dependencies, cấu hình .env, chạy migrations
+### 🔧 **Setup & Configuration:**
+- **`install.sh`** - Initial server setup (PHP 8.2, MySQL, Nginx, Redis)
+- **`setup-supervisor.sh`** - Configure background processes (5 workers)
+- **`setup-nginx.sh`** - Nginx web server + SSL configuration
+- **`security-hardening.sh`** - Server security hardening
 
-### 3. `setup-nginx.sh` - Cấu hình Nginx + SSL
-Tạo virtual host, cài SSL certificate với Let's Encrypt
+### 💾 **Database Management:**
+- **`backup-database.sh`** - Create database backups
+- **`restore-database.sh`** - Restore database from backup
 
-### 4. `deploy.sh` - Cập nhật code
-Pull code mới, backup database, chạy migrations, không mất dữ liệu
+---
 
-### 5. `rollback.sh` - Rollback về backup
-Khôi phục database về trạng thái trước đó
+## 🎯 **Quick Start:**
 
-### 6. `setup-supervisor.sh` - Setup background processes
-Tự động chạy queue, stream, schedule với Supervisor
-
-### 7. `manage-processes.sh` - Quản lý processes
-Start/stop/restart/monitor các background processes
-
-## 🔧 Cách sử dụng
-
-### Cài đặt VPS mới (One-click):
-
+### **🚀 Deploy Application:**
 ```bash
-# 1. Upload scripts lên VPS
-scp -r scripts/ root@your-vps-ip:/root/
+bash scripts/deploy.sh
+```
 
-# 2. SSH vào VPS
-ssh root@your-vps-ip
-
-# 3. Chạy cài đặt
-cd /root
-chmod +x scripts/*.sh
+### **🔧 Setup New Server:**
+```bash
+# 1. Initial server setup
 bash scripts/install.sh
 
-# 4. Clone project code
-cd /var/www/ezstream
-git clone https://github.com/yourusername/ezstream.git .
+# 2. Setup background processes
+bash scripts/setup-supervisor.sh
 
-# 5. Setup project
-bash /root/scripts/setup-project.sh
+# 3. Configure Nginx + SSL
+bash scripts/setup-nginx.sh
 
-# 6. Setup Nginx + SSL
-bash /root/scripts/setup-nginx.sh
-
-# 7. Setup security
-bash /root/scripts/setup-security.sh
-
-# 8. Setup background processes
-bash /root/scripts/setup-supervisor.sh
-bash /root/scripts/setup-crontab.sh
+# 4. Security hardening
+bash scripts/security-hardening.sh
 ```
 
-### Cập nhật code (Zero-downtime):
-
+### **⚙️ Manage Background Processes:**
 ```bash
-# Cập nhật từ branch main
-bash scripts/deploy.sh main
+# Check status
+bash scripts/manage-processes.sh status
 
-# Cập nhật từ branch develop
-bash scripts/deploy.sh develop
+# Restart all processes
+bash scripts/manage-processes.sh restart
+
+# Stop all processes
+bash scripts/manage-processes.sh stop
 ```
 
-### Rollback nếu có lỗi:
-
+### **💾 Database Operations:**
 ```bash
-# Xem danh sách backup
+# Create backup
+bash scripts/backup-database.sh
+
+# Restore from backup
+bash scripts/restore-database.sh /path/to/backup.sql
+```
+
+### **🔄 Rollback Deployment:**
+```bash
+# Rollback to previous state
 bash scripts/rollback.sh
-
-# Rollback về backup cụ thể
-bash scripts/rollback.sh /var/backups/ezstream/database_20250719_143000.sql
 ```
 
-## ⚙️ Cấu hình
+---
 
-Sửa các biến trong từng script:
+## 🔧 **Background Processes:**
 
+The system runs **5 essential background processes** via Supervisor:
+
+1. **ezstream-queue** - Default queue worker
+2. **ezstream-vps** - VPS provisioning queue worker
+3. **ezstream-agent** - Agent reports listener (Redis)
+4. **ezstream-redis** - VPS stats subscriber
+5. **ezstream-schedule** - Laravel scheduler
+
+### **Monitor Processes:**
+```bash
+# Check all processes
+sudo supervisorctl status | grep ezstream
+
+# View logs
+tail -f /var/www/ezstream/storage/logs/laravel.log
+```
+
+---
+
+## ✅ **Features:**
+
+- 🚀 **Zero-downtime deployment**
+- 💾 **Automatic database backup**
+- 🔄 **Safe migrations** - No data loss
+- ⏪ **Rollback support**
+- 🔒 **SSL auto-renewal**
+- ⚡ **Cache optimization**
+- 🛡️ **Security hardening**
+- 📊 **Process monitoring**
+
+---
+
+## 📞 **Troubleshooting:**
+
+### **🔧 Process Issues:**
+```bash
+# Check process status
+sudo supervisorctl status | grep ezstream
+
+# Restart failed processes
+sudo supervisorctl restart ezstream-queue:*
+sudo supervisorctl restart ezstream-vps:*
+
+# View process logs
+tail -f /var/www/ezstream/storage/logs/vps-queue.log
+```
+
+### **🗄️ Database Issues:**
+```bash
+# Check MySQL status
+sudo systemctl status mysql
+
+# Test connection
+php artisan tinker --execute="DB::connection()->getPdo(); echo 'Connected!';"
+
+# Restore from backup
+bash scripts/restore-database.sh /var/backups/ezstream/database_*.sql
+```
+
+### **🌐 Web Server Issues:**
+```bash
+# Test Nginx config
+sudo nginx -t
+
+# Restart services
+sudo systemctl restart nginx
+sudo systemctl restart php8.2-fpm
+```
+
+### **📦 Queue Issues:**
+```bash
+# Monitor queues
+php artisan queue:monitor
+
+# Check failed jobs
+php artisan queue:failed
+
+# Process VPS jobs manually
+php artisan queue:work --queue=vps-provisioning --once
+```
+
+---
+
+## 🎯 **Best Practices:**
+
+1. **Always backup** before major changes
+2. **Test deployments** on staging first
+3. **Monitor processes** after deployment
+4. **Check logs** for any errors
+5. **Keep scripts updated** with latest changes
+
+---
+
+## 📝 **Configuration:**
+
+Key variables in scripts:
 ```bash
 DOMAIN="ezstream.pro"
 PROJECT_DIR="/var/www/ezstream"
 DB_NAME="sql_ezstream_pro"
-DB_USER="root"
-DB_PASS="Dodz1997a@"
-```
-
-## 🔒 Bảo mật
-
-- Scripts tự động tạo backup trước khi cập nhật
-- Maintenance mode trong quá trình deploy
-- SSL certificate tự động
-- File permissions được set đúng
-
-## 📊 Tính năng
-
-✅ **Zero-downtime deployment**
-✅ **Automatic database backup**
-✅ **Migration safe** - không mất dữ liệu
-✅ **Rollback support**
-✅ **SSL auto-renewal**
-✅ **Cache optimization**
-✅ **Error handling**
-
-## 🚨 Lưu ý
-
-1. **Backup tự động**: Mỗi lần deploy sẽ tự động backup database
-2. **Git repository**: Cần setup Git repository cho project
-3. **Domain DNS**: Đảm bảo domain đã point về IP VPS
-4. **Firewall**: Mở port 80, 443, 22
-
-## 📞 Troubleshooting
-
-### Lỗi permissions:
-```bash
-sudo chown -R www-data:www-data /var/www/ezstream
-sudo chmod -R 775 /var/www/ezstream/storage
-```
-
-### Lỗi database:
-```bash
-# Kiểm tra MySQL
-sudo systemctl status mysql
-mysql -u root -p
-
-# Restore backup
-bash scripts/rollback.sh [backup_file]
-```
-
-### Lỗi Nginx:
-```bash
-# Test config
-sudo nginx -t
-
-# Restart
-sudo systemctl restart nginx
-```
-
-## 🎯 Workflow khuyến nghị
-
-1. **Development**: Code trên local
-2. **Testing**: Push lên branch `develop`
-3. **Staging**: Deploy develop lên staging server
-4. **Production**: Merge vào `main` và deploy
-
-```bash
-# Deploy staging
-bash scripts/deploy.sh develop
-
-# Deploy production
-bash scripts/deploy.sh main
+BACKUP_DIR="/var/backups/ezstream"
 ```
