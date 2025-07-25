@@ -4,16 +4,99 @@ window.handleFileUpload = null;
 // Global flag to prevent multiple initializations
 window.fileUploadInitialized = window.fileUploadInitialized || false;
 
+// Define showDetailedError function globally first
+function showDetailedError(errorData) {
+    // Check if modal already exists and remove it
+    const existingModal = document.querySelector('.error-modal-overlay');
+    if (existingModal) {
+        existingModal.remove();
+    }
+
+    // Create modal overlay
+    const modalOverlay = document.createElement('div');
+    modalOverlay.className = 'error-modal-overlay fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+    modalOverlay.style.zIndex = '9999';
+
+    // Create modal content
+    const modalContent = document.createElement('div');
+    modalContent.className = 'bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto';
+
+    // Build modal HTML
+    let detailsHtml = '';
+    if (errorData.details) {
+        detailsHtml = '<div class="mt-4"><h4 class="font-medium text-gray-900 dark:text-white mb-2">Chi tiết:</h4><ul class="space-y-1 text-sm text-gray-600 dark:text-gray-300">';
+        for (const [key, value] of Object.entries(errorData.details)) {
+            const label = formatDetailKey(key);
+            detailsHtml += `<li><span class="font-medium">${label}:</span> ${value}</li>`;
+        }
+        detailsHtml += '</ul></div>';
+    }
+
+    let solutionsHtml = '';
+    if (errorData.solutions && Array.isArray(errorData.solutions)) {
+        solutionsHtml = '<div class="mt-4"><h4 class="font-medium text-gray-900 dark:text-white mb-2">Giải pháp:</h4><ul class="space-y-1 text-sm text-gray-600 dark:text-gray-300">';
+        errorData.solutions.forEach(solution => {
+            solutionsHtml += `<li>• ${solution}</li>`;
+        });
+        solutionsHtml += '</ul></div>';
+    }
+
+    modalContent.innerHTML = `
+        <div class="p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-medium text-gray-900 dark:text-white">
+                    ${errorData.error || 'Lỗi Upload'}
+                </h3>
+                <button onclick="this.closest('.error-modal-overlay').remove()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+
+            ${errorData.reason ? `<p class="text-sm text-gray-600 dark:text-gray-300 mb-4">${errorData.reason}</p>` : ''}
+
+            ${detailsHtml}
+            ${solutionsHtml}
+
+            <div class="mt-6 flex justify-end">
+                <button onclick="this.closest('.error-modal-overlay').remove()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg font-medium">
+                    Đóng
+                </button>
+            </div>
+        </div>
+    `;
+
+    modalOverlay.appendChild(modalContent);
+    document.body.appendChild(modalOverlay);
+
+    // Close on overlay click
+    modalOverlay.addEventListener('click', (e) => {
+        if (e.target === modalOverlay) {
+            modalOverlay.remove();
+        }
+    });
+}
+
+// Helper function to format detail keys
+function formatDetailKey(key) {
+    const keyMap = {
+        'video_resolution': 'Độ phân giải video',
+        'package_name': 'Gói hiện tại',
+        'package_limit': 'Giới hạn gói',
+        'supported_orientations': 'Hướng hỗ trợ',
+        'storage_used': 'Dung lượng đã dùng',
+        'file_size': 'Kích thước file',
+        'remaining_space': 'Dung lượng còn lại'
+    };
+    return keyMap[key] || key;
+}
+
 // Immediately expose functions (don't wait for DOMContentLoaded)
 function exposeGlobalFunctions() {
     // Global function for showing detailed error modal
     window.showDetailedErrorModal = function(errorData) {
-        if (typeof showDetailedError === 'function') {
-            showDetailedError(errorData);
-        } else {
-            console.error('showDetailedError function not found');
-            alert('Error: ' + (errorData.error || 'Unknown error'));
-        }
+        showDetailedError(errorData);
     };
 }
 

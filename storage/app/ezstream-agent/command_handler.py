@@ -165,8 +165,10 @@ class CommandHandler:
             
             # Extract command info
             command = command_data.get('command')
-            stream_id = command_data.get('stream_id')
             config = command_data.get('config', {})
+
+            # Get stream_id from config.id (for START_STREAM) or root level (for STOP_STREAM)
+            stream_id = config.get('id') or command_data.get('stream_id')
             
             if not command:
                 logging.warning("No command specified in message")

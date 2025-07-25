@@ -90,7 +90,7 @@
     </div>
 </div>
 
-@push('scripts')
+<?php $__env->startPush('scripts'); ?>
 <script>
     function quickUploader() {
         return {
@@ -127,7 +127,7 @@
                     this.updateStatus('📋 Đang tạo URL upload...', 5);
                     const uploadUrlResponse = await fetch('/api/generate-upload-url', {
                         method: 'POST',
-                        headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json'},
+                        headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '<?php echo e(csrf_token()); ?>', 'Accept': 'application/json'},
                         body: JSON.stringify({filename: file.name, size: file.size, content_type: file.type, width: dimensions.width, height: dimensions.height})
                     });
                     if (!uploadUrlResponse.ok) {
@@ -150,7 +150,7 @@
                     this.updateStatus('✅ Đang xác nhận...', 95);
                     const confirmResponse = await fetch('/api/confirm-upload', {
                         method: 'POST',
-                        headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json'},
+                        headers: {'Content-Type': 'application/json', 'X-CSRF-TOKEN': '<?php echo e(csrf_token()); ?>', 'Accept': 'application/json'},
                         body: JSON.stringify({upload_token: uploadUrlData.upload_token, size: file.size, content_type: file.type})
                     });
                     if (!confirmResponse.ok) throw new Error((await confirmResponse.json()).message || 'Không thể xác nhận upload.');
@@ -324,4 +324,4 @@
         }
     }
 </script>
-@endpush
+<?php $__env->stopPush(); ?><?php /**PATH D:\laragon\www\ezstream\resources\views/livewire/shared/quick-upload-area.blade.php ENDPATH**/ ?>

@@ -34,6 +34,11 @@ class VpsServerManager extends Component
     public $logsContent = '';
     public $logsError = '';
 
+    // Bulk update properties
+    public $showBulkUpdateModal = false;
+    public $bulkUpdateProgress = [];
+    public $bulkUpdateInProgress = false;
+
     public $rules = [
         'name' => 'required|string|max:255',
         'ip_address' => 'required|ip|unique:vps_servers,ip_address',
@@ -278,5 +283,100 @@ class VpsServerManager extends Component
     public function updatedSelectedLogType()
     {
         $this->refreshLogs();
+    }
+
+    public function openBulkUpdateModal()
+    {
+        $this->showBulkUpdateModal = true;
+        $this->bulkUpdateProgress = [];
+        $this->bulkUpdateInProgress = false;
+    }
+
+    public function closeBulkUpdateModal()
+    {
+        $this->showBulkUpdateModal = false;
+        $this->bulkUpdateProgress = [];
+        $this->bulkUpdateInProgress = false;
+    }
+
+    public function updateAllVps()
+    {
+        $this->bulkUpdateInProgress = true;
+        $this->bulkUpdateProgress = [];
+
+        try {
+            // Lấy tất cả VPS đang active
+            $activeVpsServers = VpsServer::where('is_active', true)
+                ->where('status', '!=', 'PROVISIONING')
+                ->get();
+
+            if ($activeVpsServers->isEmpty()) {
+                session()->flash('message', 'Không có VPS nào để cập nhật.');
+                $this->closeBulkUpdateModal();
+                return;
+            }
+
+            $totalServers = $activeVpsServers->count();
+            $successCount = 0;
+            $failedCount = 0;
+
+            foreach ($activeVpsServers as $index => $vps) {
+                $this->bulkUpdateProgress[$vps->id] = [
+                    'name' => $vps->name,
+                    'status' => 'processing',
+                    'message' => 'Đang cập nhật...'
+                ];
+
+                // Emit để update UI real-time
+                $this->dispatch('bulk-update-progress', [
+                    'vps_id' => $vps->id,
+                    'progress' => ($index + 1) / $totalServers * 100
+                ]);
+
+                try {
+                    // Dispatch UpdateAgentJob
+                    UpdateAgentJob::dispatch($vps->id)->onQueue('vps-provisioning');
+
+                    $this->bulkUpdateProgress[$vps->id] = [
+                        'name' => $vps->name,
+                        'status' => 'success',
+                        'message' => 'Job cập nhật đã được gửi vào queue'
+                    ];
+
+                    $successCount++;
+
+                    Log::info("Bulk update: UpdateAgentJob dispatched for VPS {$vps->name} (ID: {$vps->id})");
+
+                } catch (\Exception $e) {
+                    $this->bulkUpdateProgress[$vps->id] = [
+                        'name' => $vps->name,
+                        'status' => 'failed',
+                        'message' => 'Lỗi: ' . $e->getMessage()
+                    ];
+
+                    $failedCount++;
+
+                    Log::error("Bulk update failed for VPS {$vps->name} (ID: {$vps->id}): " . $e->getMessage());
+                }
+
+                // Small delay để tránh overwhelm
+                usleep(500000); // 0.5 second
+            }
+
+            $message = "Cập nhật hoàn tất: {$successCount} thành công, {$failedCount} thất bại.";
+            session()->flash('message', $message);
+
+            Log::info("Bulk VPS update completed", [
+                'total' => $totalServers,
+                'success' => $successCount,
+                'failed' => $failedCount
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Bulk VPS update failed', ['error' => $e->getMessage()]);
+            session()->flash('error', 'Lỗi khi cập nhật VPS: ' . $e->getMessage());
+        } finally {
+            $this->bulkUpdateInProgress = false;
+        }
     }
 }

@@ -452,6 +452,9 @@
         <!-- Livewire Scripts -->
         @livewireScripts
 
+        <!-- Global file upload script -->
+        <script src="{{ asset('js/file-upload.js') }}"></script>
+
         <!-- Mobile menu toggle script -->
         <script>
             document.addEventListener('DOMContentLoaded', function() {

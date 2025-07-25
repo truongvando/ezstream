@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Upload Error Handling</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-gray-100 p-8">
+    <div class="max-w-2xl mx-auto">
+        <h1 class="text-2xl font-bold mb-6">Test Upload Error Handling</h1>
+        
+        <!-- Test Buttons -->
+        <div class="space-y-4 mb-8">
+            <button onclick="testResolutionError()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">
+                Test Resolution Error
+            </button>
+            
+            <button onclick="testStorageError()" class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded">
+                Test Storage Error
+            </button>
+            
+            <button onclick="testGenericError()" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">
+                Test Generic Error
+            </button>
+            
+            <button onclick="testGlobalFunction()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">
+                Test Global Function
+            </button>
+        </div>
+
+        <!-- Quick Upload Area Simulation -->
+        <div x-data="quickUploader()" class="bg-white p-6 rounded-lg shadow">
+            <h2 class="text-lg font-semibold mb-4">Quick Upload Area Simulation</h2>
+            
+            <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                <p class="text-gray-600">Simulated upload area</p>
+                <button @click="testErrorHandling()" class="mt-2 bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded">
+                    Test Error Handling
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simulate file-upload.js functions
+        window.showDetailedErrorModal = function(errorData) {
+            console.log('🎯 Global showDetailedErrorModal called:', errorData);
+            
+            // Create global modal
+            const modalOverlay = document.createElement('div');
+            modalOverlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4';
+            modalOverlay.innerHTML = `
+                <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-medium text-gray-900">
+                            🌍 Global Error Modal
+                        </h3>
+                        <button onclick="this.closest('div').remove()" class="text-gray-400 hover:text-gray-600">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-4">${errorData.error}</p>
+                    <p class="text-xs text-gray-500">Reason: ${errorData.reason || 'N/A'}</p>
+                    <div class="mt-4 flex justify-end">
+                        <button onclick="this.closest('div').remove()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+                            Đóng
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modalOverlay);
+        };
+
+        // Test functions
+        function testResolutionError() {
+            const errorData = {
+                error: "❌ Video không thể upload",
+                reason: "Độ phân giải vượt quá giới hạn gói",
+                details: {
+                    video_resolution: "3840x2160 (4K UHD)",
+                    package_name: "Gói Basic",
+                    package_limit: "1920x1080 (Full HD 1080p)",
+                    supported_orientations: "Cả video ngang và dọc đều được hỗ trợ trong giới hạn này"
+                },
+                solutions: [
+                    "🔧 Giảm chất lượng video xuống Full HD 1080p hoặc thấp hơn",
+                    "📈 Nâng cấp lên gói cao hơn để hỗ trợ 4K UHD",
+                    "✂️ Sử dụng phần mềm như HandBrake để resize video"
+                ],
+                show_modal: true
+            };
+
+            if (window.showDetailedErrorModal) {
+                window.showDetailedErrorModal(errorData);
+            } else {
+                alert('Global function not available');
+            }
+        }
+
+        function testStorageError() {
+            const errorData = {
+                error: '❌ Không thể upload video',
+                reason: 'Vượt quá giới hạn dung lượng lưu trữ',
+                details: {
+                    storage_used: "9.5GB / 10GB",
+                    file_size: "2.3GB",
+                    remaining_space: "0.5GB",
+                    package_name: "Gói Standard"
+                },
+                solutions: [
+                    "🗑️ Xóa bớt 2.3GB file cũ để có đủ dung lượng",
+                    "📈 Nâng cấp lên gói có dung lượng lưu trữ cao hơn",
+                    "📁 Kiểm tra và xóa các file không cần thiết"
+                ],
+                show_modal: true
+            };
+
+            if (window.showDetailedErrorModal) {
+                window.showDetailedErrorModal(errorData);
+            } else {
+                alert('Global function not available');
+            }
+        }
+
+        function testGenericError() {
+            const errorData = {
+                error: "Lỗi không xác định",
+                reason: null,
+                details: null,
+                solutions: null
+            };
+
+            if (window.showDetailedErrorModal) {
+                window.showDetailedErrorModal(errorData);
+            } else {
+                alert('Error: ' + errorData.error);
+            }
+        }
+
+        function testGlobalFunction() {
+            console.log('Testing global function availability:');
+            console.log('window.showDetailedErrorModal:', typeof window.showDetailedErrorModal);
+            console.log('Available:', window.showDetailedErrorModal ? 'YES' : 'NO');
+            
+            if (window.showDetailedErrorModal) {
+                alert('✅ Global function is available');
+            } else {
+                alert('❌ Global function is NOT available');
+            }
+        }
+
+        // Alpine.js component
+        function quickUploader() {
+            return {
+                showDetailedErrorFallback(errorData) {
+                    // Try to use global function first
+                    if (window.showDetailedErrorModal && typeof window.showDetailedErrorModal === 'function') {
+                        console.log('✅ Using global function');
+                        window.showDetailedErrorModal(errorData);
+                        return;
+                    }
+
+                    console.log('⚠️ Global function not available, using fallback');
+                    // Fallback to custom modal
+                    this.createErrorModal(errorData);
+                },
+                
+                createErrorModal(errorData) {
+                    // Remove existing modal if any
+                    const existingModal = document.querySelector('.quick-upload-error-modal');
+                    if (existingModal) {
+                        existingModal.remove();
+                    }
+
+                    // Create modal overlay
+                    const modalOverlay = document.createElement('div');
+                    modalOverlay.className = 'quick-upload-error-modal fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[10000] p-4';
+
+                    modalOverlay.innerHTML = `
+                        <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-medium text-gray-900">
+                                    🔧 Fallback Error Modal
+                                </h3>
+                                <button onclick="this.closest('.quick-upload-error-modal').remove()" class="text-gray-400 hover:text-gray-600">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <p class="text-sm text-gray-600 mb-4">${errorData.error}</p>
+                            <p class="text-xs text-gray-500">Reason: ${errorData.reason || 'N/A'}</p>
+                            <div class="mt-4 flex justify-end">
+                                <button onclick="this.closest('.quick-upload-error-modal').remove()" class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded">
+                                    Đóng
+                                </button>
+                            </div>
+                        </div>
+                    `;
+
+                    document.body.appendChild(modalOverlay);
+                },
+
+                testErrorHandling() {
+                    const errorData = {
+                        error: "❌ Test Error from Alpine Component",
+                        reason: "Testing fallback error handling",
+                        details: {
+                            test_detail: "This is a test"
+                        },
+                        solutions: [
+                            "🧪 This is a test solution"
+                        ]
+                    };
+
+                    this.showDetailedErrorFallback(errorData);
+                }
+            }
+        }
+
+        // Test on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🧪 Test page loaded');
+            console.log('Global function available:', typeof window.showDetailedErrorModal);
+        });
+    </script>
+</body>
+</html>

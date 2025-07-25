@@ -123,7 +123,7 @@ class StartMultistreamJob implements ShouldQueue
                 'id' => $stream->id,
                 'stream_key' => $stream->stream_key,
                 'video_files' => $this->prepareVideoFiles($stream),
-                'rtmp_url' => $stream->rtmp_url,
+                'rtmp_url' => $stream->rtmp_url . '/' . $stream->stream_key,
                 'push_urls' => $stream->push_urls ?? [],
                 'loop' => $stream->loop ?? true,
                 'keep_files_on_agent' => $stream->keep_files_on_agent ?? false,

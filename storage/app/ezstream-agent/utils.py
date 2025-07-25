@@ -97,10 +97,10 @@ def safe_json_loads(json_str: str, default: Any = None) -> Any:
         return default
 
 
-def safe_json_dumps(obj: Any, default: str = "{}") -> str:
+def safe_json_dumps(obj: Any, default: str = "{}", indent: Optional[int] = None) -> str:
     """Safely serialize object to JSON"""
     try:
-        return json.dumps(obj, ensure_ascii=False)
+        return json.dumps(obj, ensure_ascii=False, indent=indent)
     except (TypeError, ValueError) as e:
         logging.warning(f"Failed to serialize to JSON: {e}")
         return default
