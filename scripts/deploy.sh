@@ -173,34 +173,68 @@ systemctl reload nginx
 # Restart background processes for Laravel using Supervisor
 echo -e "${YELLOW}🔄 Restarting Laravel background processes via Supervisor...${NC}"
 if command -v supervisorctl &> /dev/null; then
-    # Restart all EZSTREAM processes
-    echo -e "${BLUE}   Restarting queue workers...${NC}"
-    supervisorctl restart ezstream-queue:*
-    supervisorctl restart ezstream-vps:*
+    # Define all active EZSTREAM processes (5 processes total)
+    declare -a PROCESSES=(
+        "ezstream-queue:*|Default queue worker"
+        "ezstream-vps:*|VPS provisioning queue worker"
+        "ezstream-agent:*|Agent reports listener"
+        "ezstream-redis:*|Redis stats subscriber"
+        "ezstream-schedule:*|Laravel scheduler"
+    )
 
-    echo -e "${BLUE}   Restarting agent listener...${NC}"
-    supervisorctl restart ezstream-agent:*
+    echo -e "${BLUE}   Restarting ${#PROCESSES[@]} background processes...${NC}"
 
-    # echo -e "${BLUE}   Restarting stream listener...${NC}"
-    # supervisorctl restart ezstream-stream:*  # DEPRECATED: stream:listen command removed
+    # Restart each process with description
+    for process_info in "${PROCESSES[@]}"; do
+        IFS='|' read -r process_name description <<< "$process_info"
+        echo -e "${BLUE}   → Restarting ${description}...${NC}"
 
-    echo -e "${BLUE}   Restarting redis subscriber...${NC}"
-    supervisorctl restart ezstream-redis:*
+        if supervisorctl restart "$process_name" >/dev/null 2>&1; then
+            echo -e "${GREEN}     ✅ ${process_name} restarted successfully${NC}"
+        else
+            echo -e "${YELLOW}     ⚠️ ${process_name} restart failed or not found${NC}"
+        fi
+    done
 
-    echo -e "${BLUE}   Restarting scheduler...${NC}"
-    supervisorctl restart ezstream-schedule:*
+    echo ""
+    echo -e "${GREEN}✅ All Supervisor processes restart completed.${NC}"
 
-    echo -e "${GREEN}✅ All Supervisor processes restarted successfully.${NC}"
+    # Show final status with health check
+    echo -e "${BLUE}   📊 Current process status:${NC}"
+    if supervisorctl status | grep ezstream >/dev/null 2>&1; then
+        supervisorctl status | grep ezstream | while read line; do
+            if echo "$line" | grep -q "RUNNING"; then
+                echo -e "${GREEN}   ✅ $line${NC}"
+            elif echo "$line" | grep -q "STARTING"; then
+                echo -e "${YELLOW}   🔄 $line${NC}"
+            else
+                echo -e "${RED}   ❌ $line${NC}"
+            fi
+        done
+    else
+        echo -e "${YELLOW}   ⚠️ No ezstream processes found${NC}"
+    fi
 
-    # Show status
-    echo -e "${BLUE}   Current process status:${NC}"
-    supervisorctl status | grep ezstream
+    # Quick health summary
+    running_count=$(supervisorctl status | grep ezstream | grep -c "RUNNING" || echo "0")
+    total_count=$(supervisorctl status | grep ezstream | wc -l || echo "0")
+    echo ""
+    echo -e "${BLUE}   📈 Health Summary: ${running_count}/${total_count} processes running${NC}"
+
 else
-    echo -e "${YELLOW}⚠️ Supervisor not found. You will need to restart queue workers and listeners manually.${NC}"
-    echo -e "${YELLOW}   Manual commands:${NC}"
+    echo -e "${YELLOW}⚠️ Supervisor not found. You will need to restart background processes manually.${NC}"
+    echo ""
+    echo -e "${YELLOW}   📋 Manual commands to run:${NC}"
+    echo -e "${BLUE}     # Queue Workers${NC}"
     echo -e "${BLUE}     php artisan queue:work --queue=vps-provisioning --daemon &${NC}"
     echo -e "${BLUE}     php artisan queue:work --daemon &${NC}"
-    echo -e "${BLUE}     php artisan stream:listen &${NC}"
+    echo ""
+    echo -e "${BLUE}     # Background Services${NC}"
+    echo -e "${BLUE}     php artisan agent:listen &${NC}"
+    echo -e "${BLUE}     php artisan redis:subscribe-stats &${NC}"
+    echo -e "${BLUE}     php artisan schedule:work &${NC}"
+    echo ""
+    echo -e "${YELLOW}   💡 Or install Supervisor: apt install supervisor${NC}"
 fi
 
 # Run the stream sync command to ensure consistency after deploy
@@ -275,11 +309,44 @@ find $BACKUP_DIR -name "database_*.sql.gz" -type f | sort -r | tail -n +11 | xar
 find $BACKUP_DIR -name ".env.backup.*" -type f | sort -r | tail -n +11 | xargs rm -f
 
 echo -e "${GREEN}🎉 Deployment completed successfully!${NC}"
+echo ""
 echo -e "${BLUE}📊 Deployment Summary:${NC}"
 echo -e "  • Database backup: $BACKUP_FILE"
 echo -e "  • Branch deployed: $BRANCH"
 echo -e "  • Timestamp: $(date)"
 echo -e "  • Website: https://ezstream.pro"
+echo ""
+
+# Show background processes status
+if command -v supervisorctl &> /dev/null; then
+    echo -e "${BLUE}🔧 Background Processes Status:${NC}"
+    if supervisorctl status | grep ezstream >/dev/null 2>&1; then
+        running_processes=$(supervisorctl status | grep ezstream | grep -c "RUNNING" || echo "0")
+        total_processes=$(supervisorctl status | grep ezstream | wc -l || echo "0")
+
+        if [ "$running_processes" -eq "$total_processes" ] && [ "$total_processes" -gt 0 ]; then
+            echo -e "  ✅ All $total_processes background processes are running"
+        else
+            echo -e "  ⚠️ $running_processes/$total_processes background processes running"
+        fi
+
+        echo -e "  • Queue Workers: Default + VPS Provisioning"
+        echo -e "  • Agent Listener: Redis agent reports"
+        echo -e "  • Redis Subscriber: VPS stats monitoring"
+        echo -e "  • Scheduler: Laravel cron jobs"
+    else
+        echo -e "  ⚠️ No background processes found"
+    fi
+else
+    echo -e "${BLUE}🔧 Background Processes:${NC}"
+    echo -e "  ⚠️ Supervisor not installed - manual process management required"
+fi
+
+echo ""
+echo -e "${YELLOW}💡 Useful Commands:${NC}"
+echo -e "  • Check processes: supervisorctl status | grep ezstream"
+echo -e "  • View logs: tail -f /var/www/ezstream/storage/logs/laravel.log"
+echo -e "  • Monitor queues: php artisan queue:monitor"
 echo ""
 echo -e "${YELLOW}💡 To rollback if needed:${NC}"
 echo -e "  gunzip $BACKUP_FILE.gz"
