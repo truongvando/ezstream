@@ -46,6 +46,9 @@ class ProcessHeartbeatJob implements ShouldQueue
                 'current_streams' => count($this->activeStreams)
             ]);
 
+            // Always check for ghost streams (agent reports but DB doesn't expect)
+            $this->handleGhostStreams();
+
             // If this is a re-announce, force sync streams to STREAMING status
             if ($this->isReAnnounce && !empty($this->activeStreams)) {
                 $this->handleReAnnounceStreams();
@@ -68,6 +71,66 @@ class ProcessHeartbeatJob implements ShouldQueue
             'error' => $exception->getMessage(),
             'active_streams' => $this->activeStreams
         ]);
+    }
+
+    /**
+     * Handle ghost streams - agent reports streams that DB doesn't expect
+     */
+    private function handleGhostStreams(): void
+    {
+        try {
+            if (empty($this->activeStreams)) {
+                return;
+            }
+
+            foreach ($this->activeStreams as $streamId) {
+                $stream = \App\Models\StreamConfiguration::find($streamId);
+
+                if (!$stream) {
+                    // Stream doesn't exist in DB - this is a true ghost
+                    Log::warning("👻 [GhostStream] Agent reports stream #{$streamId} but it doesn't exist in DB. Sending STOP command.");
+                    $this->sendStopCommand($streamId);
+                    continue;
+                }
+
+                // Stream exists but has wrong status
+                if (!in_array($stream->status, ['STREAMING', 'STARTING'])) {
+                    Log::warning("👻 [GhostStream] Agent reports stream #{$streamId} but DB status is '{$stream->status}'. Expected STREAMING/STARTING.");
+
+                    // Check if this could be a legitimate recovery case
+                    if (in_array($stream->status, ['ERROR', 'INACTIVE']) && $stream->vps_server_id == $this->vpsId) {
+                        // This might be a stream that errored due to Laravel restart but is actually still running
+                        Log::info("🔄 [GhostStream] Attempting to recover stream #{$streamId} from {$stream->status} to STREAMING");
+
+                        $stream->update([
+                            'status' => 'STREAMING',
+                            'vps_server_id' => $this->vpsId,
+                            'last_status_update' => now(),
+                            'error_message' => null,
+                            'last_started_at' => $stream->last_started_at ?: now()
+                        ]);
+
+                        \App\Services\StreamProgressService::createStageProgress(
+                            $streamId,
+                            'streaming',
+                            "👻 Ghost stream recovered: Agent was still streaming despite DB status"
+                        );
+                    } else {
+                        // Stream shouldn't be running - send stop command
+                        Log::warning("👻 [GhostStream] Stream #{$streamId} shouldn't be running (status: {$stream->status}). Sending STOP command.");
+                        $this->sendStopCommand($streamId);
+                    }
+                }
+
+                // Stream exists and has correct status - ensure VPS assignment is correct
+                if (in_array($stream->status, ['STREAMING', 'STARTING']) && $stream->vps_server_id != $this->vpsId) {
+                    Log::info("🔄 [GhostStream] Correcting VPS assignment for stream #{$streamId}: {$stream->vps_server_id} → {$this->vpsId}");
+                    $stream->update(['vps_server_id' => $this->vpsId]);
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error("❌ [GhostStream] Failed to handle ghost streams: {$e->getMessage()}");
+        }
     }
 
     /**
@@ -100,6 +163,28 @@ class ProcessHeartbeatJob implements ShouldQueue
             }
         } catch (\Exception $e) {
             Log::error("❌ [ReAnnounce] Failed to handle re-announce streams: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * Send STOP command to agent for specific stream
+     */
+    private function sendStopCommand(int $streamId): void
+    {
+        try {
+            $command = [
+                'command' => 'STOP_STREAM',
+                'stream_id' => $streamId,
+                'vps_id' => $this->vpsId,
+                'timestamp' => time()
+            ];
+
+            $channel = "vps_commands:{$this->vpsId}";
+            $result = \Illuminate\Support\Facades\Redis::publish($channel, json_encode($command));
+
+            Log::info("📤 [GhostStream] Sent STOP command for stream #{$streamId} to VPS #{$this->vpsId} (subscribers: {$result})");
+        } catch (\Exception $e) {
+            Log::error("❌ [GhostStream] Failed to send STOP command for stream #{$streamId}: {$e->getMessage()}");
         }
     }
 }

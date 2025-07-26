@@ -123,6 +123,11 @@ class StreamStatusListener extends Command
             $this->info("   -> Processing HEARTBEAT from VPS #{$vpsId} with " . count($activeStreams) . " active streams.");
         }
 
+        // Log active streams for debugging
+        if (!empty($activeStreams)) {
+            $this->line("      Active streams: " . implode(', ', $activeStreams));
+        }
+
         // Dispatch job để xử lý heartbeat (tránh Redis commands trong subscription context)
         \App\Jobs\ProcessHeartbeatJob::dispatch($vpsId, $activeStreams, $isReAnnounce);
     }

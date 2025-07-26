@@ -53,6 +53,11 @@ return Application::configure(basePath: dirname(__DIR__))
                  ->everyTwoMinutes()
                  ->withoutOverlapping();
 
+        // 👻 Cleanup ghost streams (streams agent reports but DB doesn't expect)
+        $schedule->command('streams:cleanup-ghosts')
+                 ->everyFiveMinutes()
+                 ->withoutOverlapping();
+
         // ⏰ Handle STOPPING timeout (every minute - critical for stuck streams)
         $schedule->job(new \App\Jobs\HandleStoppingTimeoutJob())
                  ->everyMinute()
