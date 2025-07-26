@@ -5,7 +5,7 @@
             @if(count($events) > 0)
                 <div class="flex items-center text-sm text-green-600 dark:text-green-400">
                     <svg class="w-4 h-4 mr-1 animate-pulse" fill="currentColor" viewBox="0 0 20 20">
-                        <circle cx="10" cy="10" r="3"/>
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                     </svg>
                     {{ count($events) }} Live Reports
                 </div>
@@ -126,10 +126,13 @@
                         <td colspan="5" class="px-4 py-4 text-center text-sm text-gray-500 dark:text-gray-400">
                             <div class="flex flex-col items-center space-y-2">
                                 <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                                 </svg>
                                 <div>No agent reports yet. Waiting for VPS agents to connect...</div>
                                 <div class="text-xs text-gray-400">Reports refresh every 5 seconds</div>
+                                <div class="text-xs text-blue-500 mt-2">
+                                    <span class="font-mono">php artisan agent:debug-reports</span> to troubleshoot
+                                </div>
                             </div>
                         </td>
                     </tr>

@@ -25,7 +25,7 @@ class DebugAgentReports extends Command
      */
     public function handle()
     {
-        $this->info("🔍 Debugging Agent Reports");
+        $this->info("[DEBUG] Debugging Agent Reports");
         
         if ($this->option('clear')) {
             $this->clearCachedReports();
@@ -45,12 +45,12 @@ class DebugAgentReports extends Command
     
     private function clearCachedReports(): void
     {
-        $this->warn("🗑️ Clearing cached agent reports...");
-        
+        $this->warn("[CLEAR] Clearing cached agent reports...");
+
         // Clear VPS stats
         $cleared = Redis::del('vps_live_stats');
         $this->info("   Cleared vps_live_stats: {$cleared}");
-        
+
         // Clear agent states
         $agentKeys = Redis::keys('agent_state:*');
         if (!empty($agentKeys)) {
@@ -59,13 +59,13 @@ class DebugAgentReports extends Command
         } else {
             $this->info("   No agent state keys found");
         }
-        
-        $this->info("✅ Cache cleared. Wait for agents to send new reports.");
+
+        $this->info("[SUCCESS] Cache cleared. Wait for agents to send new reports.");
     }
     
     private function debugSpecificVps(int $vpsId): void
     {
-        $this->info("🎯 Debugging VPS #{$vpsId}");
+        $this->info("[VPS #{$vpsId}] Debugging specific VPS");
         
         $vps = VpsServer::find($vpsId);
         if (!$vps) {
@@ -73,15 +73,15 @@ class DebugAgentReports extends Command
             return;
         }
         
-        $this->line("📋 VPS Info:");
+        $this->line("[INFO] VPS Details:");
         $this->line("   Name: {$vps->name}");
         $this->line("   Status: {$vps->status}");
         $this->line("   IP: {$vps->ip_address}");
         $this->line("   Last Heartbeat: " . ($vps->last_heartbeat_at ? $vps->last_heartbeat_at->diffForHumans() : 'Never'));
-        
+
         // Check agent state
         $this->line("");
-        $this->info("💓 Agent Heartbeat State:");
+        $this->info("[HEARTBEAT] Agent State:");
         $agentStateKey = "agent_state:{$vpsId}";
         $agentState = Redis::get($agentStateKey);
         $ttl = Redis::ttl($agentStateKey);
@@ -92,12 +92,12 @@ class DebugAgentReports extends Command
             $this->line("   TTL: {$ttl} seconds");
             $this->line("   Last Update: ~" . Carbon::now()->subSeconds(600 - $ttl)->diffForHumans());
         } else {
-            $this->warn("   ⚠️ No agent state found");
+            $this->warn("   [WARNING] No agent state found");
         }
-        
+
         // Check VPS stats
         $this->line("");
-        $this->info("📊 VPS Stats:");
+        $this->info("[STATS] VPS Statistics:");
         $statsJson = Redis::hget('vps_live_stats', $vpsId);
         
         if ($statsJson) {
@@ -114,56 +114,56 @@ class DebugAgentReports extends Command
                 $this->line("   Network Recv: " . number_format($stats['network_recv_mb'], 1) . " MB");
             }
         } else {
-            $this->warn("   ⚠️ No VPS stats found");
+            $this->warn("   [WARNING] No VPS stats found");
         }
     }
-    
+
     private function debugAllReports(): void
     {
-        $this->info("🌐 Debugging All Agent Reports");
+        $this->info("[ALL] Debugging All Agent Reports");
         
         // Show all VPS with agent states
         $this->line("");
-        $this->info("💓 Agent Heartbeat States:");
+        $this->info("[HEARTBEAT] Agent States:");
         $agentKeys = Redis::keys('agent_state:*');
         
         if (empty($agentKeys)) {
-            $this->warn("   ⚠️ No agent states found");
+            $this->warn("   [WARNING] No agent states found");
         } else {
             foreach ($agentKeys as $key) {
                 $vpsId = str_replace('agent_state:', '', $key);
                 $agentState = Redis::get($key);
                 $ttl = Redis::ttl($key);
-                
+
                 if ($agentState) {
                     $activeStreams = json_decode($agentState, true) ?: [];
                     $this->line("   VPS #{$vpsId}: " . count($activeStreams) . " streams, TTL: {$ttl}s");
                 }
             }
         }
-        
+
         // Show all VPS stats
         $this->line("");
-        $this->info("📊 VPS Stats Reports:");
+        $this->info("[STATS] VPS Statistics:");
         $vpsStats = Redis::hgetall('vps_live_stats');
         
         if (empty($vpsStats)) {
-            $this->warn("   ⚠️ No VPS stats found");
+            $this->warn("   [WARNING] No VPS stats found");
         } else {
             foreach ($vpsStats as $vpsId => $statsJson) {
                 $stats = json_decode($statsJson, true);
-                $age = isset($stats['received_at']) ? 
+                $age = isset($stats['received_at']) ?
                     Carbon::createFromTimestamp($stats['received_at'])->diffForHumans() : 'Unknown';
-                
+
                 $this->line("   VPS #{$vpsId}: CPU " . ($stats['cpu_usage'] ?? 'N/A') . "%, " .
                            "RAM " . ($stats['ram_usage'] ?? 'N/A') . "%, " .
                            "Streams " . ($stats['active_streams'] ?? 'N/A') . " ({$age})");
             }
         }
-        
+
         // Show database VPS status
         $this->line("");
-        $this->info("🗄️ Database VPS Status:");
+        $this->info("[DATABASE] VPS Status:");
         $vpsServers = VpsServer::all();
         
         foreach ($vpsServers as $vps) {
@@ -173,19 +173,19 @@ class DebugAgentReports extends Command
         
         // Show recommendations
         $this->line("");
-        $this->info("💡 Recommendations:");
-        
+        $this->info("[RECOMMENDATIONS]");
+
         if (empty($agentKeys) && empty($vpsStats)) {
-            $this->warn("   🔴 No agent reports found. Check if:");
+            $this->warn("   [ERROR] No agent reports found. Check if:");
             $this->line("      - Agent processes are running on VPS servers");
             $this->line("      - Redis connection is working");
             $this->line("      - StreamStatusListener (agent:listen) is running");
         } elseif (empty($agentKeys)) {
-            $this->warn("   🟡 No heartbeat data but have stats. Check agent heartbeat logic.");
+            $this->warn("   [WARNING] No heartbeat data but have stats. Check agent heartbeat logic.");
         } elseif (empty($vpsStats)) {
-            $this->warn("   🟡 No stats data but have heartbeats. Check agent stats reporting.");
+            $this->warn("   [WARNING] No stats data but have heartbeats. Check agent stats reporting.");
         } else {
-            $this->info("   ✅ Both heartbeat and stats data found. System appears healthy.");
+            $this->info("   [SUCCESS] Both heartbeat and stats data found. System appears healthy.");
         }
     }
 }
