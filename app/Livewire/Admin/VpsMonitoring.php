@@ -76,16 +76,7 @@ class VpsMonitoring extends Component
                 ];
             }
 
-            // Nếu không có, tạo fake data để test (agent.py chưa gửi)
-            if ($vpsId == 24) { // VPS hiện tại
-                return [
-                    'cpu' => rand(20, 80),
-                    'ram' => rand(30, 90),
-                    'disk' => rand(10, 60),
-                    'active_streams' => rand(0, 5),
-                    'updated_at' => now()->format('Y-m-d H:i:s')
-                ];
-            }
+            // No fake data - return empty stats if agent hasn't reported
 
             // Default empty stats
             return [

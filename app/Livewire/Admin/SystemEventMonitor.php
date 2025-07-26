@@ -22,43 +22,96 @@ class SystemEventMonitor extends Component
     private function getRecentAgentReports()
     {
         try {
-            // Get recent agent reports from Redis
             $reports = [];
 
-            // Get VPS stats reports
+            // Get real agent heartbeat reports from Redis
+            $this->addHeartbeatReports($reports);
+
+            // Get VPS stats reports (only if they have valid timestamps)
+            $this->addVpsStatsReports($reports);
+
+            // Get recent stream status updates from logs
+            $this->addRecentStreamEvents($reports);
+
+            // Sort by timestamp and limit to 50 for better visibility
+            usort($reports, function($a, $b) {
+                return $b->created_at->timestamp - $a->created_at->timestamp;
+            });
+
+            return array_slice($reports, 0, 50);
+
+        } catch (\Exception $e) {
+            Log::error("Failed to get agent reports: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    private function addHeartbeatReports(&$reports)
+    {
+        try {
+            // Get agent states from Redis (heartbeat data)
+            $pattern = 'agent_state:*';
+            $keys = Redis::keys($pattern);
+
+            foreach ($keys as $key) {
+                $vpsId = str_replace('agent_state:', '', $key);
+                $activeStreamsJson = Redis::get($key);
+                $ttl = Redis::ttl($key);
+
+                if ($activeStreamsJson && $ttl > 0) {
+                    $activeStreams = json_decode($activeStreamsJson, true) ?: [];
+
+                    $reports[] = (object) [
+                        'id' => 'heartbeat_' . $vpsId . '_' . time(),
+                        'level' => 'info',
+                        'type' => 'AGENT_HEARTBEAT',
+                        'message' => "VPS #{$vpsId} heartbeat - " . count($activeStreams) . " active streams",
+                        'context' => [
+                            'vps_id' => $vpsId,
+                            'active_streams' => $activeStreams,
+                            'stream_count' => count($activeStreams),
+                            'ttl_seconds' => $ttl
+                        ],
+                        'created_at' => Carbon::now()->subSeconds(600 - $ttl) // Estimate when it was received
+                    ];
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error("Failed to get heartbeat reports: " . $e->getMessage());
+        }
+    }
+
+    private function addVpsStatsReports(&$reports)
+    {
+        try {
             $vpsStats = Redis::hgetall('vps_live_stats');
             foreach ($vpsStats as $vpsId => $statsJson) {
                 $stats = json_decode($statsJson, true);
-                if ($stats && isset($stats['received_at'])) {
+
+                // Only add if we have a valid timestamp and it's recent (within last 5 minutes)
+                if ($stats && isset($stats['received_at']) &&
+                    (time() - $stats['received_at']) < 300) {
+
                     $reports[] = (object) [
-                        'id' => 'vps_' . $vpsId . '_' . $stats['received_at'],
+                        'id' => 'vps_stats_' . $vpsId . '_' . $stats['received_at'],
                         'level' => 'info',
                         'type' => 'VPS_STATS',
-                        'message' => "VPS #{$vpsId} stats updated",
+                        'message' => "VPS #{$vpsId} system stats",
                         'context' => [
                             'vps_id' => $vpsId,
                             'cpu_usage' => $stats['cpu_usage'] ?? 0,
                             'ram_usage' => $stats['ram_usage'] ?? 0,
-                            'active_streams' => $stats['active_streams'] ?? 0
+                            'disk_usage' => $stats['disk_usage'] ?? 0,
+                            'active_streams' => $stats['active_streams'] ?? 0,
+                            'network_sent_mb' => $stats['network_sent_mb'] ?? 0,
+                            'network_recv_mb' => $stats['network_recv_mb'] ?? 0
                         ],
                         'created_at' => Carbon::createFromTimestamp($stats['received_at'])
                     ];
                 }
             }
-
-            // Get recent stream status updates from logs
-            $this->addRecentStreamEvents($reports);
-
-            // Sort by timestamp and limit to 30
-            usort($reports, function($a, $b) {
-                return $b->created_at->timestamp - $a->created_at->timestamp;
-            });
-
-            return array_slice($reports, 0, 30);
-
         } catch (\Exception $e) {
-            Log::error("Failed to get agent reports: " . $e->getMessage());
-            return [];
+            Log::error("Failed to get VPS stats reports: " . $e->getMessage());
         }
     }
 
