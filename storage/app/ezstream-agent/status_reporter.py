@@ -160,26 +160,49 @@ class StatusReporter:
     def _heartbeat_loop(self):
         """Background thread for heartbeat reporting"""
         logging.info(f"💓 Heartbeat thread started. Reporting every {self.config.heartbeat_interval}s")
-        
+
+        consecutive_failures = 0
+        last_successful_publish = time.time()
+
         while self.running:
             try:
                 # Get active streams from stream manager
                 from stream_manager import get_stream_manager
                 stream_manager = get_stream_manager()
                 active_stream_ids = stream_manager.get_active_stream_ids() if stream_manager else []
-                
+
                 heartbeat_payload = {
                     'type': 'HEARTBEAT',
                     'vps_id': self.config.vps_id,
                     'active_streams': active_stream_ids,
                     'timestamp': int(time.time()),
                 }
-                
+
+                # Check if we need to re-announce streams (after potential Laravel restart)
+                current_time = time.time()
+                if current_time - last_successful_publish > 60:  # No successful publish for 1 minute
+                    logging.warning(f"🔄 Potential Laravel restart detected. Re-announcing {len(active_stream_ids)} active streams...")
+                    heartbeat_payload['re_announce'] = True
+
                 self._publish_report(heartbeat_payload)
-                
+
+                # Reset failure counter on success
+                consecutive_failures = 0
+                last_successful_publish = current_time
+
             except Exception as e:
-                logging.error(f"❌ Error in heartbeat_loop: {e}")
-            
+                consecutive_failures += 1
+                logging.error(f"❌ Error in heartbeat_loop (failure #{consecutive_failures}): {e}")
+
+                # If too many consecutive failures, try to reconnect Redis
+                if consecutive_failures >= 5:
+                    logging.warning("🔄 Too many heartbeat failures, attempting Redis reconnect...")
+                    try:
+                        self._connect_redis()
+                        consecutive_failures = 0
+                    except Exception as reconnect_error:
+                        logging.error(f"❌ Redis reconnect failed: {reconnect_error}")
+
             time.sleep(self.config.heartbeat_interval)
     
     def _collect_system_stats(self) -> Dict[str, Any]:

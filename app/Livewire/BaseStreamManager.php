@@ -148,8 +148,8 @@ abstract class BaseStreamManager extends Component
             // Fix streams stuck in STOPPING (5 minutes)
             $fixedCount += $this->fixStuckStreams('STOPPING', 5, 'INACTIVE', 'Auto-fixed: stuck in STOPPING');
 
-            // Fix streams stuck in STARTING for too long (8 minutes - more aggressive)
-            $fixedCount += $this->fixStuckStreams('STARTING', 8, 'ERROR', 'Auto-fixed: stuck in STARTING for too long');
+            // Fix streams stuck in STARTING for too long (10 minutes - more tolerant for restart scenarios)
+            $fixedCount += $this->fixStuckStreams('STARTING', 10, 'ERROR', 'Auto-fixed: stuck in STARTING for too long');
 
             if ($fixedCount > 0) {
                 Log::info("🔧 [BaseStreamManager] Auto-fixed {$fixedCount} hanging streams");

@@ -85,8 +85,9 @@ class SyncStreamStatusJob implements ShouldQueue
 
             $minutesSinceStart = now()->diffInMinutes($stream->last_started_at);
 
-            // If stuck in STARTING for more than 3 minutes, mark as ERROR (heartbeat every 10s)
-            if ($minutesSinceStart > 3) {
+            // If stuck in STARTING for more than 5 minutes, mark as ERROR (heartbeat every 10s)
+            // Increased from 3 to 5 minutes to handle slow startup + Laravel restart
+            if ($minutesSinceStart > 5) {
                 Log::warning("⚠️ [SyncStreamStatus] Stream #{$stream->id} stuck in STARTING for {$minutesSinceStart} minutes");
 
                 $stream->update([
@@ -139,8 +140,9 @@ class SyncStreamStatusJob implements ShouldQueue
                 now()->diffInMinutes($stream->last_status_update) :
                 now()->diffInMinutes($stream->created_at);
 
-            // If no heartbeat for more than 1 minute, mark as ERROR (heartbeat every 10s)
-            if ($minutesSinceUpdate > 1) {
+            // If no heartbeat for more than 3 minutes, mark as ERROR (heartbeat every 10s)
+            // Increased from 1 to 3 minutes to handle Laravel restart gracefully
+            if ($minutesSinceUpdate > 3) {
                 Log::warning("⚠️ [SyncStreamStatus] Stream #{$stream->id} no heartbeat for {$minutesSinceUpdate} minutes");
 
                 $stream->update([

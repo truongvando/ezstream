@@ -134,11 +134,23 @@ class StreamSyncCommand extends Command
 
     /**
      * Xử lý stream bị mất tích (có trong DB, agent không có).
+     * Enhanced with grace period to handle Laravel restart scenarios.
      */
     private function fixMissingStream(int $streamId): void
     {
         $stream = StreamConfiguration::find($streamId);
         if ($stream) {
+            // Check if stream was recently updated (within last 3 minutes)
+            // This could indicate Laravel restart scenario
+            $minutesSinceUpdate = $stream->updated_at ?
+                abs(now()->diffInMinutes($stream->updated_at)) : 999;
+
+            if ($minutesSinceUpdate < 3) {
+                Log::info("StreamSync: Stream #{$streamId} recently updated ({$minutesSinceUpdate}m ago), giving grace period...");
+                $this->line("    -> Stream #{$streamId}: Recently updated, skipping (grace period)");
+                return;
+            }
+
             $stream->update([
                 'status' => 'ERROR',
                 'error_message' => 'Sync Error: Stream process lost on agent. Needs restart.',
