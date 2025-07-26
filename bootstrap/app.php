@@ -58,6 +58,11 @@ return Application::configure(basePath: dirname(__DIR__))
                  ->everyFiveMinutes()
                  ->withoutOverlapping();
 
+        // 🏥 Monitor stream health and auto-fix issues
+        $schedule->command('streams:monitor-health --auto-fix')
+                 ->everyTenMinutes()
+                 ->withoutOverlapping();
+
         // ⏰ Handle STOPPING timeout (every minute - critical for stuck streams)
         $schedule->job(new \App\Jobs\HandleStoppingTimeoutJob())
                  ->everyMinute()

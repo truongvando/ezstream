@@ -186,9 +186,18 @@ class ProcessManager:
         logging.info("✅ All FFmpeg processes stopped")
     
     def _build_ffmpeg_command(self, input_path: str, rtmp_endpoint: str) -> List[str]:
-        """Build FFmpeg command based on input type"""
-        base_cmd = ['ffmpeg', '-re']  # Realtime playback
+        """Build simple FFmpeg command for local Nginx RTMP"""
+
+        # Simple base command
+        base_cmd = [
+            'ffmpeg',
+            '-hide_banner',
+            '-loglevel', 'error',  # Only show errors
+            '-re',  # Realtime playback
+            '-stream_loop', '-1',  # Loop infinitely
+        ]
         
+        # Add input
         if input_path.startswith('concat:'):
             # Playlist input
             playlist_file = input_path.replace('concat:', '')
@@ -196,28 +205,20 @@ class ProcessManager:
                 '-f', 'concat',
                 '-safe', '0',
                 '-i', playlist_file,
-                '-c', 'copy',
-                '-f', 'flv',
-                rtmp_endpoint
             ]
         else:
-            # Single file input with loop
+            # Single file input
             cmd = base_cmd + [
-                '-stream_loop', '-1',
                 '-i', input_path,
-                '-c', 'copy',
-                '-f', 'flv',
-                rtmp_endpoint
             ]
-        
-        # Add reconnection options for stability
+
+        # Simple output to local Nginx RTMP
         cmd.extend([
-            '-reconnect', '1',
-            '-reconnect_at_eof', '1',
-            '-reconnect_streamed', '1',
-            '-reconnect_delay_max', str(self.config.ffmpeg_reconnect_delay)
+            '-c', 'copy',  # Copy codecs (no re-encoding)
+            '-f', 'flv',   # FLV format for RTMP
+            rtmp_endpoint  # Local Nginx RTMP endpoint
         ])
-        
+
         return cmd
     
     def _graceful_shutdown(self, process_info: ProcessInfo) -> bool:
@@ -274,15 +275,21 @@ class ProcessManager:
             stdout, stderr = process.communicate()
             return_code = process.returncode
             
-            # If stream was stopped manually, stop_stream already sent a status
-            if return_code in [-9, -15, 255]:  # SIGKILL, SIGTERM, or manual stop
+            # Analyze termination reason
+            termination_reason = self._analyze_termination(return_code, stderr)
+
+            if termination_reason == "manual_stop":
                 logging.info(f"Stream {stream_id} terminated manually (code: {return_code})")
-                # Send STOPPED status for manual termination
                 if self.status_reporter:
                     self.status_reporter.publish_stream_status(
                         stream_id, 'STOPPED', 'Stream stopped by user'
                     )
                 return
+            elif termination_reason == "crash" and self._should_auto_restart(stream_id):
+                logging.warning(f"Stream {stream_id} crashed (code: {return_code}), attempting auto-restart...")
+                if self._attempt_auto_restart(stream_id, process_info):
+                    return  # Successfully restarted
+                # If restart failed, continue to error handling
             
             # Analyze FFmpeg error and provide user-friendly message
             error_message = self._analyze_ffmpeg_error(stderr.decode('utf-8') if stderr else '', return_code)
@@ -310,7 +317,79 @@ class ProcessManager:
                 if stream_id in self.processes:
                     del self.processes[stream_id]
             logging.info(f"Cleaned up monitoring for stream {stream_id}")
-    
+
+    def _analyze_termination(self, return_code: int, stderr_output: str) -> str:
+        """Simple termination analysis"""
+        # Manual stop signals
+        if return_code in [-9, -15]:  # SIGKILL, SIGTERM from our stop command
+            return "manual_stop"
+
+        # Everything else is a crash that should be restarted
+        # (Including code 255, which could be FFmpeg crash or system kill)
+        if return_code != 0:
+            return "crash"
+
+        return "normal_exit"
+
+    def _should_auto_restart(self, stream_id: int) -> bool:
+        """Simple restart check"""
+        from stream_manager import get_stream_manager
+        stream_manager = get_stream_manager()
+
+        if not stream_manager or stream_id not in stream_manager.streams:
+            return False
+
+        stream_info = stream_manager.streams[stream_id]
+        restart_count = getattr(stream_info, 'restart_count', 0)
+
+        # Auto-restart up to 5 times (FFmpeg crashes are usually temporary)
+        return restart_count < 5
+
+    def _attempt_auto_restart(self, stream_id: int, old_process_info: ProcessInfo) -> bool:
+        """Simple auto-restart for crashed FFmpeg"""
+        try:
+            from stream_manager import get_stream_manager
+            stream_manager = get_stream_manager()
+
+            if not stream_manager or stream_id not in stream_manager.streams:
+                return False
+
+            stream_info = stream_manager.streams[stream_id]
+
+            # Track restart attempts
+            if not hasattr(stream_info, 'restart_count'):
+                stream_info.restart_count = 0
+            stream_info.restart_count += 1
+
+            logging.warning(f"FFmpeg crashed for stream {stream_id}, restarting... (attempt #{stream_info.restart_count})")
+
+            # Wait 3 seconds before restart (let system cleanup)
+            time.sleep(3)
+
+            # Restart with same config
+            success = self.start_ffmpeg(
+                stream_id,
+                old_process_info.input_path,
+                stream_info.config.__dict__,
+                old_process_info.rtmp_endpoint
+            )
+
+            if success:
+                logging.info(f"Stream {stream_id} auto-restarted successfully")
+                if self.status_reporter:
+                    self.status_reporter.publish_stream_status(
+                        stream_id, 'STREAMING',
+                        f'Auto-restarted after FFmpeg crash (#{stream_info.restart_count})'
+                    )
+                return True
+            else:
+                logging.error(f"Failed to auto-restart stream {stream_id}")
+                return False
+
+        except Exception as e:
+            logging.error(f"Error auto-restarting stream {stream_id}: {e}")
+            return False
+
     def _analyze_ffmpeg_error(self, stderr_output: str, return_code: int) -> Optional[str]:
         """Analyze FFmpeg error and return user-friendly message"""
         stderr_lower = stderr_output.lower()

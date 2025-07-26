@@ -116,9 +116,10 @@ class ProcessHeartbeatJob implements ShouldQueue
                             "👻 Ghost stream recovered: Agent was still streaming despite DB status"
                         );
                     } else {
-                        // Stream shouldn't be running - send stop command
-                        Log::warning("👻 [GhostStream] Stream #{$streamId} shouldn't be running (status: {$stream->status}). Sending STOP command.");
-                        $this->sendStopCommand($streamId);
+                        // Stream shouldn't be running - send stop command with detailed reason
+                        $reason = "Ghost stream cleanup: DB status '{$stream->status}' but agent reports running";
+                        Log::warning("👻 [GhostStream] Stream #{$streamId} shouldn't be running (status: {$stream->status}). Sending STOP command. Reason: {$reason}");
+                        $this->sendStopCommand($streamId, $reason);
                     }
                 }
 
@@ -169,20 +170,32 @@ class ProcessHeartbeatJob implements ShouldQueue
     /**
      * Send STOP command to agent for specific stream
      */
-    private function sendStopCommand(int $streamId): void
+    private function sendStopCommand(int $streamId, string $reason = 'Ghost stream cleanup'): void
     {
         try {
             $command = [
                 'command' => 'STOP_STREAM',
                 'stream_id' => $streamId,
                 'vps_id' => $this->vpsId,
-                'timestamp' => time()
+                'timestamp' => time(),
+                'reason' => $reason,
+                'source' => 'ProcessHeartbeatJob'
             ];
 
             $channel = "vps_commands:{$this->vpsId}";
             $result = \Illuminate\Support\Facades\Redis::publish($channel, json_encode($command));
 
-            Log::info("📤 [GhostStream] Sent STOP command for stream #{$streamId} to VPS #{$this->vpsId} (subscribers: {$result})");
+            Log::warning("📤 [GhostStream] Sent STOP command for stream #{$streamId} to VPS #{$this->vpsId} (subscribers: {$result}). Reason: {$reason}");
+
+            // Also update stream in DB to prevent confusion
+            $stream = \App\Models\StreamConfiguration::find($streamId);
+            if ($stream) {
+                $stream->update([
+                    'error_message' => "Auto-stopped by system: {$reason}",
+                    'last_stopped_at' => now()
+                ]);
+            }
+
         } catch (\Exception $e) {
             Log::error("❌ [GhostStream] Failed to send STOP command for stream #{$streamId}: {$e->getMessage()}");
         }
