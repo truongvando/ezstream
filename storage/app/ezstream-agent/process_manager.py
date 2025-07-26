@@ -186,37 +186,38 @@ class ProcessManager:
         logging.info("✅ All FFmpeg processes stopped")
     
     def _build_ffmpeg_command(self, input_path: str, rtmp_endpoint: str) -> List[str]:
-        """Build simple FFmpeg command for local Nginx RTMP"""
+        """Build simple FFmpeg command - keep it simple for 99.9% uptime"""
 
-        # Simple base command
+        # Base command
         base_cmd = [
             'ffmpeg',
             '-hide_banner',
-            '-loglevel', 'error',  # Only show errors
+            '-loglevel', 'error',
             '-re',  # Realtime playback
-            '-stream_loop', '-1',  # Loop infinitely
         ]
-        
-        # Add input
+
+        # Handle input types
         if input_path.startswith('concat:'):
-            # Playlist input
+            # Playlist with infinite loop
             playlist_file = input_path.replace('concat:', '')
             cmd = base_cmd + [
                 '-f', 'concat',
                 '-safe', '0',
+                '-stream_loop', '-1',  # Loop playlist infinitely
                 '-i', playlist_file,
             ]
         else:
-            # Single file input
+            # Single file with infinite loop
             cmd = base_cmd + [
+                '-stream_loop', '-1',  # Loop file infinitely
                 '-i', input_path,
             ]
 
         # Simple output to local Nginx RTMP
         cmd.extend([
-            '-c', 'copy',  # Copy codecs (no re-encoding)
-            '-f', 'flv',   # FLV format for RTMP
-            rtmp_endpoint  # Local Nginx RTMP endpoint
+            '-c', 'copy',  # Copy codecs (fastest, most stable)
+            '-f', 'flv',
+            rtmp_endpoint
         ])
 
         return cmd
@@ -290,6 +291,14 @@ class ProcessManager:
                 if self._attempt_auto_restart(stream_id, process_info):
                     return  # Successfully restarted
                 # If restart failed, continue to error handling
+            elif termination_reason == "crash":
+                # Max restarts exceeded - notify Laravel
+                logging.error(f"Stream {stream_id} crashed and max restart attempts exceeded")
+                if self.status_reporter:
+                    self.status_reporter.publish_stream_status(
+                        stream_id, 'ERROR',
+                        'FFmpeg crashed multiple times. Auto-restart disabled. Manual intervention required.'
+                    )
             
             # Analyze FFmpeg error and provide user-friendly message
             error_message = self._analyze_ffmpeg_error(stderr.decode('utf-8') if stderr else '', return_code)
@@ -391,26 +400,29 @@ class ProcessManager:
             return False
 
     def _analyze_ffmpeg_error(self, stderr_output: str, return_code: int) -> Optional[str]:
-        """Analyze FFmpeg error and return user-friendly message"""
+        """Analyze FFmpeg error with crash type detection"""
         stderr_lower = stderr_output.lower()
 
         # Check for manual termination signals first
-        if return_code in [-9, -15, 255]:  # SIGKILL, SIGTERM, or manual stop (255 = user stop)
+        if return_code in [-9, -15]:  # SIGKILL, SIGTERM from our commands
             return None  # Don't report as error for manual stops
 
-        # Only report REAL crashes that prevent streaming
+        # Detailed crash analysis
         if 'no such file or directory' in stderr_lower:
-            return '❌ Không tìm thấy file video. File có thể đã bị xóa hoặc đường dẫn không đúng.'
+            return '❌ [FILE_NOT_FOUND] Video file missing or path incorrect'
         elif 'permission denied' in stderr_lower:
-            return '❌ Không có quyền truy cập file video. Hãy kiểm tra quyền file.'
+            return '❌ [PERMISSION_ERROR] Cannot access video file - check permissions'
         elif 'connection refused' in stderr_lower and 'rtmp' in stderr_lower:
-            return '❌ Lỗi kết nối RTMP server. Hãy kiểm tra stream key và thử lại.'
-        elif return_code == 1 and 'invalid data found when processing input' in stderr_lower:
-            return '❌ File video bị hỏng hoàn toàn. FFmpeg không thể đọc được file này.'
-        elif return_code != 0:  # Other non-zero exit codes
-            return f'❌ FFmpeg không thể xử lý file này (exit code: {return_code}). Hãy thử file khác hoặc convert lại file.'
+            return '❌ [NGINX_DOWN] Cannot connect to local Nginx RTMP - Nginx may be down'
+        elif 'invalid data found when processing input' in stderr_lower:
+            return '❌ [CORRUPTED_FILE] Video file is corrupted and unreadable'
+        elif 'out of memory' in stderr_lower or return_code == 137:  # OOM kill
+            return '❌ [OUT_OF_MEMORY] System ran out of memory - need more RAM or reduce concurrent streams'
+        elif return_code == 255:
+            return '❌ [FFMPEG_CRASH] FFmpeg process crashed unexpectedly - possible system issue'
+        elif return_code != 0:
+            return f'❌ [UNKNOWN_ERROR] FFmpeg failed with exit code {return_code}'
 
-        # If we get here, it's either a manual stop or FFmpeg can handle it
         return None
 
 
