@@ -236,5 +236,50 @@
             </div>
         </div>
     </div>
+
+    <script>
+        // Auto-clear browser cache and session on login page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Clear any cached data
+            if ('caches' in window) {
+                caches.keys().then(function(names) {
+                    names.forEach(function(name) {
+                        caches.delete(name);
+                    });
+                });
+            }
+
+            // Clear localStorage and sessionStorage
+            try {
+                localStorage.clear();
+                sessionStorage.clear();
+            } catch (e) {
+                console.log('Storage clear failed:', e);
+            }
+
+            // Force refresh CSRF token on form submission
+            const loginForm = document.querySelector('form[action*="login"]');
+            if (loginForm) {
+                loginForm.addEventListener('submit', function(e) {
+                    // Get fresh CSRF token
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]');
+                    const tokenInput = document.querySelector('input[name="_token"]');
+
+                    if (csrfToken && tokenInput) {
+                        tokenInput.value = csrfToken.getAttribute('content');
+                    }
+                });
+            }
+        });
+
+        // Clear session on page unload (when navigating away)
+        window.addEventListener('beforeunload', function() {
+            try {
+                sessionStorage.clear();
+            } catch (e) {
+                // Ignore errors
+            }
+        });
+    </script>
 </body>
 </html>
