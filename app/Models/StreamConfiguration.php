@@ -82,15 +82,37 @@ class StreamConfiguration extends Model
     {
         parent::boot();
 
-        // Log when stream is being deleted
+        // Enhanced logging when stream is being deleted
         static::deleting(function ($stream) {
-            \Log::warning("🗑️ [CRITICAL] Stream #{$stream->id} is being deleted", [
+            $backtrace = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 15);
+
+            // Extract caller information
+            $caller = 'Unknown';
+            $file = 'Unknown';
+            $line = 'Unknown';
+
+            foreach ($backtrace as $trace) {
+                if (isset($trace['file']) && !str_contains($trace['file'], 'vendor/') && !str_contains($trace['file'], 'Model.php')) {
+                    $caller = $trace['function'] ?? 'Unknown';
+                    $file = basename($trace['file']);
+                    $line = $trace['line'] ?? 'Unknown';
+                    break;
+                }
+            }
+
+            \Log::critical("🗑️ [STREAM DELETION] Stream #{$stream->id} is being deleted", [
                 'title' => $stream->title,
                 'status' => $stream->status,
                 'user_id' => $stream->user_id,
                 'vps_server_id' => $stream->vps_server_id,
                 'is_quick_stream' => $stream->is_quick_stream,
-                'stack_trace' => debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 10)
+                'auto_delete_from_cdn' => $stream->auto_delete_from_cdn,
+                'caller_function' => $caller,
+                'caller_file' => $file,
+                'caller_line' => $line,
+                'request_url' => request()->fullUrl() ?? 'CLI',
+                'user_agent' => request()->userAgent() ?? 'CLI',
+                'stack_trace' => $backtrace
             ]);
         });
     }

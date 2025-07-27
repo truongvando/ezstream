@@ -20,7 +20,7 @@ return [
     // Queue Processing - Different behavior per environment
     'queue_processing' => [
         'local' => [
-            'vps_provisioning' => 'sync', // Run immediately for testing
+            'vps_provisioning' => 'database', // Use real queue for testing
             'default' => 'sync',
         ],
         'staging' => [

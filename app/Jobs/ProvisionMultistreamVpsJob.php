@@ -115,12 +115,12 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         $sshService->execute("chmod +x {$remoteScript}");
 
         Log::info("🚀 [VPS #{$vps->id}] Running base provision script...");
-        $result = $sshService->execute($remoteScript, 600); // 10 minute timeout
+        $result = $sshService->execute($remoteScript); // SSH service handles timeout internally
 
         // Log the full output for debugging
         Log::info("📋 [VPS #{$vps->id}] Provision script output", ['output' => $result]);
 
-        if (strpos($result, 'PROVISION COMPLETE') === false) {
+        if (strpos($result, 'VPS BASE PROVISION COMPLETE') === false) {
             Log::error("❌ [VPS #{$vps->id}] Base provision script failed", [
                 'output' => $result,
                 'script_path' => $remoteScript

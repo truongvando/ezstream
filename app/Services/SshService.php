@@ -98,10 +98,18 @@ class SshService
         }
 
         try {
+            // Reset SSH connection state to avoid channel conflicts
+            $this->ssh->reset();
             $output = $this->ssh->exec($command);
             return $output;
         } catch (\Exception $e) {
             Log::error("SSH command execution failed. Error: " . $e->getMessage());
+            // Try to reset connection on error
+            try {
+                $this->ssh->reset();
+            } catch (\Exception $resetError) {
+                Log::warning("Failed to reset SSH connection: " . $resetError->getMessage());
+            }
             return null;
         }
     }
@@ -215,7 +223,9 @@ class SshService
             $this->execute("sudo rm -f " . escapeshellarg($remotePath));
 
             // For large files, upload in chunks to avoid command line length limits
-            $chunkSize = 4096; // 4KB chunks
+            // Note: base64 encoding increases size by ~33%, so 4KB raw = ~5.3KB encoded
+            // escapeshellarg() has 8192 byte limit, so use smaller chunks
+            $chunkSize = 3072; // 3KB chunks (base64 = ~4KB, safe under 8192 limit)
             $fileSize = strlen($fileContent);
             $chunks = ceil($fileSize / $chunkSize);
 

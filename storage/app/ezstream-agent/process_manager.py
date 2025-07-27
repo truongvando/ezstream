@@ -69,12 +69,12 @@ class ProcessManager:
                     logging.info(f"🎬 Starting FFmpeg for stream {stream_id}")
                     logging.debug(f"Command: {' '.join(ffmpeg_cmd)}")
                     
-                    # Start process
+                    # Start process with stdin pipe for graceful shutdown
                     process = subprocess.Popen(
                         ffmpeg_cmd,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.PIPE,
-                        stdin=subprocess.DEVNULL,
+                        stdin=subprocess.PIPE,  # Enable stdin for 'q' command
                         preexec_fn=os.setsid  # Create new process group
                     )
                     
@@ -114,8 +114,13 @@ class ProcessManager:
                 if stream_id not in self.processes:
                     logging.warning(f"No FFmpeg process found for stream {stream_id}")
                     return True
-                
+
                 process_info = self.processes[stream_id]
+
+                # CRITICAL: Mark this process as being manually stopped
+                # This prevents the monitor from treating SIGTERM exit as a crash
+                process_info.is_manual_stop = True
+                logging.info(f"🛑 Marked stream {stream_id} for manual stop (reason: {reason})")
                 
                 with PerformanceTimer(f"FFmpeg Stop (Stream {stream_id})"):
                     success = self._graceful_shutdown(process_info)
@@ -235,9 +240,29 @@ class ProcessManager:
             
             old_pid = process.pid
             logging.info(f"Stream {stream_id}: Gracefully shutting down FFmpeg (PID: {old_pid})")
-            
-            # Send SIGTERM for graceful shutdown
-            process.terminate()
+
+            # Try graceful shutdown via stdin 'q' command first (most graceful)
+            try:
+                if process.stdin and not process.stdin.closed:
+                    process.stdin.write(b'q\n')
+                    process.stdin.flush()
+                    logging.info(f"Stream {stream_id}: Sent 'q' command to FFmpeg stdin")
+
+                    # Wait a bit for graceful shutdown
+                    try:
+                        process.wait(timeout=3)
+                        logging.info(f"Stream {stream_id}: FFmpeg stopped gracefully via 'q' command")
+                        return True
+                    except subprocess.TimeoutExpired:
+                        logging.info(f"Stream {stream_id}: 'q' command timeout, trying SIGINT")
+
+            except (BrokenPipeError, OSError) as e:
+                logging.info(f"Stream {stream_id}: Cannot use stdin method ({e}), trying SIGINT")
+
+            # Fallback to SIGINT (better than SIGTERM for FFmpeg)
+            import signal
+            import os
+            os.kill(process.pid, signal.SIGINT)
             
             # Wait for graceful shutdown
             try:
@@ -277,7 +302,7 @@ class ProcessManager:
             return_code = process.returncode
             
             # Analyze termination reason
-            termination_reason = self._analyze_termination(return_code, stderr)
+            termination_reason = self._analyze_termination(return_code, stderr, process_info)
 
             if termination_reason == "manual_stop":
                 logging.info(f"Stream {stream_id} terminated manually (code: {return_code})")
@@ -288,8 +313,17 @@ class ProcessManager:
                 return
             elif termination_reason == "crash" and self._should_auto_restart(stream_id):
                 logging.warning(f"Stream {stream_id} crashed (code: {return_code}), attempting auto-restart...")
-                if self._attempt_auto_restart(stream_id, process_info):
-                    return  # Successfully restarted
+
+                # Small delay to avoid race condition with stop command
+                time.sleep(1)
+
+                # Re-check if stream should still be restarted after delay
+                if self._should_auto_restart(stream_id):
+                    if self._attempt_auto_restart(stream_id, process_info):
+                        return  # Successfully restarted
+                else:
+                    logging.info(f"Stream {stream_id} no longer needs restart after delay check")
+                    return
                 # If restart failed, continue to error handling
             elif termination_reason == "crash":
                 # Max restarts exceeded - notify Laravel
@@ -327,10 +361,16 @@ class ProcessManager:
                     del self.processes[stream_id]
             logging.info(f"Cleaned up monitoring for stream {stream_id}")
 
-    def _analyze_termination(self, return_code: int, stderr_output: str) -> str:
-        """Simple termination analysis"""
+    def _analyze_termination(self, return_code: int, stderr_output: str, process_info: ProcessInfo) -> str:
+        """Enhanced termination analysis with manual stop detection"""
+
+        # Check if this was a manual stop (most reliable method)
+        if hasattr(process_info, 'is_manual_stop') and process_info.is_manual_stop:
+            logging.info(f"Process marked as manual stop, treating as manual_stop regardless of exit code {return_code}")
+            return "manual_stop"
+
         # Manual stop signals
-        if return_code in [-9, -15]:  # SIGKILL, SIGTERM from our stop command
+        if return_code in [-9, -15, -2]:  # SIGKILL, SIGTERM, SIGINT from our stop command
             return "manual_stop"
 
         # Everything else is a crash that should be restarted
@@ -341,14 +381,22 @@ class ProcessManager:
         return "normal_exit"
 
     def _should_auto_restart(self, stream_id: int) -> bool:
-        """Simple restart check"""
+        """Simple restart check with stream state validation"""
         from stream_manager import get_stream_manager
         stream_manager = get_stream_manager()
 
         if not stream_manager or stream_id not in stream_manager.streams:
+            logging.info(f"Stream {stream_id} not in stream manager, no restart needed")
             return False
 
         stream_info = stream_manager.streams[stream_id]
+
+        # CRITICAL: Check if stream is being stopped - don't restart if stopping
+        from stream_manager import StreamState
+        if hasattr(stream_info, 'state') and stream_info.state == StreamState.STOPPING:
+            logging.info(f"Stream {stream_id} is in STOPPING state, skipping auto-restart")
+            return False
+
         restart_count = getattr(stream_info, 'restart_count', 0)
 
         # Auto-restart up to 5 times (FFmpeg crashes are usually temporary)
@@ -361,9 +409,16 @@ class ProcessManager:
             stream_manager = get_stream_manager()
 
             if not stream_manager or stream_id not in stream_manager.streams:
+                logging.info(f"Stream {stream_id} not found in stream manager, cannot restart")
                 return False
 
             stream_info = stream_manager.streams[stream_id]
+
+            # CRITICAL: Double-check if stream is being stopped
+            from stream_manager import StreamState
+            if hasattr(stream_info, 'state') and stream_info.state == StreamState.STOPPING:
+                logging.info(f"Stream {stream_id} is in STOPPING state, aborting auto-restart")
+                return False
 
             # Track restart attempts
             if not hasattr(stream_info, 'restart_count'):
@@ -404,7 +459,7 @@ class ProcessManager:
         stderr_lower = stderr_output.lower()
 
         # Check for manual termination signals first
-        if return_code in [-9, -15]:  # SIGKILL, SIGTERM from our commands
+        if return_code in [-9, -15, -2]:  # SIGKILL, SIGTERM, SIGINT from our commands
             return None  # Don't report as error for manual stops
 
         # Detailed crash analysis

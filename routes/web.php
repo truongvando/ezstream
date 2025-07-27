@@ -455,6 +455,33 @@ Route::get('/test-layout', function () {
     return view('layouts.sidebar', ['slot' => '<h1>Test Layout</h1>']);
 })->name('test.layout');
 
+// Debug CSRF route
+Route::get('/debug-csrf', function () {
+    return response()->json([
+        'csrf_token' => csrf_token(),
+        'session_id' => session()->getId(),
+        'session_driver' => config('session.driver'),
+        'cache_driver' => config('cache.default'),
+        'redis_connection' => app('redis')->ping() ? 'OK' : 'FAILED',
+    ]);
+});
+
+// Test CSRF form
+Route::get('/test-csrf', function () {
+    return view('test-csrf');
+});
+
+// Test CSRF POST
+Route::post('/test-csrf', function (Illuminate\Http\Request $request) {
+    return response()->json([
+        'success' => true,
+        'message' => 'CSRF token valid!',
+        'token_from_request' => $request->input('_token'),
+        'session_token' => session()->token(),
+        'tokens_match' => $request->input('_token') === session()->token(),
+    ]);
+});
+
 // Debug route
 Route::get('/debug-auth', function () {
     $user = auth()->user();
