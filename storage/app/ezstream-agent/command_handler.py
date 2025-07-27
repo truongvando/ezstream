@@ -29,6 +29,7 @@ class CommandType(Enum):
     SYNC_STATE = "SYNC_STATE"
     FORCE_KILL_STREAM = "FORCE_KILL_STREAM"
     CLEANUP_FILES = "CLEANUP_FILES"
+    UPDATE_AGENT = "UPDATE_AGENT"
 
 
 @dataclass
@@ -67,6 +68,7 @@ class CommandHandler:
             CommandType.SYNC_STATE: self._handle_sync_state,
             CommandType.FORCE_KILL_STREAM: self._handle_force_kill_stream,
             CommandType.CLEANUP_FILES: self._handle_cleanup_files,
+            CommandType.UPDATE_AGENT: self._handle_update_agent,
         }
         
         # Active command tracking
@@ -375,6 +377,111 @@ class CommandHandler:
         """Get number of active commands"""
         with self.command_lock:
             return len(self.active_commands)
+
+    def _handle_update_agent(self, stream_id: Optional[int], config: Dict[str, Any], command_data: Dict[str, Any]) -> bool:
+        """Handle UPDATE_AGENT command"""
+        try:
+            logging.info("🔄 [UPDATE] Received UPDATE_AGENT command from Laravel")
+
+            # Get version from command data
+            version = command_data.get('version', 'latest')
+            logging.info(f"🔄 [UPDATE] Updating agent to version: {version}")
+
+            # Import here to avoid circular imports
+            import subprocess
+            import os
+            import base64
+            import zipfile
+            import tempfile
+            import shutil
+
+            # Connect to Redis to download agent package
+            redis_client = redis.Redis(
+                host=self.config.redis_host,
+                port=self.config.redis_port,
+                password=self.config.redis_password,
+                decode_responses=False
+            )
+
+            # Get agent package from Redis
+            package_key = f"agent_package:{version}"
+            package_data = redis_client.get(package_key)
+
+            if not package_data:
+                logging.error(f"❌ [UPDATE] Agent package not found in Redis: {package_key}")
+                return False
+
+            # Decode base64 data
+            if isinstance(package_data, bytes):
+                package_data = package_data.decode('utf-8')
+
+            zip_data = base64.b64decode(package_data)
+            logging.info(f"✅ [UPDATE] Downloaded agent package ({len(zip_data)} bytes)")
+
+            # Create temporary directory for extraction
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # Write ZIP file
+                zip_path = os.path.join(temp_dir, 'agent_update.zip')
+                with open(zip_path, 'wb') as f:
+                    f.write(zip_data)
+
+                # Extract ZIP file
+                extract_dir = os.path.join(temp_dir, 'extracted')
+                os.makedirs(extract_dir, exist_ok=True)
+
+                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                    zip_ref.extractall(extract_dir)
+
+                logging.info("✅ [UPDATE] Agent package extracted")
+
+                # Get current agent directory
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+
+                # Backup current agent
+                backup_dir = f"{current_dir}_backup_{int(time.time())}"
+                shutil.copytree(current_dir, backup_dir)
+                logging.info(f"✅ [UPDATE] Current agent backed up to: {backup_dir}")
+
+                # Copy new files (excluding current running script)
+                current_script = os.path.abspath(__file__)
+
+                for item in os.listdir(extract_dir):
+                    src_path = os.path.join(extract_dir, item)
+                    dst_path = os.path.join(current_dir, item)
+
+                    # Skip if it's the currently running script
+                    if os.path.abspath(dst_path) == current_script:
+                        logging.info(f"⏭️ [UPDATE] Skipping currently running script: {item}")
+                        continue
+
+                    if os.path.isfile(src_path):
+                        shutil.copy2(src_path, dst_path)
+                        logging.info(f"✅ [UPDATE] Updated file: {item}")
+
+                # Set permissions
+                agent_py = os.path.join(current_dir, 'agent.py')
+                if os.path.exists(agent_py):
+                    os.chmod(agent_py, 0o755)
+
+                logging.info("✅ [UPDATE] Agent files updated successfully")
+
+                # Schedule restart (agent.py will handle this)
+                logging.info("🔄 [UPDATE] Scheduling agent restart...")
+
+                # Create restart flag file
+                restart_flag = os.path.join(current_dir, '.restart_required')
+                with open(restart_flag, 'w') as f:
+                    f.write(f"restart_requested_at={time.time()}\n")
+                    f.write(f"updated_version={version}\n")
+
+                logging.info("✅ [UPDATE] Agent update completed, restart scheduled")
+                return True
+
+        except Exception as e:
+            logging.error(f"❌ [UPDATE] Error in update_agent handler: {e}")
+            import traceback
+            logging.error(f"❌ [UPDATE] Traceback: {traceback.format_exc()}")
+            return False
 
 
 # Global command handler instance

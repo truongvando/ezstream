@@ -243,9 +243,13 @@ class SshService
 
         try {
             // Use SFTP for file upload to avoid SSH channel conflicts
-            $sftp = new SFTP($this->ssh->getHost(), $this->ssh->getPort());
+            // Get connection details from stored VPS info
+            $host = $this->currentVps->ip_address;
+            $port = $this->currentVps->ssh_port ?? 22;
 
-            // Reuse SSH connection for SFTP
+            $sftp = new SFTP($host, $port);
+
+            // Login to SFTP
             if (!$sftp->login($this->currentVps->ssh_user, Crypt::decryptString($this->currentVps->ssh_password))) {
                 Log::error("SFTP login failed");
                 return false;
@@ -256,8 +260,36 @@ class SshService
             $this->execute("sudo mkdir -p " . escapeshellarg($remoteDir));
 
             // Upload file using SFTP
-            if (!$sftp->put($remotePath, $localPath, SFTP::SOURCE_LOCAL_FILE)) {
-                Log::error("SFTP upload failed: {$localPath} to {$remotePath}");
+            Log::info("Attempting SFTP upload: {$localPath} to {$remotePath}");
+
+            // Check local file exists and is readable
+            if (!file_exists($localPath)) {
+                Log::error("Local file does not exist: {$localPath}");
+                return false;
+            }
+
+            if (!is_readable($localPath)) {
+                Log::error("Local file is not readable: {$localPath}");
+                return false;
+            }
+
+            $localSize = filesize($localPath);
+            Log::info("Local file size: {$localSize} bytes");
+
+            // Try SFTP upload with error details
+            $uploadResult = $sftp->put($remotePath, $localPath, SFTP::SOURCE_LOCAL_FILE);
+
+            if (!$uploadResult) {
+                $sftpErrors = $sftp->getErrors();
+                $lastError = $sftp->getLastError();
+
+                Log::error("SFTP upload failed", [
+                    'local_path' => $localPath,
+                    'remote_path' => $remotePath,
+                    'local_size' => $localSize,
+                    'sftp_errors' => $sftpErrors,
+                    'last_error' => $lastError
+                ]);
                 return false;
             }
 

@@ -117,8 +117,40 @@ class EZStreamAgent:
         """Main agent loop"""
         try:
             while self.running:
+                # Check for restart flag
+                restart_flag = os.path.join(os.path.dirname(__file__), '.restart_required')
+                if os.path.exists(restart_flag):
+                    logging.info("🔄 [UPDATE] Restart flag detected, initiating restart...")
+
+                    # Read restart info
+                    try:
+                        with open(restart_flag, 'r') as f:
+                            restart_info = f.read()
+                        logging.info(f"🔄 [UPDATE] Restart info: {restart_info}")
+                    except:
+                        pass
+
+                    # Remove restart flag
+                    try:
+                        os.remove(restart_flag)
+                    except:
+                        pass
+
+                    # Initiate restart
+                    logging.info("🔄 [UPDATE] Restarting agent for update...")
+                    self.stop()
+
+                    # Restart using systemctl
+                    try:
+                        import subprocess
+                        subprocess.run(['sudo', 'systemctl', 'restart', 'ezstream-agent'], check=False)
+                    except Exception as e:
+                        logging.error(f"❌ [UPDATE] Failed to restart via systemctl: {e}")
+
+                    break
+
                 time.sleep(1)
-                
+
         except KeyboardInterrupt:
             logging.info("🔄 Received interrupt signal")
         except Exception as e:

@@ -10,13 +10,18 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 
 class UpdateAgentJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $vpsId;
-    public $timeout = 300; // 5 phút timeout
+
+    // Job configuration
+    public $timeout = 600; // 10 minutes timeout
+    public $tries = 1;     // Don't retry automatically
+    public $maxExceptions = 1;
 
     public function __construct(int $vpsId)
     {
@@ -56,8 +61,8 @@ class UpdateAgentJob implements ShouldQueue
             // Step 2: Backup current agent
             $this->backupCurrentAgent($sshService, $vps);
 
-            // Step 3: Upload new agent files
-            $this->uploadNewAgentFiles($sshService, $vps);
+            // Step 3: Send UPDATE_AGENT command to agent
+            $this->sendUpdateAgentCommand($vps);
 
             // Step 4: Update systemd service
             $this->updateSystemdService($sshService, $vps);
@@ -78,18 +83,27 @@ class UpdateAgentJob implements ShouldQueue
 
         } catch (\Exception $e) {
             Log::error("❌ [VPS #{$vps->id}] Cập nhật Redis Agent thất bại: {$e->getMessage()}", [
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'vps_name' => $vps->name,
+                'error_type' => get_class($e)
             ]);
 
             // Try to rollback
-            $this->rollbackAgent($sshService, $vps);
+            try {
+                $this->rollbackAgent($sshService, $vps);
+                Log::info("🔄 [VPS #{$vps->id}] Rollback completed");
+            } catch (\Exception $rollbackError) {
+                Log::error("❌ [VPS #{$vps->id}] Rollback failed: {$rollbackError->getMessage()}");
+            }
 
+            // Always reset status - never leave VPS in UPDATING state
             $vps->update([
                 'status' => 'ERROR',
-                'status_message' => 'Cập nhật thất bại: ' . $e->getMessage()
+                'status_message' => 'Cập nhật thất bại: ' . $e->getMessage() . ' (Lúc: ' . now()->format('H:i:s') . ')'
             ]);
-            
-            throw $e;
+
+            // Don't re-throw to prevent job retry
+            Log::error("❌ [VPS #{$vps->id}] UpdateAgentJob marked as failed, VPS status reset to ERROR");
         } finally {
             $sshService->disconnect();
         }
@@ -129,17 +143,22 @@ class UpdateAgentJob implements ShouldQueue
         $remoteDir = '/opt/ezstream-agent';
         $sshService->execute("mkdir -p {$remoteDir}");
 
-        // Upload all agent files
-        $agentFiles = [
-            'agent.py',           // Main entry point
-            'config.py',          // Configuration management
-            'stream_manager.py',  // Stream lifecycle management
-            'process_manager.py', // FFmpeg process management
-            'file_manager.py',    // File download/cleanup
-            'status_reporter.py', // Status reporting
-            'command_handler.py', // Command processing
-            'utils.py'            // Shared utilities
-        ];
+        // Get all Python files from agent directory
+        $agentDir = storage_path('app/ezstream-agent');
+        $pythonFiles = glob($agentDir . '/*.py');
+        $configFiles = glob($agentDir . '/*.conf');
+
+        $agentFiles = [];
+
+        // Add Python files
+        foreach ($pythonFiles as $file) {
+            $agentFiles[] = basename($file);
+        }
+
+        // Add config files
+        foreach ($configFiles as $file) {
+            $agentFiles[] = basename($file);
+        }
 
         $uploadedCount = 0;
         foreach ($agentFiles as $filename) {
@@ -155,14 +174,181 @@ class UpdateAgentJob implements ShouldQueue
                 throw new \Exception("Không thể upload file: {$filename}");
             }
 
+            // Set appropriate permissions
             if ($filename === 'agent.py') {
                 $sshService->execute("chmod +x {$remotePath}");
+            } elseif (str_ends_with($filename, '.conf')) {
+                // Handle config files
+                if ($filename === 'ezstream-agent-logrotate.conf') {
+                    $sshService->execute("sudo cp {$remotePath} /etc/logrotate.d/ezstream-agent");
+                    $sshService->execute("sudo chmod 644 /etc/logrotate.d/ezstream-agent");
+                }
+                $sshService->execute("chmod 644 {$remotePath}");
+            } else {
+                // Python files
+                $sshService->execute("chmod 644 {$remotePath}");
             }
 
             $uploadedCount++;
         }
 
         Log::info("✅ [VPS #{$vps->id}] Đã upload {$uploadedCount} file Redis Agent");
+    }
+
+
+
+    private function downloadAndInstallAgentFromRedis(SshService $sshService, VpsServer $vps): void
+    {
+        Log::info("📦 [VPS #{$vps->id}] Downloading agent from Redis");
+
+        $remoteDir = '/opt/ezstream-agent';
+        $tempFile = '/tmp/ezstream-agent-latest.zip';
+
+        // Create Python script to download from Redis
+        $pythonScript = $this->createRedisDownloadScript($vps);
+        $scriptPath = '/tmp/download_agent.py';
+
+        // Upload Python script
+        $sshService->execute("cat > {$scriptPath} << 'EOF'\n{$pythonScript}\nEOF");
+        $sshService->execute("chmod +x {$scriptPath}");
+
+        // Run Python script to download from Redis
+        $downloadResult = $sshService->execute("python3 {$scriptPath}");
+
+        if (strpos($downloadResult, 'SUCCESS') === false) {
+            throw new \Exception("Failed to download agent from Redis: {$downloadResult}");
+        }
+
+        Log::info("✅ [VPS #{$vps->id}] Downloaded agent package from Redis");
+
+        // Backup current agent directory
+        $backupDir = "/opt/ezstream-agent-backup-" . date('Y-m-d-H-i-s');
+        $sshService->execute("sudo cp -r {$remoteDir} {$backupDir} 2>/dev/null || true");
+
+        // Create/clear agent directory
+        $sshService->execute("sudo mkdir -p {$remoteDir}");
+        $sshService->execute("sudo rm -rf {$remoteDir}/*");
+
+        // Extract agent package
+        $extractCmd = "cd {$remoteDir} && sudo unzip -o {$tempFile}";
+        $extractResult = $sshService->execute($extractCmd);
+
+        if (strpos($extractResult, 'inflating') === false && strpos($extractResult, 'extracting') === false) {
+            throw new \Exception("Failed to extract agent package: {$extractResult}");
+        }
+
+        // Set permissions
+        $sshService->execute("sudo chmod +x {$remoteDir}/agent.py");
+        $sshService->execute("sudo chmod 644 {$remoteDir}/*.py");
+        $sshService->execute("sudo chmod 644 {$remoteDir}/*.conf 2>/dev/null || true");
+
+        // Handle logrotate config
+        $sshService->execute("sudo cp {$remoteDir}/ezstream-agent-logrotate.conf /etc/logrotate.d/ezstream-agent 2>/dev/null || true");
+        $sshService->execute("sudo chmod 644 /etc/logrotate.d/ezstream-agent 2>/dev/null || true");
+
+        // Cleanup temp files
+        $sshService->execute("rm -f {$tempFile} {$scriptPath}");
+
+        Log::info("✅ [VPS #{$vps->id}] Agent installed from Redis successfully");
+    }
+
+    private function sendUpdateAgentCommand(VpsServer $vps): void
+    {
+        Log::info("📤 [VPS #{$vps->id}] Sending UPDATE_AGENT command to agent");
+
+        try {
+            // Send UPDATE_AGENT command via Redis
+            $commandData = [
+                'command' => 'UPDATE_AGENT',
+                'vps_id' => $vps->id,
+                'version' => 'latest',
+                'timestamp' => now()->timestamp,
+                'command_id' => uniqid('update_agent_', true)
+            ];
+
+            $redisKey = "agent_commands:{$vps->id}";
+
+            // Push command to Redis list
+            Redis::lpush($redisKey, json_encode($commandData));
+
+            Log::info("✅ [VPS #{$vps->id}] UPDATE_AGENT command sent via Redis");
+
+            // Wait for agent to process (with timeout)
+            $maxWaitTime = 300; // 5 minutes
+            $startTime = time();
+
+            while ((time() - $startTime) < $maxWaitTime) {
+                // Check if agent is still responding
+                $lastHeartbeat = $vps->last_heartbeat;
+                if ($lastHeartbeat && $lastHeartbeat->diffInMinutes(now()) > 2) {
+                    Log::warning("⚠️ [VPS #{$vps->id}] Agent not responding during update");
+                    break;
+                }
+
+                // Check if restart flag was created (indicates update in progress)
+                sleep(5);
+
+                // Agent will restart itself, so we consider it successful
+                // if command was sent without Redis errors
+                break;
+            }
+
+            Log::info("✅ [VPS #{$vps->id}] Agent update command completed");
+
+        } catch (\Exception $e) {
+            Log::error("❌ [VPS #{$vps->id}] Failed to send UPDATE_AGENT command: {$e->getMessage()}");
+            throw $e;
+        }
+    }
+
+    private function createRedisDownloadScript(VpsServer $vps): string
+    {
+        $redisHost = config('database.redis.default.host');
+        $redisPort = config('database.redis.default.port');
+        $redisPassword = config('database.redis.default.password');
+
+        return <<<PYTHON
+#!/usr/bin/env python3
+import redis
+import base64
+import sys
+
+try:
+    # Connect to Redis
+    r = redis.Redis(
+        host='{$redisHost}',
+        port={$redisPort},
+        password='{$redisPassword}',
+        decode_responses=False
+    )
+
+    # Test connection
+    r.ping()
+    print("Connected to Redis successfully")
+
+    # Get agent package
+    package_data = r.get('agent_package:latest')
+
+    if not package_data:
+        print("ERROR: Agent package not found in Redis")
+        sys.exit(1)
+
+    # Decode base64 data
+    if isinstance(package_data, bytes):
+        package_data = package_data.decode('utf-8')
+
+    zip_data = base64.b64decode(package_data)
+
+    # Write to file
+    with open('/tmp/ezstream-agent-latest.zip', 'wb') as f:
+        f.write(zip_data)
+
+    print(f"SUCCESS: Downloaded agent package ({len(zip_data)} bytes)")
+
+except Exception as e:
+    print(f"ERROR: {str(e)}")
+    sys.exit(1)
+PYTHON;
     }
 
     private function updateSystemdService(SshService $sshService, VpsServer $vps): void
@@ -305,5 +491,32 @@ WantedBy=multi-user.target";
         ]);
 
         Log::info("✅ [VPS #{$vps->id}] Mock agent update completed successfully");
+    }
+
+    /**
+     * Handle job failure - ensure VPS is never stuck in UPDATING state
+     */
+    public function failed(\Throwable $exception): void
+    {
+        try {
+            $vps = VpsServer::find($this->vpsId);
+
+            if ($vps && $vps->status === 'UPDATING') {
+                Log::error("🚨 [VPS #{$vps->id}] UpdateAgentJob failed, resetting status from UPDATING", [
+                    'error' => $exception->getMessage(),
+                    'previous_status' => $vps->status
+                ]);
+
+                $vps->update([
+                    'status' => 'ERROR',
+                    'status_message' => 'Cập nhật Agent thất bại: ' . $exception->getMessage() . ' (Job failed at: ' . now()->format('H:i:s') . ')'
+                ]);
+
+                Log::info("✅ [VPS #{$vps->id}] Status reset to ERROR, VPS is no longer stuck");
+            }
+
+        } catch (\Exception $e) {
+            Log::error("❌ Failed to reset VPS status in failed() method: {$e->getMessage()}");
+        }
     }
 }

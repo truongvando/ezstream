@@ -202,6 +202,25 @@ if ! systemctl is-active --quiet nginx; then
     exit 1
 fi
 
+echo "✅ Nginx started successfully"
+
+# 6.5. START EZSTREAM AGENT SERVICE (if exists)
+echo "6.5. Checking EZStream Agent service..."
+if systemctl list-unit-files | grep -q "ezstream-agent.service"; then
+    echo "Starting EZStream Agent service..."
+    systemctl enable ezstream-agent
+    systemctl restart ezstream-agent
+
+    sleep 5
+    if systemctl is-active --quiet ezstream-agent; then
+        echo "✅ EZStream Agent started successfully"
+    else
+        echo "⚠️ EZStream Agent failed to start (will be restarted by ProvisionJob)"
+        systemctl status ezstream-agent
+    fi
+else
+    echo "⚠️ EZStream Agent service not found (will be created by ProvisionJob)"
+fi
 
 # 7. FINAL CHECK
 echo "7. Performing final system check..."
