@@ -13,6 +13,7 @@ use Throwable;
 class SshService
 {
     protected ?SSH2 $ssh = null;
+    protected ?VpsServer $currentVps = null;
 
     /**
      * Connect to the VPS server.
@@ -77,6 +78,10 @@ class SshService
             }
             
             Log::info("SSH login successful", ['vps_name' => $vps->name]);
+
+            // Store VPS for potential reconnection
+            $this->currentVps = $vps;
+
             return true;
         } catch (Throwable $e) {
             Log::error("SSH connection exception for VPS: {$vps->name}. Error: " . $e->getMessage());
@@ -98,17 +103,25 @@ class SshService
         }
 
         try {
-            // Reset SSH connection state to avoid channel conflicts
-            $this->ssh->reset();
+            // Force close any existing channels before executing
+            $this->ssh->disconnect();
+
+            // Reconnect with fresh state
+            if (!$this->reconnect()) {
+                Log::error('Failed to reconnect SSH for command execution');
+                return null;
+            }
+
             $output = $this->ssh->exec($command);
             return $output;
         } catch (\Exception $e) {
             Log::error("SSH command execution failed. Error: " . $e->getMessage());
-            // Try to reset connection on error
+
+            // Force reconnection on any error
             try {
-                $this->ssh->reset();
-            } catch (\Exception $resetError) {
-                Log::warning("Failed to reset SSH connection: " . $resetError->getMessage());
+                $this->forceReconnect();
+            } catch (\Exception $reconnectError) {
+                Log::warning("Failed to force reconnect SSH: " . $reconnectError->getMessage());
             }
             return null;
         }
@@ -136,6 +149,27 @@ class SshService
             $this->ssh->disconnect();
         }
         $this->ssh = null;
+    }
+
+    /**
+     * Reconnect using stored VPS credentials
+     */
+    private function reconnect(): bool
+    {
+        if (!$this->currentVps) {
+            return false;
+        }
+
+        return $this->connect($this->currentVps);
+    }
+
+    /**
+     * Force reconnection by fully disconnecting first
+     */
+    private function forceReconnect(): bool
+    {
+        $this->disconnect();
+        return $this->reconnect();
     }
 
     /**
@@ -208,6 +242,52 @@ class SshService
         }
 
         try {
+            // Use SFTP for file upload to avoid SSH channel conflicts
+            $sftp = new SFTP($this->ssh->getHost(), $this->ssh->getPort());
+
+            // Reuse SSH connection for SFTP
+            if (!$sftp->login($this->currentVps->ssh_user, Crypt::decryptString($this->currentVps->ssh_password))) {
+                Log::error("SFTP login failed");
+                return false;
+            }
+
+            // Ensure remote directory exists
+            $remoteDir = dirname($remotePath);
+            $this->execute("sudo mkdir -p " . escapeshellarg($remoteDir));
+
+            // Upload file using SFTP
+            if (!$sftp->put($remotePath, $localPath, SFTP::SOURCE_LOCAL_FILE)) {
+                Log::error("SFTP upload failed: {$localPath} to {$remotePath}");
+                return false;
+            }
+
+            // Verify upload
+            $remoteSize = $sftp->size($remotePath);
+            $localSize = filesize($localPath);
+
+            if ($remoteSize !== $localSize) {
+                Log::error("File upload verification failed. Expected size: {$localSize}, got: {$remoteSize}");
+                return false;
+            }
+
+            Log::info("SFTP upload successful: {$localPath} to {$remotePath}");
+            return true;
+
+        } catch (\Exception $e) {
+            Log::error("SFTP upload failed. Error: " . $e->getMessage());
+
+            // Fallback to chunked SSH upload
+            Log::info("Falling back to chunked SSH upload...");
+            return $this->uploadFileViaSSH($localPath, $remotePath);
+        }
+    }
+
+    /**
+     * Fallback method: Upload file via SSH commands (chunked)
+     */
+    private function uploadFileViaSSH(string $localPath, string $remotePath): bool
+    {
+        try {
             // Read local file content
             $fileContent = file_get_contents($localPath);
             if ($fileContent === false) {
@@ -215,21 +295,15 @@ class SshService
                 return false;
             }
 
-            // Ensure the remote directory exists
-            $remoteDir = dirname($remotePath);
-            $this->execute("sudo mkdir -p " . escapeshellarg($remoteDir));
-
             // Clear the target file first
             $this->execute("sudo rm -f " . escapeshellarg($remotePath));
 
-            // For large files, upload in chunks to avoid command line length limits
-            // Note: base64 encoding increases size by ~33%, so 4KB raw = ~5.3KB encoded
-            // escapeshellarg() has 8192 byte limit, so use smaller chunks
-            $chunkSize = 3072; // 3KB chunks (base64 = ~4KB, safe under 8192 limit)
+            // Use smaller chunks to avoid escapeshellarg() limit
+            $chunkSize = 2048; // 2KB chunks to be safe
             $fileSize = strlen($fileContent);
             $chunks = ceil($fileSize / $chunkSize);
 
-            Log::info("Uploading file in {$chunks} chunks: {$localPath} to {$remotePath}");
+            Log::info("SSH fallback: Uploading file in {$chunks} chunks: {$localPath} to {$remotePath}");
 
             for ($i = 0; $i < $chunks; $i++) {
                 $chunk = substr($fileContent, $i * $chunkSize, $chunkSize);
@@ -239,8 +313,8 @@ class SshService
                 $uploadCommand = "echo " . escapeshellarg($base64Chunk) . " | base64 -d | sudo tee -a " . escapeshellarg($remotePath) . " > /dev/null";
                 $result = $this->execute($uploadCommand);
 
-                if ($i % 10 == 0) { // Log progress every 10 chunks
-                    Log::info("Upload progress: " . round(($i + 1) / $chunks * 100, 1) . "%");
+                if ($i % 20 == 0) { // Log progress every 20 chunks
+                    Log::info("SSH upload progress: " . round(($i + 1) / $chunks * 100, 1) . "%");
                 }
             }
 
@@ -249,15 +323,15 @@ class SshService
             $expectedSize = strlen($fileContent);
 
             if (trim($verifySize) != $expectedSize) {
-                Log::error("File upload verification failed. Expected size: {$expectedSize}, got: " . trim($verifySize));
+                Log::error("SSH upload verification failed. Expected size: {$expectedSize}, got: " . trim($verifySize));
                 return false;
             }
 
-            Log::info("SSH upload successful: {$localPath} to {$remotePath}");
+            Log::info("SSH fallback upload successful: {$localPath} to {$remotePath}");
             return true;
 
         } catch (\Exception $e) {
-            Log::error("SSH upload failed. Error: " . $e->getMessage());
+            Log::error("SSH fallback upload failed. Error: " . $e->getMessage());
             return false;
         }
     }
