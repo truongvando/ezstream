@@ -192,7 +192,7 @@
                             <x-secondary-button type="button" wire:click="closeModal">
                                 Hủy
                             </x-secondary-button>
-                            <x-primary-button type="submit" wire:loading.attr="disabled" wire:target="save">
+                            <x-primary-button type="submit" wire:loading.attr="disabled" wire:target="save" onclick="console.log('Update button clicked', @json($editingServer))">
                                 <span wire:loading.remove wire:target="save">
                                     {{ $editingServer ? 'Cập nhật' : 'Thêm' }}
                                 </span>
