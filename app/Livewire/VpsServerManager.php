@@ -290,6 +290,9 @@ class VpsServerManager extends Component
         $this->showBulkUpdateModal = true;
         $this->bulkUpdateProgress = [];
         $this->bulkUpdateInProgress = false;
+
+        // Prevent re-rendering during modal operations
+        $this->skipRender = true;
     }
 
     public function closeBulkUpdateModal()
@@ -297,6 +300,7 @@ class VpsServerManager extends Component
         $this->showBulkUpdateModal = false;
         $this->bulkUpdateProgress = [];
         $this->bulkUpdateInProgress = false;
+        $this->skipRender = false;
     }
 
     public function updateAllVps()

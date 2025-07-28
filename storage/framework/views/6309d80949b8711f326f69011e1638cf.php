@@ -1,4 +1,4 @@
-<div wire:poll.5s>
+<div>
     <!-- Header với nút Thêm và Cập nhật tất cả -->
     <div class="flex justify-between items-center mb-6">
         <div>
@@ -9,15 +9,22 @@
                     class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-medium inline-flex items-center transition-colors duration-200"
                     wire:loading.attr="disabled"
                     wire:loading.class="opacity-50 cursor-not-allowed">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" wire:loading.remove.delay>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                </svg>
-                <svg class="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" wire:loading.delay>
-                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span wire:loading.remove.delay>Cập nhật tất cả VPS</span>
-                <span wire:loading.delay>Đang xử lý...</span>
+                <!-- Normal state icon -->
+                <div wire:loading.remove wire:target="openBulkUpdateModal">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                </div>
+                <!-- Loading state icon -->
+                <div wire:loading wire:target="openBulkUpdateModal">
+                    <svg class="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
+                <!-- Text states -->
+                <span wire:loading.remove wire:target="openBulkUpdateModal">Cập nhật tất cả VPS</span>
+                <span wire:loading wire:target="openBulkUpdateModal">Đang mở...</span>
             </button>
             <button wire:click="openModal" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium inline-flex items-center">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -70,7 +77,7 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                                    <?php switch($server->status):
+                                    <?php switch(strtoupper($server->status)):
                                         case ('ACTIVE'): ?> bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 <?php break; ?>
                                         <?php case ('PROVISIONING'): ?> bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 <?php break; ?>
                                         <?php case ('PROVISION_FAILED'): ?> bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 <?php break; ?>
@@ -82,7 +89,7 @@
                                     <?php echo e($server->status); ?>
 
                                 </span>
-                                <!--[if BLOCK]><![endif]--><?php if($server->status === 'PROVISIONING'): ?>
+                                <!--[if BLOCK]><![endif]--><?php if(strtoupper($server->status) === 'PROVISIONING'): ?>
                                     <svg class="animate-spin h-4 w-4 text-gray-500 inline-block ml-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                                         <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -113,7 +120,7 @@
                                     </svg>
                                 </button>
 
-                                <!--[if BLOCK]><![endif]--><?php if(in_array($server->status, ['ACTIVE', 'ERROR', 'PROVISIONED'])): ?>
+                                <!--[if BLOCK]><![endif]--><?php if(in_array(strtoupper($server->status), ['ACTIVE', 'ERROR', 'PROVISIONED'])): ?>
                                 <button wire:click="updateAgent(<?php echo e($server->id); ?>)"
                                         wire:confirm="Cập nhật Agent v3.0 cho VPS này? Quá trình sẽ mất 2-3 phút và có thể gián đoạn streams."
                                         class="text-green-600 hover:text-green-900 hover:bg-green-50 rounded p-1 mr-2 transition-all duration-150"

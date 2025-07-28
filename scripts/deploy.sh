@@ -375,6 +375,23 @@ stdout_logfile=$PROJECT_DIR/storage/logs/agent.log
 stopwaitsecs=60
 EOF
 
+    # Create stream status listener config (NEW)
+    cat > /etc/supervisor/conf.d/ezstream-stream-listener.conf << EOF
+[program:ezstream-stream-listener]
+process_name=%(program_name)s
+command=php $PROJECT_DIR/artisan stream:listen
+directory=$PROJECT_DIR
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+user=www-data
+numprocs=1
+redirect_stderr=true
+stdout_logfile=$PROJECT_DIR/storage/logs/stream-listener.log
+stopwaitsecs=60
+EOF
+
     # Create Redis subscriber config
     cat > /etc/supervisor/conf.d/ezstream-redis.conf << EOF
 [program:ezstream-redis]
@@ -411,7 +428,7 @@ EOF
 
     # Create log files
     mkdir -p $PROJECT_DIR/storage/logs
-    touch $PROJECT_DIR/storage/logs/{queue,vps-queue,agent,redis,schedule}.log
+    touch $PROJECT_DIR/storage/logs/{queue,vps-queue,agent,redis,schedule,stream-listener}.log
     chown -R www-data:www-data $PROJECT_DIR/storage/logs
 
     # Reload Supervisor
@@ -420,6 +437,7 @@ EOF
     supervisorctl start ezstream-queue:*
     supervisorctl start ezstream-vps:*
     supervisorctl start ezstream-agent:*
+    supervisorctl start ezstream-stream-listener:*
     supervisorctl start ezstream-redis:*
     supervisorctl start ezstream-schedule:*
 }
@@ -533,6 +551,11 @@ php artisan route:clear
 php artisan view:clear
 php artisan optimize:clear
 
+# Clear compiled views to fix UI issues
+echo -e "${YELLOW}🎨 Clearing compiled views for UI fixes...${NC}"
+rm -rf $PROJECT_DIR/storage/framework/views/*
+php artisan view:clear
+
 # Run database migrations (skip existing tables)
 echo -e "${YELLOW}🗄️ Running database migrations...${NC}"
 echo -e "${BLUE}   Checking migration status...${NC}"
@@ -594,11 +617,12 @@ if command -v supervisorctl &> /dev/null; then
         setup_supervisor_processes
     fi
 
-    # Define all active EZSTREAM processes (5 processes total)
+    # Define all active EZSTREAM processes (6 processes total)
     declare -a PROCESSES=(
         "ezstream-queue:*|Default queue worker"
         "ezstream-vps:*|VPS provisioning queue worker"
         "ezstream-agent:*|Agent reports listener"
+        "ezstream-stream-listener:*|Stream status listener"
         "ezstream-redis:*|Redis stats subscriber"
         "ezstream-schedule:*|Laravel scheduler"
     )
@@ -661,6 +685,10 @@ fi
 # Run the stream sync command to ensure consistency after deploy
 echo -e "${YELLOW}🔄 Syncing stream state with all VPS agents...${NC}"
 php artisan stream:sync --force
+
+# Restart all VPS agents to apply new heartbeat settings
+echo -e "${YELLOW}🔄 Restarting VPS agents for new settings...${NC}"
+php artisan vps:restart-agents
 
 # Test application
 echo -e "${YELLOW}🧪 Testing application...${NC}"
