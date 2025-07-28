@@ -77,6 +77,10 @@
                             'cpu' => $data['cpu_usage'] ?? 0,
                             'ram' => $data['ram_usage'] ?? 0,
                             'streams' => $data['active_streams'] ?? 0,
+                            'network_sent' => number_format(($data['network_sent_mb'] ?? 0) / 1024, 1),
+                            'network_recv' => number_format(($data['network_recv_mb'] ?? 0) / 1024, 1),
+                            'disk_used' => $data['disk_used_gb'] ?? 0,
+                            'disk_total' => $data['disk_total_gb'] ?? 0,
                             'updated' => isset($data['received_at']) ? date('H:i:s', $data['received_at']) : 'N/A'
                         ];
                     }
@@ -95,6 +99,10 @@
                             <div>CPU: <strong>{{ number_format($vps['cpu'], 1) }}%</strong></div>
                             <div>RAM: <strong>{{ number_format($vps['ram'], 1) }}%</strong></div>
                             <div>Streams: <strong>{{ $vps['streams'] }}</strong></div>
+                            @if($vps['disk_total'] > 0)
+                                <div>Disk: <strong>{{ number_format($vps['disk_used'], 1) }}/{{ number_format($vps['disk_total'], 1) }}GB</strong></div>
+                            @endif
+                            <div>Network: ↓{{ $vps['network_recv'] }}GB ↑{{ $vps['network_sent'] }}GB</div>
                             <div>Updated: {{ $vps['updated'] }}</div>
                         </div>
                         

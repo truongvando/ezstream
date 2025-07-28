@@ -47,6 +47,11 @@ class VpsMonitoring extends Component
                 'disk_usage_percent' => $stats['disk'],
                 'current_streams' => $stats['active_streams'],
                 'max_streams' => $vps->max_concurrent_streams,
+                'network_sent_mb' => $stats['network_sent_mb'],
+                'network_recv_mb' => $stats['network_recv_mb'],
+                'disk_total_gb' => $stats['disk_total_gb'],
+                'disk_used_gb' => $stats['disk_used_gb'],
+                'disk_free_gb' => $stats['disk_free_gb'],
             ];
         });
 
@@ -71,6 +76,11 @@ class VpsMonitoring extends Component
                     'ram' => $statsData['ram_usage'] ?? 0,
                     'disk' => $statsData['disk_usage'] ?? 0,
                     'active_streams' => $statsData['active_streams'] ?? 0,
+                    'network_sent_mb' => $statsData['network_sent_mb'] ?? 0,
+                    'network_recv_mb' => $statsData['network_recv_mb'] ?? 0,
+                    'disk_total_gb' => $statsData['disk_total_gb'] ?? 0,
+                    'disk_used_gb' => $statsData['disk_used_gb'] ?? 0,
+                    'disk_free_gb' => $statsData['disk_free_gb'] ?? 0,
                     'updated_at' => isset($statsData['received_at']) ?
                         date('Y-m-d H:i:s', $statsData['received_at']) : null
                 ];
@@ -84,6 +94,11 @@ class VpsMonitoring extends Component
                 'ram' => 0,
                 'disk' => 0,
                 'active_streams' => 0,
+                'network_sent_mb' => 0,
+                'network_recv_mb' => 0,
+                'disk_total_gb' => 0,
+                'disk_used_gb' => 0,
+                'disk_free_gb' => 0,
                 'updated_at' => null
             ];
 

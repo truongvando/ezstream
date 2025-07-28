@@ -79,22 +79,36 @@ class CleanupGhostStreams extends Command
         // Get agent state
         $agentStateKey = "agent_state:{$vps->id}";
         $agentState = Redis::get($agentStateKey);
-        
+
         if (!$agentState) {
             $this->warn("   ⚠️ No agent state found - skipping");
             return [0, 0];
         }
-        
-        $activeStreams = json_decode($agentState, true) ?: [];
+
+        $agentData = json_decode($agentState, true) ?: [];
+
+        // Extract active_streams from agent data structure
+        $activeStreams = $agentData['active_streams'] ?? $agentData;
         
         if (empty($activeStreams)) {
             $this->info("   ✅ No active streams reported by agent");
             return [0, 0];
         }
         
-        // Ensure activeStreams is array and convert to strings
+        // Ensure activeStreams is array and convert to strings safely
         $activeStreams = is_array($activeStreams) ? $activeStreams : [];
-        $streamIds = array_map('strval', $activeStreams);
+        $streamIds = [];
+
+        foreach ($activeStreams as $streamId) {
+            // Handle both simple values and nested arrays/objects
+            if (is_scalar($streamId)) {
+                $streamIds[] = (string) $streamId;
+            } elseif (is_array($streamId) && isset($streamId['id'])) {
+                $streamIds[] = (string) $streamId['id'];
+            } elseif (is_object($streamId) && isset($streamId->id)) {
+                $streamIds[] = (string) $streamId->id;
+            }
+        }
 
         $this->info("   📊 Agent reports " . count($streamIds) . " active streams: " . implode(', ', $streamIds));
         

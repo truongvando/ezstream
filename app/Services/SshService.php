@@ -248,10 +248,21 @@ class SshService
             $port = $this->currentVps->ssh_port ?? 22;
 
             $sftp = new SFTP($host, $port);
+            $sftp->setTimeout(30); // 30 seconds timeout
 
-            // Login to SFTP
-            if (!$sftp->login($this->currentVps->ssh_user, Crypt::decryptString($this->currentVps->ssh_password))) {
-                Log::error("SFTP login failed");
+            // Login to SFTP (password đã được decrypt bởi model accessor)
+            $password = $this->currentVps->ssh_password;
+            if (!$sftp->login($this->currentVps->ssh_user, $password)) {
+                $sftpErrors = $sftp->getErrors();
+                $lastError = $sftp->getLastError();
+
+                Log::error("SFTP login failed", [
+                    'host' => $host,
+                    'port' => $port,
+                    'user' => $this->currentVps->ssh_user,
+                    'sftp_errors' => $sftpErrors,
+                    'last_error' => $lastError
+                ]);
                 return false;
             }
 
@@ -277,24 +288,34 @@ class SshService
             Log::info("Local file size: {$localSize} bytes");
 
             // Try SFTP upload with error details
+            Log::info("Starting SFTP put operation", [
+                'local_path' => $localPath,
+                'remote_path' => $remotePath,
+                'local_size' => $localSize
+            ]);
+
             $uploadResult = $sftp->put($remotePath, $localPath, SFTP::SOURCE_LOCAL_FILE);
 
             if (!$uploadResult) {
                 $sftpErrors = $sftp->getErrors();
                 $lastError = $sftp->getLastError();
+                $serverIdentification = $sftp->getServerIdentification();
 
                 Log::error("SFTP upload failed", [
                     'local_path' => $localPath,
                     'remote_path' => $remotePath,
                     'local_size' => $localSize,
                     'sftp_errors' => $sftpErrors,
-                    'last_error' => $lastError
+                    'last_error' => $lastError,
+                    'server_identification' => $serverIdentification,
+                    'is_connected' => $sftp->isConnected()
                 ]);
                 return false;
             }
 
             // Verify upload
-            $remoteSize = $sftp->size($remotePath);
+            $stat = $sftp->stat($remotePath);
+            $remoteSize = $stat ? $stat['size'] : 0;
             $localSize = filesize($localPath);
 
             if ($remoteSize !== $localSize) {
@@ -306,7 +327,12 @@ class SshService
             return true;
 
         } catch (\Exception $e) {
-            Log::error("SFTP upload failed. Error: " . $e->getMessage());
+            Log::error("SFTP upload failed. Error: " . $e->getMessage(), [
+                'local_path' => $localPath,
+                'remote_path' => $remotePath,
+                'exception_class' => get_class($e),
+                'exception_trace' => $e->getTraceAsString()
+            ]);
 
             // Fallback to chunked SSH upload
             Log::info("Falling back to chunked SSH upload...");

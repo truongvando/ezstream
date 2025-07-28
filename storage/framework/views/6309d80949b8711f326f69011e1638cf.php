@@ -64,7 +64,8 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Hành động</th>
                     </tr>
                 </thead>
-                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
+                       wire:poll.1s="refreshData">
                     <!--[if BLOCK]><![endif]--><?php $__empty_1 = true; $__currentLoopData = $servers; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $server): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                         <tr>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
@@ -76,24 +77,56 @@
 
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                                    <?php switch(strtoupper($server->status)):
-                                        case ('ACTIVE'): ?> bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 <?php break; ?>
-                                        <?php case ('PROVISIONING'): ?> bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 <?php break; ?>
-                                        <?php case ('PROVISION_FAILED'): ?> bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 <?php break; ?>
-                                        <?php case ('FAILED'): ?> bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 <?php break; ?>
-                                        <?php case ('UPDATING'): ?> bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 <?php break; ?>
-                                        <?php default: ?> bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200
-                                    <?php endswitch; ?>
-                                ">
-                                    <?php echo e($server->status); ?>
+                                <!--[if BLOCK]><![endif]--><?php if(strtoupper($server->status) === 'UPDATING' && $server->update_progress): ?>
+                                    
+                                    <div class="w-full">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <span class="text-xs font-medium text-blue-700 dark:text-blue-300">
+                                                UPDATING
+                                            </span>
+                                            <span class="text-xs text-gray-500 dark:text-gray-400">
+                                                <?php echo e($server->update_progress['progress_percentage']); ?>%
+                                            </span>
+                                        </div>
+                                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                            <?php
+                                                $progressColor = 'bg-blue-600';
+                                                if ($server->update_progress['stage'] === 'error') {
+                                                    $progressColor = 'bg-red-600';
+                                                } elseif ($server->update_progress['progress_percentage'] >= 100) {
+                                                    $progressColor = 'bg-green-600';
+                                                }
+                                            ?>
+                                            <div class="<?php echo e($progressColor); ?> h-2 rounded-full transition-all duration-500"
+                                                 style="width: <?php echo e($server->update_progress['progress_percentage']); ?>%">
+                                            </div>
+                                        </div>
+                                        <div class="text-xs text-gray-600 dark:text-gray-400 mt-1 truncate" title="<?php echo e($server->update_progress['message']); ?>">
+                                            <?php echo e($server->update_progress['message']); ?>
 
-                                </span>
-                                <!--[if BLOCK]><![endif]--><?php if(strtoupper($server->status) === 'PROVISIONING'): ?>
-                                    <svg class="animate-spin h-4 w-4 text-gray-500 inline-block ml-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
+                                        </div>
+                                    </div>
+                                <?php else: ?>
+                                    
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                        <?php switch(strtoupper($server->status)):
+                                            case ('ACTIVE'): ?> bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 <?php break; ?>
+                                            <?php case ('PROVISIONING'): ?> bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 <?php break; ?>
+                                            <?php case ('PROVISION_FAILED'): ?> bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 <?php break; ?>
+                                            <?php case ('FAILED'): ?> bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 <?php break; ?>
+                                            <?php case ('UPDATING'): ?> bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 <?php break; ?>
+                                            <?php default: ?> bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200
+                                        <?php endswitch; ?>
+                                    ">
+                                        <?php echo e($server->status); ?>
+
+                                    </span>
+                                    <?php if(strtoupper($server->status) === 'PROVISIONING' || strtoupper($server->status) === 'UPDATING'): ?>
+                                        <svg class="animate-spin h-4 w-4 text-gray-500 inline-block ml-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                 <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">

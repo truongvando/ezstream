@@ -41,6 +41,9 @@ class UpdateAgentJob implements ShouldQueue
                 'status_message' => 'Đang cập nhật Redis Agent...'
             ]);
 
+            // Initialize progress tracking
+            $this->setUpdateProgress($vps->id, 'starting', 5, 'Bắt đầu cập nhật Redis Agent v3.0');
+
             // Check if VPS operations are enabled for this environment
             if (!config('deployment.vps_operations_enabled')) {
                 Log::info("🔧 [VPS #{$vps->id}] VPS operations disabled in " . config('app.env') . " environment - mocking update");
@@ -54,34 +57,48 @@ class UpdateAgentJob implements ShouldQueue
             }
 
             Log::info("✅ [VPS #{$vps->id}] Kết nối SSH thành công");
+            $this->setUpdateProgress($vps->id, 'connected', 10, 'Kết nối SSH thành công');
 
             // Step 1: Stop current agent
+            $this->setUpdateProgress($vps->id, 'stopping', 20, 'Dừng agent hiện tại');
             $this->stopCurrentAgent($sshService, $vps);
 
             // Step 2: Backup current agent
+            $this->setUpdateProgress($vps->id, 'backup', 30, 'Sao lưu agent hiện tại');
             $this->backupCurrentAgent($sshService, $vps);
 
-            // Step 3: Send UPDATE_AGENT command to agent
-            $this->sendUpdateAgentCommand($vps);
+            // Step 3: Upload new agent files
+            $this->setUpdateProgress($vps->id, 'uploading', 50, 'Upload agent files v3.0');
+            $this->uploadNewAgentFiles($sshService, $vps);
 
             // Step 4: Update systemd service
+            $this->setUpdateProgress($vps->id, 'systemd', 70, 'Cập nhật systemd service');
             $this->updateSystemdService($sshService, $vps);
 
             // Step 5: Start new agent
+            $this->setUpdateProgress($vps->id, 'starting', 80, 'Khởi động Redis Agent v3.0');
             $this->startNewAgent($sshService, $vps);
 
             // Step 6: Verify agent is running
+            $this->setUpdateProgress($vps->id, 'verifying', 90, 'Kiểm tra agent đang chạy');
             $this->verifyAgentRunning($sshService, $vps);
 
+            // Step 7: Verify agent compatibility
+            $this->setUpdateProgress($vps->id, 'compatibility', 95, 'Kiểm tra tương thích v3.0');
+            $this->verifyAgentCompatibility($sshService, $vps);
+
             // Update status to active
+            $this->setUpdateProgress($vps->id, 'completed', 100, 'Cập nhật Redis Agent v3.0 hoàn tất');
             $vps->update([
                 'status' => 'ACTIVE',
-                'status_message' => 'Redis Agent đã được cập nhật thành công'
+                'status_message' => 'Redis Agent v3.0 đã được cập nhật thành công'
             ]);
 
             Log::info("✅ [VPS #{$vps->id}] Cập nhật Redis Agent v3.0 hoàn tất");
 
         } catch (\Exception $e) {
+            $this->setUpdateProgress($vps->id, 'error', 0, 'Lỗi: ' . $e->getMessage());
+
             Log::error("❌ [VPS #{$vps->id}] Cập nhật Redis Agent thất bại: {$e->getMessage()}", [
                 'trace' => $e->getTraceAsString(),
                 'vps_name' => $vps->name,
@@ -143,10 +160,11 @@ class UpdateAgentJob implements ShouldQueue
         $remoteDir = '/opt/ezstream-agent';
         $sshService->execute("mkdir -p {$remoteDir}");
 
-        // Get all Python files from agent directory
+        // Get all agent files from agent directory
         $agentDir = storage_path('app/ezstream-agent');
         $pythonFiles = glob($agentDir . '/*.py');
         $configFiles = glob($agentDir . '/*.conf');
+        $shellFiles = glob($agentDir . '/*.sh');
 
         $agentFiles = [];
 
@@ -157,6 +175,11 @@ class UpdateAgentJob implements ShouldQueue
 
         // Add config files
         foreach ($configFiles as $file) {
+            $agentFiles[] = basename($file);
+        }
+
+        // Add shell scripts
+        foreach ($shellFiles as $file) {
             $agentFiles[] = basename($file);
         }
 
@@ -176,6 +199,9 @@ class UpdateAgentJob implements ShouldQueue
 
             // Set appropriate permissions
             if ($filename === 'agent.py') {
+                $sshService->execute("chmod +x {$remotePath}");
+            } elseif (str_ends_with($filename, '.sh')) {
+                // Shell scripts
                 $sshService->execute("chmod +x {$remotePath}");
             } elseif (str_ends_with($filename, '.conf')) {
                 // Handle config files
@@ -239,6 +265,7 @@ class UpdateAgentJob implements ShouldQueue
 
         // Set permissions
         $sshService->execute("sudo chmod +x {$remoteDir}/agent.py");
+        $sshService->execute("sudo chmod +x {$remoteDir}/*.sh 2>/dev/null || true");
         $sshService->execute("sudo chmod 644 {$remoteDir}/*.py");
         $sshService->execute("sudo chmod 644 {$remoteDir}/*.conf 2>/dev/null || true");
 
@@ -252,54 +279,7 @@ class UpdateAgentJob implements ShouldQueue
         Log::info("✅ [VPS #{$vps->id}] Agent installed from Redis successfully");
     }
 
-    private function sendUpdateAgentCommand(VpsServer $vps): void
-    {
-        Log::info("📤 [VPS #{$vps->id}] Sending UPDATE_AGENT command to agent");
-
-        try {
-            // Send UPDATE_AGENT command via Redis
-            $commandData = [
-                'command' => 'UPDATE_AGENT',
-                'vps_id' => $vps->id,
-                'version' => 'latest',
-                'timestamp' => now()->timestamp,
-                'command_id' => uniqid('update_agent_', true)
-            ];
-
-            $redisKey = "agent_commands:{$vps->id}";
-
-            // Push command to Redis list
-            Redis::lpush($redisKey, json_encode($commandData));
-
-            Log::info("✅ [VPS #{$vps->id}] UPDATE_AGENT command sent via Redis");
-
-            // Wait for agent to process (with timeout)
-            $maxWaitTime = 300; // 5 minutes
-            $startTime = time();
-
-            while ((time() - $startTime) < $maxWaitTime) {
-                // Check if agent is still responding
-                $lastHeartbeat = $vps->last_heartbeat;
-                if ($lastHeartbeat && $lastHeartbeat->diffInMinutes(now()) > 2) {
-                    Log::warning("⚠️ [VPS #{$vps->id}] Agent not responding during update");
-                    break;
-                }
-
-                // Check if restart flag was created (indicates update in progress)
-                sleep(5);
-
-                // Agent will restart itself, so we consider it successful
-                // if command was sent without Redis errors
-                break;
-            }
-
-            Log::info("✅ [VPS #{$vps->id}] Agent update command completed");
-
-        } catch (\Exception $e) {
-            Log::error("❌ [VPS #{$vps->id}] Failed to send UPDATE_AGENT command: {$e->getMessage()}");
-            throw $e;
-        }
-    }
+    // Removed sendUpdateAgentCommand - using pure SSH approach for reliability
 
     private function createRedisDownloadScript(VpsServer $vps): string
     {
@@ -419,6 +399,66 @@ PYTHON;
         throw new \Exception('Redis Agent không khởi động được sau ' . ($maxRetries * $retryDelay) . ' giây. Kiểm tra log trên VPS.');
     }
 
+    private function verifyAgentCompatibility(SshService $sshService, VpsServer $vps): void
+    {
+        Log::info("🔍 [VPS #{$vps->id}] Kiểm tra tương thích Redis Agent v3.0");
+
+        try {
+            // Check if agent files exist
+            $requiredFiles = [
+                'agent.py',
+                'command_handler.py',
+                'config.py',
+                'status_reporter.py',
+                'stream_manager.py',
+                'process_manager.py',
+                'file_manager.py',
+                'utils.py'
+            ];
+
+            $missingFiles = [];
+            foreach ($requiredFiles as $file) {
+                $checkFile = $sshService->execute("test -f /opt/ezstream-agent/{$file} && echo 'exists'");
+                if (trim($checkFile) !== 'exists') {
+                    $missingFiles[] = $file;
+                }
+            }
+
+            if (!empty($missingFiles)) {
+                throw new \Exception('Thiếu các file agent: ' . implode(', ', $missingFiles));
+            }
+
+            // Test agent version/compatibility by checking imports
+            $testImports = $sshService->execute("cd /opt/ezstream-agent && python3 -c 'import config, command_handler, status_reporter; print(\"OK\")'");
+
+            if (strpos($testImports, 'OK') === false) {
+                throw new \Exception('Agent modules không import được: ' . $testImports);
+            }
+
+            // Wait for agent to report to Redis (up to 30 seconds)
+            $maxWait = 30;
+            $startTime = time();
+
+            while ((time() - $startTime) < $maxWait) {
+                $agentState = Redis::get("agent_state:{$vps->id}");
+                if ($agentState) {
+                    $stateData = json_decode($agentState, true);
+                    if (isset($stateData['last_heartbeat'])) {
+                        Log::info("✅ [VPS #{$vps->id}] Agent v3.0 đang báo cáo heartbeat bình thường");
+                        return;
+                    }
+                }
+                sleep(2);
+            }
+
+            Log::warning("⚠️ [VPS #{$vps->id}] Agent chưa báo cáo heartbeat sau {$maxWait}s, nhưng service đang chạy");
+
+        } catch (\Exception $e) {
+            Log::error("❌ [VPS #{$vps->id}] Agent compatibility check failed: {$e->getMessage()}");
+            throw new \Exception('Agent v3.0 compatibility check failed: ' . $e->getMessage());
+        }
+    }
+
     private function rollbackAgent(SshService $sshService, VpsServer $vps): void
     {
         try {
@@ -457,7 +497,7 @@ PYTHON;
         $command = "{$pythonCmd} {$agentPath} {$commandArgs}";
 
         return "[Unit]
-Description=EZStream Redis Agent v3.0
+Description=EZStream Redis Agent v3.0 - Modular Architecture
 After=network.target nginx.service
 Requires=nginx.service
 
@@ -472,6 +512,10 @@ StandardOutput=journal
 StandardError=journal
 Environment=PYTHONPATH=/opt/ezstream-agent
 Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target";
@@ -517,6 +561,43 @@ WantedBy=multi-user.target";
 
         } catch (\Exception $e) {
             Log::error("❌ Failed to reset VPS status in failed() method: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * Set update progress in Redis for real-time UI updates
+     */
+    private function setUpdateProgress(int $vpsId, string $stage, int $progressPercentage, string $message): void
+    {
+        try {
+            $progressData = [
+                'vps_id' => $vpsId,
+                'stage' => $stage,
+                'progress_percentage' => max(0, min(100, $progressPercentage)),
+                'message' => $message,
+                'updated_at' => now()->toISOString(),
+                'completed_at' => $progressPercentage >= 100 ? now()->toISOString() : null
+            ];
+
+            // Store in Redis with TTL (30 minutes)
+            $key = "vps_update_progress:{$vpsId}";
+            Redis::setex($key, 1800, json_encode($progressData));
+
+            // Also update VPS status_message for immediate feedback
+            $vps = VpsServer::find($vpsId);
+            if ($vps) {
+                $vps->update(['status_message' => $message]);
+            }
+
+            Log::debug("VPS update progress set", [
+                'vps_id' => $vpsId,
+                'stage' => $stage,
+                'progress' => $progressPercentage,
+                'message' => $message
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("Failed to set update progress: {$e->getMessage()}");
         }
     }
 }

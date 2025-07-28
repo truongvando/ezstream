@@ -140,9 +140,9 @@ class SyncStreamStatusJob implements ShouldQueue
                 now()->diffInMinutes($stream->last_status_update) :
                 now()->diffInMinutes($stream->created_at);
 
-            // If no heartbeat for more than 3 minutes, mark as ERROR (heartbeat every 10s)
-            // Increased from 1 to 3 minutes to handle Laravel restart gracefully
-            if ($minutesSinceUpdate > 3) {
+            // If no heartbeat for more than 1 minute, mark as ERROR (heartbeat every 5s)
+            // Reduced from 3 to 1 minute for faster detection with 5s heartbeat
+            if ($minutesSinceUpdate > 1) {
                 Log::warning("⚠️ [SyncStreamStatus] Stream #{$stream->id} no heartbeat for {$minutesSinceUpdate} minutes");
 
                 $stream->update([

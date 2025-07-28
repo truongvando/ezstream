@@ -9,6 +9,7 @@ use App\Jobs\ProvisionMultistreamVpsJob;
 use App\Jobs\UpdateAgentJob;
 use App\Services\SshService;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Redis;
 
 class VpsServerManager extends Component
 {
@@ -49,31 +50,68 @@ class VpsServerManager extends Component
         'description' => 'nullable|string',
     ];
 
+    /**
+     * Get update progress for a VPS
+     */
+    public function getUpdateProgress($vpsId)
+    {
+        try {
+            $key = "vps_update_progress:{$vpsId}";
+            $progressJson = Redis::get($key);
+
+            if ($progressJson) {
+                return json_decode($progressJson, true);
+            }
+
+            return null;
+
+        } catch (\Exception $e) {
+            Log::error("Failed to get update progress for VPS {$vpsId}: {$e->getMessage()}");
+            return null;
+        }
+    }
+
+    /**
+     * Public method for polling - Livewire requires this
+     */
+    public function refreshData()
+    {
+        // This method is called by wire:poll
+        // The render method will be called automatically after this
+    }
+
     public function render()
     {
         // Fixed ambiguous column query
         $servers = VpsServer::select([
-                'vps_servers.id', 
-                'vps_servers.name', 
-                'vps_servers.ip_address', 
-                'vps_servers.ssh_user', 
-                'vps_servers.ssh_port', 
-                'vps_servers.is_active', 
-                'vps_servers.status', 
-                'vps_servers.description', 
+                'vps_servers.id',
+                'vps_servers.name',
+                'vps_servers.ip_address',
+                'vps_servers.ssh_user',
+                'vps_servers.ssh_port',
+                'vps_servers.is_active',
+                'vps_servers.status',
+                'vps_servers.status_message',
+                'vps_servers.description',
                 'vps_servers.created_at'
             ])
             ->with(['latestStat' => function($query) {
                 $query->select([
-                    'vps_stats.vps_server_id', 
-                    'vps_stats.cpu_usage_percent', 
-                    'vps_stats.ram_usage_percent', 
-                    'vps_stats.disk_usage_percent', 
+                    'vps_stats.vps_server_id',
+                    'vps_stats.cpu_usage_percent',
+                    'vps_stats.ram_usage_percent',
+                    'vps_stats.disk_usage_percent',
                     'vps_stats.created_at'
                 ]);
             }])
             ->orderBy('vps_servers.created_at', 'desc')
             ->paginate(10);
+
+        // Add update progress to each server
+        $servers->getCollection()->transform(function ($server) {
+            $server->update_progress = $this->getUpdateProgress($server->id);
+            return $server;
+        });
 
         return view('livewire.vps-server-manager', [
             'servers' => $servers
@@ -169,26 +207,26 @@ class VpsServerManager extends Component
     {
         try {
             $server = VpsServer::findOrFail($serverId);
-            
+
             // Cập nhật trạng thái VPS
             $server->update([
                 'status' => 'UPDATING',
                 'status_message' => 'Đang cập nhật Redis Agent...'
             ]);
-            
+
             // Dispatch job cập nhật agent
-            UpdateAgentJob::dispatch($serverId)->onQueue('vps-provisioning');
-            
-            session()->flash('message', "Đang cập nhật Redis Agent cho VPS {$server->name}. Quá trình sẽ mất 2-3 phút.");
-            
+            UpdateAgentJob::dispatch($serverId);
+
+            session()->flash('message', "Đang cập nhật Redis Agent cho VPS {$server->name}. Theo dõi tiến trình trong cột Provision Status.");
+
             Log::info("UpdateAgentJob dispatched for VPS ID: {$serverId}");
-            
+
         } catch (\Exception $e) {
             Log::error('VPS agent update error: ' . $e->getMessage(), [
                 'vps_id' => $serverId,
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             session()->flash('error', 'Không thể cập nhật agent: ' . $e->getMessage());
         }
     }

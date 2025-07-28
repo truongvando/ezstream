@@ -62,7 +62,8 @@
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Hành động</th>
                     </tr>
                 </thead>
-                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700" wire:poll.10s>
+                <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"
+                       wire:poll.1s="refreshData">
                     @forelse($servers as $server)
                         <tr>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
@@ -72,23 +73,54 @@
                                 {{ $server->ip_address }}
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                                    @switch(strtoupper($server->status))
-                                        @case('ACTIVE') bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 @break
-                                        @case('PROVISIONING') bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 @break
-                                        @case('PROVISION_FAILED') bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 @break
-                                        @case('FAILED') bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 @break
-                                        @case('UPDATING') bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 @break
-                                        @default bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200
-                                    @endswitch
-                                ">
-                                    {{ $server->status }}
-                                </span>
-                                @if(strtoupper($server->status) === 'PROVISIONING')
-                                    <svg class="animate-spin h-4 w-4 text-gray-500 inline-block ml-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
+                                @if(strtoupper($server->status) === 'UPDATING' && $server->update_progress)
+                                    {{-- Show update progress --}}
+                                    <div class="w-full">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <span class="text-xs font-medium text-blue-700 dark:text-blue-300">
+                                                UPDATING
+                                            </span>
+                                            <span class="text-xs text-gray-500 dark:text-gray-400">
+                                                {{ $server->update_progress['progress_percentage'] }}%
+                                            </span>
+                                        </div>
+                                        <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                                            @php
+                                                $progressColor = 'bg-blue-600';
+                                                if ($server->update_progress['stage'] === 'error') {
+                                                    $progressColor = 'bg-red-600';
+                                                } elseif ($server->update_progress['progress_percentage'] >= 100) {
+                                                    $progressColor = 'bg-green-600';
+                                                }
+                                            @endphp
+                                            <div class="{{ $progressColor }} h-2 rounded-full transition-all duration-500"
+                                                 style="width: {{ $server->update_progress['progress_percentage'] }}%">
+                                            </div>
+                                        </div>
+                                        <div class="text-xs text-gray-600 dark:text-gray-400 mt-1 truncate" title="{{ $server->update_progress['message'] }}">
+                                            {{ $server->update_progress['message'] }}
+                                        </div>
+                                    </div>
+                                @else
+                                    {{-- Show normal status --}}
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
+                                        @switch(strtoupper($server->status))
+                                            @case('ACTIVE') bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 @break
+                                            @case('PROVISIONING') bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 @break
+                                            @case('PROVISION_FAILED') bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 @break
+                                            @case('FAILED') bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 @break
+                                            @case('UPDATING') bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 @break
+                                            @default bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200
+                                        @endswitch
+                                    ">
+                                        {{ $server->status }}
+                                    </span>
+                                    @if(strtoupper($server->status) === 'PROVISIONING' || strtoupper($server->status) === 'UPDATING')
+                                        <svg class="animate-spin h-4 w-4 text-gray-500 inline-block ml-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    @endif
                                 @endif
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">

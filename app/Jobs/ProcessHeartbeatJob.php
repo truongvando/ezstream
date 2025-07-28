@@ -52,7 +52,7 @@ class ProcessHeartbeatJob implements ShouldQueue
             $vpsUpdateData = [
                 'last_heartbeat_at' => now(),
                 'current_streams' => count($this->activeStreams),
-                'status' => 'active'
+                'status' => 'ACTIVE'
             ];
 
             VpsServer::where('id', $this->vpsId)->update($vpsUpdateData);
