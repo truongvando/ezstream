@@ -836,10 +836,24 @@ echo ""
 echo -e "${PURPLE}🏥 Final Health Check:${NC}"
 
 # Check web server
+WEB_STATUS="❌"
 if curl -f -s -o /dev/null http://localhost >/dev/null 2>&1; then
-    echo -e "  ✅ Web server: Responding"
+    WEB_STATUS="✅"
+    echo -e "  ✅ Web server: Responding on localhost"
+elif curl -f -s -o /dev/null https://localhost >/dev/null 2>&1; then
+    WEB_STATUS="✅"
+    echo -e "  ✅ Web server: Responding on HTTPS localhost"
+elif curl -f -s -o /dev/null https://ezstream.pro >/dev/null 2>&1; then
+    WEB_STATUS="✅"
+    echo -e "  ✅ Web server: Responding on ezstream.pro"
 else
-    echo -e "  ⚠️ Web server: Not responding on localhost"
+    echo -e "  ⚠️ Web server: Not responding (localhost/ezstream.pro)"
+    # Check if nginx is running
+    if systemctl is-active --quiet nginx; then
+        echo -e "      (Nginx is running, but not accessible via HTTP/HTTPS)"
+    else
+        echo -e "      (Nginx service is not running)"
+    fi
 fi
 
 # Check database
@@ -850,15 +864,56 @@ else
 fi
 
 # Check Redis
-if php artisan tinker --execute="try { \Redis::ping(); echo 'OK'; } catch(Exception \$e) { echo 'FAIL'; }" 2>/dev/null | grep -q "OK"; then
+if php artisan tinker --execute="try { \Illuminate\Support\Facades\Redis::ping(); echo 'OK'; } catch(Exception \$e) { echo 'FAIL: ' . \$e->getMessage(); }" 2>/dev/null | grep -q "OK"; then
     echo -e "  ✅ Redis: Connected"
 else
     echo -e "  ❌ Redis: Connection failed"
+    # Try alternative Redis check
+    if redis-cli ping >/dev/null 2>&1; then
+        echo -e "      (Redis service is running, but Laravel connection failed)"
+    else
+        echo -e "      (Redis service is not running)"
+    fi
 fi
 
 # Check queue
 QUEUE_SIZE=$(php artisan queue:monitor 2>/dev/null | grep -o '[0-9]\+' | head -1 || echo "0")
 echo -e "  ✅ Queue: $QUEUE_SIZE jobs pending"
+
+# Check essential services
+echo -e "  📋 Essential Services:"
+if systemctl is-active --quiet nginx; then
+    echo -e "    ✅ Nginx: Running"
+else
+    echo -e "    ❌ Nginx: Not running"
+fi
+
+if systemctl is-active --quiet php8.2-fpm; then
+    echo -e "    ✅ PHP-FPM: Running"
+else
+    echo -e "    ❌ PHP-FPM: Not running"
+fi
+
+if systemctl is-active --quiet redis-server; then
+    echo -e "    ✅ Redis: Running"
+else
+    echo -e "    ❌ Redis: Not running"
+fi
+
+if systemctl is-active --quiet mysql; then
+    echo -e "    ✅ MySQL: Running"
+else
+    echo -e "    ❌ MySQL: Not running"
+fi
+
+# Check Supervisor processes
+if supervisorctl status | grep -q ezstream; then
+    RUNNING_COUNT=$(supervisorctl status | grep ezstream | grep -c RUNNING)
+    TOTAL_COUNT=$(supervisorctl status | grep ezstream | wc -l)
+    echo -e "    ✅ Supervisor: $RUNNING_COUNT/$TOTAL_COUNT ezstream processes running"
+else
+    echo -e "    ⚠️ Supervisor: No ezstream processes configured"
+fi
 
 echo ""
 echo -e "${GREEN}🌟 EZSTREAM is now running the latest version! 🌟${NC}"
