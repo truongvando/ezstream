@@ -75,9 +75,13 @@ class StreamStatusListener extends Command
             case 'STATUS_UPDATE':
                 $this->handleStatusUpdate($data);
                 break;
+            case 'RESTART_REQUEST':
+                $this->handleRestartRequest($data);
+                break;
             case 'HEARTBEAT':
                 $this->handleHeartbeat($data);
                 break;
+
             default:
                 $this->warn("   - Unhandled report type: '{$type}'");
                 break;
@@ -107,6 +111,28 @@ class StreamStatusListener extends Command
     }
 
     /**
+     * Xử lý restart request từ Agent
+     */
+    private function handleRestartRequest(array $data): void
+    {
+        $streamId = $data['stream_id'] ?? null;
+        $vpsId = $data['vps_id'] ?? null;
+        $reason = $data['reason'] ?? 'Unknown reason';
+        $crashCount = $data['crash_count'] ?? 1;
+        $errorType = $data['error_type'] ?? null;
+        $lastError = $data['last_error'] ?? null;
+
+        $this->warn("   -> 🔄 RESTART_REQUEST: Stream #{$streamId} crashed #{$crashCount} times - {$reason}");
+
+        if ($errorType) {
+            $this->line("      Error type: {$errorType}");
+        }
+
+        // Dispatch job để xử lý restart request
+        \App\Jobs\ProcessRestartRequestJob::dispatch($streamId, $vpsId, $reason, $crashCount, $errorType, $lastError);
+    }
+
+    /**
      * Xử lý báo cáo heartbeat.
      */
     private function handleHeartbeat(array $data): void
@@ -131,6 +157,8 @@ class StreamStatusListener extends Command
         // Dispatch job để xử lý heartbeat (tránh Redis commands trong subscription context)
         \App\Jobs\ProcessHeartbeatJob::dispatch($vpsId, $activeStreams, $isReAnnounce);
     }
+
+
 
     // --- REMOVED: All DB operations moved to jobs to avoid Redis subscription context issues ---
 }

@@ -18,6 +18,7 @@ from utils import PerformanceTimer, kill_process_tree
 from status_reporter import get_status_reporter
 
 
+
 @dataclass
 class ProcessInfo:
     """Information about a running FFmpeg process"""
@@ -35,18 +36,22 @@ class ProcessManager:
     def __init__(self):
         self.config = get_config()
         self.status_reporter = get_status_reporter()
-        
+
         # Process tracking
         self.processes: Dict[int, ProcessInfo] = {}
         self.process_lock = threading.RLock()
-        
+
         # Thread pool for process monitoring
         self.monitor_executor = ThreadPoolExecutor(
             max_workers=self.config.monitor_thread_pool_size,
             thread_name_prefix="ProcessMonitor"
         )
-        
-        logging.info(f"🔧 Process manager initialized (max monitors: {self.config.monitor_thread_pool_size})")
+
+        # Enhanced error tracking
+        self.process_errors: Dict[int, List[str]] = {}
+        self.restart_attempts: Dict[int, int] = {}
+
+        logging.info(f"🔧 Enhanced Process manager initialized (max monitors: {self.config.monitor_thread_pool_size})")
     
     def start_ffmpeg(self, stream_id: int, input_path: str, stream_config: Dict[str, Any], 
                      rtmp_endpoint: Optional[str] = None) -> bool:
@@ -57,19 +62,23 @@ class ProcessManager:
                 if stream_id in self.processes:
                     logging.warning(f"Stream {stream_id} already has a running process")
                     return False
-                
+
+                # Quick file validation
+                if not self._validate_video_file(input_path, stream_id):
+                    return False
+
                 # Use default endpoint if not provided
                 if rtmp_endpoint is None:
                     rtmp_endpoint = self.config.get_rtmp_endpoint(stream_id)
                 
                 with PerformanceTimer(f"FFmpeg Start (Stream {stream_id})"):
-                    # Build FFmpeg command
+                    # Build optimized FFmpeg command
                     ffmpeg_cmd = self._build_ffmpeg_command(input_path, rtmp_endpoint)
-                    
-                    logging.info(f"🎬 Starting FFmpeg for stream {stream_id}")
+
+                    logging.info(f"🎬 Starting FFmpeg for stream {stream_id} (copy mode)")
                     logging.debug(f"Command: {' '.join(ffmpeg_cmd)}")
-                    
-                    # Start process with stdin pipe for graceful shutdown
+
+                    # Start process with optimized settings
                     process = subprocess.Popen(
                         ffmpeg_cmd,
                         stdout=subprocess.DEVNULL,
@@ -95,52 +104,101 @@ class ProcessManager:
                     
                     # Store process info
                     self.processes[stream_id] = process_info
-                    
-                    logging.info(f"✅ FFmpeg started for stream {stream_id} (PID: {process.pid}) → {rtmp_endpoint}")
+
+                    # Report success to Laravel via status reporter
+                    if self.status_reporter:
+                        self.status_reporter.publish_stream_status(
+                            stream_id, 'STREAMING', f'FFmpeg started successfully (PID: {process.pid})'
+                        )
+
+                    # Reset error tracking
+                    self.process_errors.pop(stream_id, None)
+                    self.restart_attempts.pop(stream_id, None)
+
+                    logging.info(f"✅ Enhanced FFmpeg started for stream {stream_id} (PID: {process.pid}) → {rtmp_endpoint}")
                     return True
                     
         except Exception as e:
-            logging.error(f"❌ Failed to start FFmpeg for stream {stream_id}: {e}")
+            logging.error(f"❌ Failed to start enhanced FFmpeg for stream {stream_id}: {e}")
+
+            # Track error
+            if stream_id not in self.process_errors:
+                self.process_errors[stream_id] = []
+            self.process_errors[stream_id].append(str(e))
+
+            # Report failure to Laravel via status reporter
+
             if self.status_reporter:
                 self.status_reporter.publish_stream_status(
-                    stream_id, 'ERROR', f'Failed to start FFmpeg: {str(e)}'
+                    stream_id, 'ERROR', f'Failed to start enhanced FFmpeg: {str(e)}'
                 )
             return False
     
     def stop_ffmpeg(self, stream_id: int, reason: str = "manual") -> bool:
-        """Stop FFmpeg process gracefully"""
+        """Enhanced FFmpeg process stop with state machine integration"""
         try:
             with self.process_lock:
                 if stream_id not in self.processes:
                     logging.warning(f"No FFmpeg process found for stream {stream_id}")
+
+                    # Report that stream is already stopped
+                    if self.status_reporter:
+                        self.status_reporter.publish_stream_status(
+                            stream_id, 'STOPPED', f'No process found - {reason}'
+                        )
+
                     return True
 
                 process_info = self.processes[stream_id]
 
+                # Report stopping status
+                if self.status_reporter:
+                    self.status_reporter.publish_stream_status(
+                        stream_id, 'STOPPING', f'Stopping FFmpeg process (PID: {process_info.process.pid})'
+                    )
+
                 # CRITICAL: Mark this process as being manually stopped
                 # This prevents the monitor from treating SIGTERM exit as a crash
                 process_info.is_manual_stop = True
-                logging.info(f"🛑 Marked stream {stream_id} for manual stop (reason: {reason})")
-                
-                with PerformanceTimer(f"FFmpeg Stop (Stream {stream_id})"):
-                    success = self._graceful_shutdown(process_info)
-                    
+                logging.info(f"🛑 Enhanced stop for stream {stream_id} (reason: {reason})")
+
+                with PerformanceTimer(f"Enhanced FFmpeg Stop (Stream {stream_id})"):
+                    success = self._enhanced_graceful_shutdown(process_info, reason)
+
                     # Remove from tracking
                     del self.processes[stream_id]
-                    
+
+                    # Report final status
+                    if self.status_reporter:
+                        if success:
+                            self.status_reporter.publish_stream_status(
+                                stream_id, 'STOPPED', f'FFmpeg stopped successfully - {reason}'
+                            )
+                        else:
+                            self.status_reporter.publish_stream_status(
+                                stream_id, 'ERROR', f'Failed to stop FFmpeg - {reason}'
+                            )
+
                     if success:
-                        logging.info(f"✅ FFmpeg stopped for stream {stream_id} (reason: {reason})")
+                        logging.info(f"✅ Enhanced FFmpeg stopped for stream {stream_id} (reason: {reason})")
                         if self.status_reporter and reason in ["manual", "command"]:
                             self.status_reporter.publish_stream_status(
                                 stream_id, 'STOPPED', 'Stream stopped by user'
                             )
                     else:
-                        logging.error(f"❌ Failed to stop FFmpeg for stream {stream_id}")
-                    
+                        logging.error(f"❌ Failed to stop enhanced FFmpeg for stream {stream_id}")
+
                     return success
-                    
+
         except Exception as e:
-            logging.error(f"❌ Error stopping FFmpeg for stream {stream_id}: {e}")
+            logging.error(f"❌ Error stopping enhanced FFmpeg for stream {stream_id}: {e}")
+
+            # Report error
+            if self.status_reporter:
+                self.status_reporter.publish_stream_status(
+                    stream_id, 'ERROR', f'Error stopping FFmpeg: {str(e)}'
+                )
+
             return False
     
     def restart_ffmpeg(self, stream_id: int, new_input_path: str, new_config: Dict[str, Any]) -> bool:
@@ -176,57 +234,173 @@ class ProcessManager:
                 if info.process.poll() is None
             ]
     
+    def _enhanced_graceful_shutdown(self, process_info: ProcessInfo, reason: str) -> bool:
+        """Enhanced graceful shutdown with better error handling"""
+        try:
+            process = process_info.process
+            stream_id = process_info.stream_id
+
+            if not process or process.poll() is not None:
+                logging.info(f"Stream {stream_id}: Process already terminated")
+                return True
+
+            old_pid = process.pid
+            logging.info(f"Stream {stream_id}: Enhanced graceful shutdown (PID: {old_pid}, reason: {reason})")
+
+            # Try graceful shutdown via stdin 'q' command first
+            try:
+                if process.stdin and not process.stdin.closed:
+                    process.stdin.write(b'q\n')
+                    process.stdin.flush()
+                    logging.info(f"Stream {stream_id}: Sent 'q' command to FFmpeg stdin")
+
+                    try:
+                        process.wait(timeout=3)
+                        logging.info(f"Stream {stream_id}: FFmpeg stopped gracefully via 'q' command")
+                        return True
+                    except subprocess.TimeoutExpired:
+                        logging.info(f"Stream {stream_id}: 'q' command timeout, trying SIGINT")
+
+            except (BrokenPipeError, OSError, ValueError) as e:
+                logging.info(f"Stream {stream_id}: Cannot use stdin method ({e}), trying SIGINT")
+
+            # Fallback to SIGINT
+            import signal
+            import os
+            try:
+                os.kill(process.pid, signal.SIGINT)
+
+                try:
+                    process.wait(timeout=self.config.graceful_shutdown_timeout)
+                    logging.info(f"Stream {stream_id}: FFmpeg stopped gracefully via SIGINT (PID: {old_pid})")
+
+                except subprocess.TimeoutExpired:
+                    logging.warning(f"Stream {stream_id}: FFmpeg didn't stop gracefully, force killing (PID: {old_pid})")
+
+                    if kill_process_tree(old_pid, timeout=self.config.force_kill_timeout):
+                        logging.info(f"Stream {stream_id}: FFmpeg force killed (PID: {old_pid})")
+                    else:
+                        logging.error(f"Stream {stream_id}: Failed to kill FFmpeg process (PID: {old_pid})")
+                        return False
+
+            except ProcessLookupError:
+                logging.info(f"Stream {stream_id}: Process already terminated")
+            except Exception as e:
+                logging.error(f"Stream {stream_id}: Error during signal handling: {e}")
+                return False
+
+            # Cancel monitoring future
+            if process_info.monitor_future:
+                process_info.monitor_future.cancel()
+
+            return True
+
+        except Exception as e:
+            logging.error(f"Error during enhanced graceful shutdown of stream {process_info.stream_id}: {e}")
+            return False
+
     def stop_all(self):
-        """Stop all FFmpeg processes"""
-        logging.info("🛑 Stopping all FFmpeg processes...")
-        
+        """Enhanced stop all FFmpeg processes"""
+        logging.info("🛑 Enhanced shutdown: stopping all FFmpeg processes...")
+
         with self.process_lock:
             stream_ids = list(self.processes.keys())
-        
+
+        logging.info(f"🛑 Stopping {len(stream_ids)} processes")
+
         for stream_id in stream_ids:
-            self.stop_ffmpeg(stream_id, "shutdown")
-        
-        # Shutdown monitor executor
-        self.monitor_executor.shutdown(wait=True)
-        logging.info("✅ All FFmpeg processes stopped")
+            try:
+                self.stop_ffmpeg(stream_id, "shutdown")
+            except Exception as e:
+                logging.error(f"❌ Error stopping stream {stream_id} during shutdown: {e}")
+
+        # Shutdown monitor executor safely
+        try:
+            self.monitor_executor.shutdown(wait=True, timeout=30)
+            logging.info("✅ Enhanced process manager stopped")
+        except Exception as e:
+            logging.error(f"❌ Error shutting down monitor executor: {e}")
     
     def _build_ffmpeg_command(self, input_path: str, rtmp_endpoint: str) -> List[str]:
-        """Build simple FFmpeg command - keep it simple for 99.9% uptime"""
+        """Build optimized FFmpeg command - copy mode only for VPS performance"""
 
-        # Base command
-        base_cmd = [
+        # Optimized copy command based on community best practices
+        cmd = [
             'ffmpeg',
             '-hide_banner',
             '-loglevel', 'error',
             '-re',  # Realtime playback
+            '-stream_loop', '-1',  # Loop infinitely
+            '-i', input_path,
+            '-c', 'copy',  # Copy streams (no re-encoding)
+            '-f', 'flv',
+            '-flvflags', 'no_duration_filesize',  # Better RTMP compatibility
+            '-avoid_negative_ts', 'make_zero',  # Fix timestamp issues
+            '-fflags', '+genpts',  # Generate presentation timestamps
+            rtmp_endpoint
         ]
 
-        # Handle input types
-        if input_path.startswith('concat:'):
-            # Playlist with infinite loop
-            playlist_file = input_path.replace('concat:', '')
-            cmd = base_cmd + [
-                '-f', 'concat',
-                '-safe', '0',
+        # Handle playlist files with optimized concat demuxer
+        if input_path.startswith('concat:') or input_path.endswith('.txt'):
+            # For playlist files, use concat demuxer with optimizations
+            if input_path.startswith('concat:'):
+                playlist_file = input_path.replace('concat:', '')
+            else:
+                playlist_file = input_path
+
+            # Build optimized playlist command
+            cmd = [
+                'ffmpeg',
+                '-hide_banner',
+                '-loglevel', 'error',
+                '-re',  # Realtime playback
+                '-f', 'concat',  # Use concat demuxer
+                '-safe', '0',    # Allow unsafe file paths
                 '-stream_loop', '-1',  # Loop playlist infinitely
                 '-i', playlist_file,
+                '-c', 'copy',    # Copy streams
+                '-f', 'flv',
+                '-flvflags', 'no_duration_filesize',
+                '-avoid_negative_ts', 'make_zero',
+                '-fflags', '+genpts',
+                rtmp_endpoint
             ]
-        else:
-            # Single file with infinite loop
-            cmd = base_cmd + [
-                '-stream_loop', '-1',  # Loop file infinitely
-                '-i', input_path,
-            ]
-
-        # Simple output to local Nginx RTMP
-        cmd.extend([
-            '-c', 'copy',  # Copy codecs (fastest, most stable)
-            '-f', 'flv',
-            rtmp_endpoint
-        ])
 
         return cmd
-    
+
+
+
+    def _validate_video_file(self, input_path: str, stream_id: int) -> bool:
+        """Quick validation of video file for RTMP streaming"""
+        try:
+            # Quick file existence and size check
+            if not os.path.exists(input_path):
+                logging.error(f"Stream {stream_id}: File not found: {input_path}")
+                return False
+
+            file_size = os.path.getsize(input_path)
+            if file_size < 1024:  # Less than 1KB
+                logging.error(f"Stream {stream_id}: File too small: {input_path}")
+                return False
+
+            # Quick ffprobe check (timeout 5s)
+            cmd = ['ffprobe', '-v', 'quiet', '-show_format', input_path]
+            result = subprocess.run(cmd, capture_output=True, timeout=5)
+
+            if result.returncode != 0:
+                logging.warning(f"Stream {stream_id}: ffprobe failed for {input_path}")
+                return False
+
+            logging.info(f"Stream {stream_id}: File validation passed for {input_path}")
+            return True
+
+        except subprocess.TimeoutExpired:
+            logging.warning(f"Stream {stream_id}: ffprobe timeout for {input_path}")
+            return False
+        except Exception as e:
+            logging.warning(f"Stream {stream_id}: Validation error for {input_path}: {e}")
+            return False
+
     def _graceful_shutdown(self, process_info: ProcessInfo) -> bool:
         """Gracefully shutdown FFmpeg process"""
         try:
@@ -256,7 +430,8 @@ class ProcessManager:
                     except subprocess.TimeoutExpired:
                         logging.info(f"Stream {stream_id}: 'q' command timeout, trying SIGINT")
 
-            except (BrokenPipeError, OSError) as e:
+            except (BrokenPipeError, OSError, ValueError) as e:
+                # ValueError can occur if stdin is closed during shutdown
                 logging.info(f"Stream {stream_id}: Cannot use stdin method ({e}), trying SIGINT")
 
             # Fallback to SIGINT (better than SIGTERM for FFmpeg)
@@ -311,28 +486,40 @@ class ProcessManager:
                         stream_id, 'STOPPED', 'Stream stopped by user'
                     )
                 return
-            elif termination_reason == "crash" and self._should_auto_restart(stream_id):
-                logging.warning(f"Stream {stream_id} crashed (code: {return_code}), attempting auto-restart...")
-
-                # Small delay to avoid race condition with stop command
-                time.sleep(1)
-
-                # Re-check if stream should still be restarted after delay
-                if self._should_auto_restart(stream_id):
-                    if self._attempt_auto_restart(stream_id, process_info):
-                        return  # Successfully restarted
-                else:
-                    logging.info(f"Stream {stream_id} no longer needs restart after delay check")
-                    return
-                # If restart failed, continue to error handling
             elif termination_reason == "crash":
-                # Max restarts exceeded - notify Laravel
-                logging.error(f"Stream {stream_id} crashed and max restart attempts exceeded")
-                if self.status_reporter:
-                    self.status_reporter.publish_stream_status(
-                        stream_id, 'ERROR',
-                        'FFmpeg crashed multiple times. Auto-restart disabled. Manual intervention required.'
-                    )
+                # Analyze error type first
+                error_message = self._analyze_ffmpeg_error(stderr.decode('utf-8') if stderr else '', return_code)
+                error_type = None
+                if error_message:
+                    # Extract error type from error message
+                    if 'FILE_NOT_FOUND' in error_message:
+                        error_type = 'FILE_NOT_FOUND'
+                    elif 'PERMISSION_ERROR' in error_message:
+                        error_type = 'PERMISSION_ERROR'
+                    elif 'NGINX_DOWN' in error_message:
+                        error_type = 'NGINX_DOWN'
+                    elif 'CORRUPTED_FILE' in error_message:
+                        error_type = 'CORRUPTED_FILE'
+                    elif 'OUT_OF_MEMORY' in error_message:
+                        error_type = 'OUT_OF_MEMORY'
+                    elif 'TIMEOUT' in error_message:
+                        error_type = 'TIMEOUT'
+                    else:
+                        error_type = 'UNKNOWN_ERROR'
+
+                # Request restart decision from Laravel instead of auto-restart
+                logging.warning(f"Stream {stream_id} crashed (code: {return_code}, error: {error_type}), requesting restart decision from Laravel...")
+
+                # Get stderr for detailed error info
+                stderr_text = stderr.decode('utf-8') if stderr else None
+
+                # Send restart request to Laravel
+                self._request_restart_decision(
+                    stream_id=stream_id,
+                    error_type=error_type,
+                    exit_code=return_code,
+                    stderr=stderr_text
+                )
             
             # Analyze FFmpeg error and provide user-friendly message
             error_message = self._analyze_ffmpeg_error(stderr.decode('utf-8') if stderr else '', return_code)
@@ -380,103 +567,81 @@ class ProcessManager:
 
         return "normal_exit"
 
-    def _should_auto_restart(self, stream_id: int) -> bool:
-        """Simple restart check with stream state validation"""
+    def _request_restart_decision(self, stream_id: int, error_type: str = None, exit_code: int = None, stderr: str = None) -> None:
+        """Request Laravel to decide whether to restart stream"""
         from stream_manager import get_stream_manager
         stream_manager = get_stream_manager()
 
         if not stream_manager or stream_id not in stream_manager.streams:
-            logging.info(f"Stream {stream_id} not in stream manager, no restart needed")
-            return False
+            logging.info(f"Stream {stream_id} not in stream manager, no restart request needed")
+            return
 
         stream_info = stream_manager.streams[stream_id]
+        crash_count = getattr(stream_info, 'crash_count', 0) + 1
 
-        # CRITICAL: Check if stream is being stopped - don't restart if stopping
-        from stream_manager import StreamState
-        if hasattr(stream_info, 'state') and stream_info.state == StreamState.STOPPING:
-            logging.info(f"Stream {stream_id} is in STOPPING state, skipping auto-restart")
-            return False
+        # Update crash count
+        stream_info.crash_count = crash_count
 
-        restart_count = getattr(stream_info, 'restart_count', 0)
-
-        # Auto-restart up to 5 times (FFmpeg crashes are usually temporary)
-        return restart_count < 5
-
-    def _attempt_auto_restart(self, stream_id: int, old_process_info: ProcessInfo) -> bool:
-        """Simple auto-restart for crashed FFmpeg"""
-        try:
-            from stream_manager import get_stream_manager
-            stream_manager = get_stream_manager()
-
-            if not stream_manager or stream_id not in stream_manager.streams:
-                logging.info(f"Stream {stream_id} not found in stream manager, cannot restart")
-                return False
-
-            stream_info = stream_manager.streams[stream_id]
-
-            # CRITICAL: Double-check if stream is being stopped
-            from stream_manager import StreamState
-            if hasattr(stream_info, 'state') and stream_info.state == StreamState.STOPPING:
-                logging.info(f"Stream {stream_id} is in STOPPING state, aborting auto-restart")
-                return False
-
-            # Track restart attempts
-            if not hasattr(stream_info, 'restart_count'):
-                stream_info.restart_count = 0
-            stream_info.restart_count += 1
-
-            logging.warning(f"FFmpeg crashed for stream {stream_id}, restarting... (attempt #{stream_info.restart_count})")
-
-            # Wait 3 seconds before restart (let system cleanup)
-            time.sleep(3)
-
-            # Restart with same config
-            success = self.start_ffmpeg(
-                stream_id,
-                old_process_info.input_path,
-                stream_info.config.__dict__,
-                old_process_info.rtmp_endpoint
+        # Send restart request to Laravel
+        if self.status_reporter:
+            self.status_reporter.publish_restart_request(
+                stream_id=stream_id,
+                reason=f"FFmpeg crashed with exit code {exit_code}" if exit_code else error_type,
+                crash_count=crash_count,
+                last_error=stderr[:500] if stderr else None,
+                error_type=error_type
             )
 
-            if success:
-                logging.info(f"Stream {stream_id} auto-restarted successfully")
-                if self.status_reporter:
-                    self.status_reporter.publish_stream_status(
-                        stream_id, 'STREAMING',
-                        f'Auto-restarted after FFmpeg crash (#{stream_info.restart_count})'
-                    )
-                return True
-            else:
-                logging.error(f"Failed to auto-restart stream {stream_id}")
-                return False
+        logging.warning(f"🔄 Stream {stream_id} crashed (#{crash_count}), requesting restart decision from Laravel")
 
-        except Exception as e:
-            logging.error(f"Error auto-restarting stream {stream_id}: {e}")
-            return False
+
 
     def _analyze_ffmpeg_error(self, stderr_output: str, return_code: int) -> Optional[str]:
-        """Analyze FFmpeg error with crash type detection"""
+        """Enhanced FFmpeg error analysis with better categorization"""
         stderr_lower = stderr_output.lower()
 
         # Check for manual termination signals first
         if return_code in [-9, -15, -2]:  # SIGKILL, SIGTERM, SIGINT from our commands
             return None  # Don't report as error for manual stops
 
-        # Detailed crash analysis
+        # Permanent errors (no auto-restart)
         if 'no such file or directory' in stderr_lower:
             return '❌ [FILE_NOT_FOUND] Video file missing or path incorrect'
         elif 'permission denied' in stderr_lower:
             return '❌ [PERMISSION_ERROR] Cannot access video file - check permissions'
-        elif 'connection refused' in stderr_lower and 'rtmp' in stderr_lower:
-            return '❌ [NGINX_DOWN] Cannot connect to local Nginx RTMP - Nginx may be down'
         elif 'invalid data found when processing input' in stderr_lower:
             return '❌ [CORRUPTED_FILE] Video file is corrupted and unreadable'
         elif 'out of memory' in stderr_lower or return_code == 137:  # OOM kill
             return '❌ [OUT_OF_MEMORY] System ran out of memory - need more RAM or reduce concurrent streams'
+        elif 'codec not currently supported' in stderr_lower:
+            return '❌ [UNSUPPORTED_CODEC] Video codec not supported - try re-encoding to H.264'
+        elif 'moov atom not found' in stderr_lower:
+            return '❌ [INCOMPLETE_FILE] Video file incomplete or corrupted - re-download required'
+        elif 'end of file' in stderr_lower or 'premature' in stderr_lower:
+            return '❌ [TRUNCATED_FILE] Video file truncated during download'
+
+        # Temporary errors (can auto-restart)
+        elif 'connection refused' in stderr_lower and 'rtmp' in stderr_lower:
+            return '❌ [NGINX_DOWN] Cannot connect to local Nginx RTMP - Nginx may be down'
+        elif 'connection timed out' in stderr_lower or 'timeout' in stderr_lower:
+            return '❌ [TIMEOUT] Network timeout - retrying...'
+        elif 'network is unreachable' in stderr_lower:
+            return '❌ [NETWORK_ERROR] Network connectivity issue - retrying...'
+        elif 'server returned 4' in stderr_lower or 'rtmp' in stderr_lower:
+            return '❌ [RTMP_ERROR] RTMP server error - retrying...'
+        elif 'protocol not found' in stderr_lower:
+            return '❌ [PROTOCOL_ERROR] Network protocol error - retrying...'
+
+        # Exit code 255 analysis
         elif return_code == 255:
-            return '❌ [FFMPEG_CRASH] FFmpeg process crashed unexpectedly - possible system issue'
+            if 'invalid argument' in stderr_lower:
+                return '❌ [INVALID_PARAMS] Invalid FFmpeg parameters - check video format'
+            else:
+                return '❌ [FFMPEG_CRASH] FFmpeg crashed (255) - retrying...'
+
+        # Other non-zero exit codes
         elif return_code != 0:
-            return f'❌ [UNKNOWN_ERROR] FFmpeg failed with exit code {return_code}'
+            return f'❌ [UNKNOWN_ERROR] FFmpeg failed with exit code {return_code} - retrying...'
 
         return None
 

@@ -21,6 +21,7 @@ from status_reporter import get_status_reporter
 from stream_manager import get_stream_manager
 
 
+
 class CommandType(Enum):
     """Supported command types"""
     START_STREAM = "START_STREAM"
@@ -48,7 +49,7 @@ class CommandHandler:
         self.config = get_config()
         self.status_reporter = get_status_reporter()
         self.stream_manager = get_stream_manager()
-        
+
         # Redis connection for command listening
         self.redis_conn = None
         self.pubsub = None
@@ -116,16 +117,34 @@ class CommandHandler:
     def stop(self):
         """Stop command processing"""
         self.running = False
-        
-        # Close pubsub
-        if self.pubsub:
-            self.pubsub.close()
-        
+
+        # Close pubsub safely
+        try:
+            if self.pubsub:
+                self.pubsub.close()
+                logging.info("✅ Pubsub connection closed")
+        except Exception as e:
+            logging.error(f"❌ Error closing pubsub: {e}")
+
+        # Close Redis connection safely
+        try:
+            if self.redis_conn:
+                self.redis_conn.close()
+                logging.info("✅ Redis connection closed")
+        except Exception as e:
+            logging.error(f"❌ Error closing Redis connection: {e}")
+
         # Shutdown executor
-        self.command_executor.shutdown(wait=True)
-        
+        try:
+            self.command_executor.shutdown(wait=True, timeout=10)
+            logging.info("✅ Command executor shutdown")
+        except Exception as e:
+            logging.error(f"❌ Error shutting down executor: {e}")
+
         logging.info("⚡ Command handler stopped")
-    
+
+
+
     def _command_listener_loop(self):
         """Main command listening loop"""
         command_channel = f"vps-commands:{self.config.vps_id}"
@@ -268,31 +287,47 @@ class CommandHandler:
                 self.active_commands.pop(command_key, None)
     
     def _handle_start_stream(self, stream_id: int, config: Dict[str, Any], command_data: Dict[str, Any]) -> bool:
-        """Handle START_STREAM command"""
+        """Handle START_STREAM command - simplified"""
         try:
             logging.info(f"🚀 [COMMAND] Starting stream {stream_id}")
-            
+
             if not self.stream_manager:
                 logging.error("Stream manager not available")
                 return False
-            
-            return self.stream_manager.start_stream(config)
-            
+
+            # Start the stream directly - Laravel already decided this is valid
+            result = self.stream_manager.start_stream(config)
+
+            if result:
+                logging.info(f"✅ Stream {stream_id} started successfully")
+            else:
+                logging.error(f"❌ Failed to start stream {stream_id}")
+
+            return result
+
         except Exception as e:
             logging.error(f"❌ Error in start_stream handler: {e}")
             return False
     
     def _handle_stop_stream(self, stream_id: int, config: Dict[str, Any], command_data: Dict[str, Any]) -> bool:
-        """Handle STOP_STREAM command"""
+        """Handle STOP_STREAM command - simplified"""
         try:
             logging.info(f"🛑 [COMMAND] Stopping stream {stream_id}")
-            
+
             if not self.stream_manager:
                 logging.error("Stream manager not available")
                 return False
-            
-            return self.stream_manager.stop_stream(stream_id, "command")
-            
+
+            # Stop the stream directly - Laravel already decided this is valid
+            result = self.stream_manager.stop_stream(stream_id, "command")
+
+            if result:
+                logging.info(f"✅ Stream {stream_id} stopped successfully")
+            else:
+                logging.error(f"❌ Failed to stop stream {stream_id}")
+
+            return result
+
         except Exception as e:
             logging.error(f"❌ Error in stop_stream handler: {e}")
             return False
@@ -373,10 +408,7 @@ class CommandHandler:
             logging.error(f"❌ Error in cleanup_files handler: {e}")
             return False
     
-    def get_active_command_count(self) -> int:
-        """Get number of active commands"""
-        with self.command_lock:
-            return len(self.active_commands)
+
 
     def _handle_update_agent(self, stream_id: Optional[int], config: Dict[str, Any], command_data: Dict[str, Any]) -> bool:
         """Handle UPDATE_AGENT command"""

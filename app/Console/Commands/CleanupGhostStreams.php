@@ -92,12 +92,16 @@ class CleanupGhostStreams extends Command
             return [0, 0];
         }
         
-        $this->info("   📊 Agent reports " . count($activeStreams) . " active streams: " . implode(', ', $activeStreams));
+        // Ensure activeStreams is array and convert to strings
+        $activeStreams = is_array($activeStreams) ? $activeStreams : [];
+        $streamIds = array_map('strval', $activeStreams);
+
+        $this->info("   📊 Agent reports " . count($streamIds) . " active streams: " . implode(', ', $streamIds));
         
         $ghostCount = 0;
         $stoppedCount = 0;
         
-        foreach ($activeStreams as $streamId) {
+        foreach ($streamIds as $streamId) {
             $stream = StreamConfiguration::find($streamId);
             $isGhost = false;
             $shouldStop = false;

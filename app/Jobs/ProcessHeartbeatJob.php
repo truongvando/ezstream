@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\VpsServer;
+use App\Models\StreamConfiguration;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -30,23 +31,33 @@ class ProcessHeartbeatJob implements ShouldQueue
         try {
             $logPrefix = $this->isReAnnounce ? "🔄 [ProcessHeartbeat-ReAnnounce]" : "💓 [ProcessHeartbeat]";
 
-            Log::info("{$logPrefix} Processing heartbeat for VPS #{$this->vpsId}", [
+            Log::info("{$logPrefix} Processing enhanced heartbeat for VPS #{$this->vpsId}", [
                 'active_streams' => $this->activeStreams,
                 'stream_count' => count($this->activeStreams),
                 'is_re_announce' => $this->isReAnnounce
             ]);
 
-            // Lưu trạng thái thực tế của agent vào Redis, TTL 10 phút
-            $key = 'agent_state:' . $this->vpsId;
-            Redis::setex($key, 600, json_encode($this->activeStreams));
+            // Lưu trạng thái thực tế của agent vào Redis với enhanced data, TTL 10 phút
+            $agentStateKey = 'agent_state:' . $this->vpsId;
+            $enhancedState = [
+                'active_streams' => $this->activeStreams,
+                'last_heartbeat' => now()->toISOString(),
+                'is_re_announce' => $this->isReAnnounce,
+                'heartbeat_count' => Redis::incr("heartbeat_count:{$this->vpsId}")
+            ];
 
-            // Cập nhật thời gian heartbeat cho VPS
-            VpsServer::where('id', $this->vpsId)->update([
+            Redis::setex($agentStateKey, 600, json_encode($enhancedState));
+
+            // Cập nhật thời gian heartbeat cho VPS với enhanced tracking
+            $vpsUpdateData = [
                 'last_heartbeat_at' => now(),
-                'current_streams' => count($this->activeStreams)
-            ]);
+                'current_streams' => count($this->activeStreams),
+                'status' => 'active'
+            ];
 
-            // Always check for ghost streams (agent reports but DB doesn't expect)
+            VpsServer::where('id', $this->vpsId)->update($vpsUpdateData);
+
+            // Enhanced ghost stream detection with state machine awareness
             $this->handleGhostStreams();
 
             // If this is a re-announce, force sync streams to STREAMING status
@@ -54,10 +65,13 @@ class ProcessHeartbeatJob implements ShouldQueue
                 $this->handleReAnnounceStreams();
             }
 
-            Log::info("✅ {$logPrefix} Heartbeat processed successfully for VPS #{$this->vpsId}");
+            // Check for streams that should be running but aren't reported
+            $this->handleMissingStreams();
+
+            Log::info("✅ {$logPrefix} Enhanced heartbeat processed successfully for VPS #{$this->vpsId}");
 
         } catch (\Exception $e) {
-            Log::error("❌ [ProcessHeartbeat] Failed to process heartbeat for VPS #{$this->vpsId}", [
+            Log::error("❌ [ProcessHeartbeat] Failed to process enhanced heartbeat for VPS #{$this->vpsId}", [
                 'error' => $e->getMessage(),
                 'active_streams' => $this->activeStreams
             ]);
@@ -95,12 +109,24 @@ class ProcessHeartbeatJob implements ShouldQueue
 
                 // Stream exists but has wrong status
                 if (!in_array($stream->status, ['STREAMING', 'STARTING'])) {
-                    Log::warning("👻 [GhostStream] Agent reports stream #{$streamId} but DB status is '{$stream->status}'. Expected STREAMING/STARTING.");
+                    Log::info("🔍 [GhostStream] Agent reports stream #{$streamId} but DB status is '{$stream->status}'. Checking recovery options...");
 
-                    // Check if this could be a legitimate recovery case
-                    if (in_array($stream->status, ['ERROR', 'INACTIVE']) && $stream->vps_server_id == $this->vpsId) {
-                        // This might be a stream that errored due to Laravel restart but is actually still running
-                        Log::info("🔄 [GhostStream] Attempting to recover stream #{$streamId} from {$stream->status} to STREAMING");
+                    // More lenient recovery - allow recovery from more states
+                    $recoverableStates = ['ERROR', 'INACTIVE', 'STOPPED', 'STOPPING'];
+
+                    if (in_array($stream->status, $recoverableStates)) {
+                        // Check how long ago the status was updated
+                        $lastUpdate = $stream->last_status_update ?: $stream->updated_at;
+                        $minutesSinceUpdate = $lastUpdate ? $lastUpdate->diffInMinutes(now()) : 999;
+
+                        // If status was updated recently (< 2 minutes), it might be a race condition
+                        if ($minutesSinceUpdate < 2) {
+                            Log::info("🔄 [GhostStream] Stream #{$streamId} status updated recently ({$minutesSinceUpdate}m ago), skipping ghost cleanup");
+                            continue;
+                        }
+
+                        // Recover stream that's actually running
+                        Log::info("🔄 [GhostStream] Recovering stream #{$streamId} from {$stream->status} to STREAMING");
 
                         $stream->update([
                             'status' => 'STREAMING',
@@ -113,13 +139,18 @@ class ProcessHeartbeatJob implements ShouldQueue
                         \App\Services\StreamProgressService::createStageProgress(
                             $streamId,
                             'streaming',
-                            "👻 Ghost stream recovered: Agent was still streaming despite DB status"
+                            "🔄 Stream recovered: Agent confirmed still running"
                         );
                     } else {
-                        // Stream shouldn't be running - send stop command with detailed reason
-                        $reason = "Ghost stream cleanup: DB status '{$stream->status}' but agent reports running";
-                        Log::warning("👻 [GhostStream] Stream #{$streamId} shouldn't be running (status: {$stream->status}). Sending STOP command. Reason: {$reason}");
-                        $this->sendStopCommand($streamId, $reason);
+                        // Only stop if stream is in a definitive "should not run" state
+                        $shouldNotRunStates = ['CANCELLED', 'DISABLED'];
+                        if (in_array($stream->status, $shouldNotRunStates)) {
+                            $reason = "Ghost stream cleanup: DB status '{$stream->status}' indicates stream should not run";
+                            Log::warning("👻 [GhostStream] Stream #{$streamId} should not be running (status: {$stream->status}). Sending STOP command.");
+                            $this->sendStopCommand($streamId, $reason);
+                        } else {
+                            Log::info("🔍 [GhostStream] Stream #{$streamId} status '{$stream->status}' - allowing to continue");
+                        }
                     }
                 }
 
@@ -198,6 +229,48 @@ class ProcessHeartbeatJob implements ShouldQueue
 
         } catch (\Exception $e) {
             Log::error("❌ [GhostStream] Failed to send STOP command for stream #{$streamId}: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * Check for streams that should be running but aren't reported by agent
+     */
+    private function handleMissingStreams(): void
+    {
+        try {
+            // Find streams that should be running on this VPS but aren't reported
+            $expectedStreams = StreamConfiguration::where('vps_server_id', $this->vpsId)
+                ->whereIn('status', ['STREAMING', 'STARTING'])
+                ->pluck('id')
+                ->toArray();
+
+            $missingStreams = array_diff($expectedStreams, $this->activeStreams);
+
+            foreach ($missingStreams as $streamId) {
+                $stream = StreamConfiguration::find($streamId);
+                if (!$stream) continue;
+
+                $missingDuration = now()->diffInSeconds($stream->last_status_update ?? $stream->updated_at);
+
+                if ($missingDuration > 180) { // 3 minutes tolerance
+                    Log::warning("🔍 [MissingStream] Stream #{$streamId} should be running but not reported by agent for {$missingDuration}s");
+
+                    // Mark as ERROR if missing too long
+                    $stream->update([
+                        'status' => 'ERROR',
+                        'error_message' => "Stream missing from agent heartbeat for {$missingDuration} seconds",
+                        'vps_server_id' => null
+                    ]);
+
+                    \App\Services\StreamProgressService::createStageProgress(
+                        $streamId,
+                        'error',
+                        "❌ Stream mất kết nối với Agent ({$missingDuration}s)"
+                    );
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error("❌ [MissingStream] Failed to handle missing streams: {$e->getMessage()}");
         }
     }
 }

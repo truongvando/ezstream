@@ -84,7 +84,22 @@ class StatusReporter:
     def stop(self):
         """Stop all reporting"""
         self.running = False
-        self.executor.shutdown(wait=True)
+
+        # Shutdown executor safely
+        try:
+            self.executor.shutdown(wait=True, timeout=10)
+            logging.info("✅ Status reporter executor shutdown")
+        except Exception as e:
+            logging.error(f"❌ Error shutting down status reporter executor: {e}")
+
+        # Close Redis connection safely
+        try:
+            if self.redis_conn:
+                self.redis_conn.close()
+                logging.info("✅ Status reporter Redis connection closed")
+        except Exception as e:
+            logging.error(f"❌ Error closing status reporter Redis connection: {e}")
+
         logging.info("📊 Status reporter stopped")
     
     def publish_stream_status(self, stream_id: int, status: str, message: str, extra_data: Optional[Dict] = None):
@@ -122,7 +137,29 @@ class StatusReporter:
             
         except Exception as e:
             logging.error(f"❌ Error publishing stream status: {e}")
-    
+
+    def publish_restart_request(self, stream_id: int, reason: str, crash_count: int, last_error: str = None, error_type: str = None):
+        """Request Laravel to decide whether to restart stream"""
+        try:
+            payload = {
+                'type': 'RESTART_REQUEST',
+                'stream_id': stream_id,
+                'vps_id': self.config.vps_id,
+                'reason': reason,
+                'crash_count': crash_count,
+                'last_error': last_error,
+                'error_type': error_type,
+                'timestamp': int(time.time())
+            }
+
+            logging.warning(f"🔄 [RESTART_REQUEST] Stream {stream_id} crashed #{crash_count}: {reason}")
+            logging.debug(f"🔍 [RESTART_REQUEST] Full payload: {safe_json_dumps(payload, indent=2)}")
+
+            self._publish_report(payload)
+
+        except Exception as e:
+            logging.error(f"❌ Error publishing restart request: {e}")
+
     def _publish_report(self, payload: Dict[str, Any]):
         """Publish report to Redis"""
         try:

@@ -34,7 +34,7 @@ class AgentConfig:
     
     # Reporting intervals
     stats_report_interval: int = 15       # 15 seconds
-    heartbeat_interval: int = 10          # 10 seconds
+    heartbeat_interval: int = 5           # 5 seconds (faster detection)
     progress_throttle_interval: int = 2   # 2 seconds
     
     # FFmpeg settings

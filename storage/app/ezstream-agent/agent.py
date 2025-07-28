@@ -18,6 +18,7 @@ from process_manager import init_process_manager, get_process_manager
 from file_manager import init_file_manager, get_file_manager
 from stream_manager import init_stream_manager, get_stream_manager
 from command_handler import init_command_handler, get_command_handler
+
 from utils import PerformanceTimer
 
 # --- LOGGING CONFIGURATION ---
@@ -91,27 +92,32 @@ class EZStreamAgent:
         try:
             logging.info("🛑 Shutting down EZStream Agent...")
             self.running = False
-            
-            # Stop components in reverse order
-            if self.command_handler:
-                self.command_handler.stop()
-            
-            if self.stream_manager:
-                self.stream_manager.stop_all_streams()
-            
-            if self.process_manager:
-                self.process_manager.stop_all()
-            
-            if self.file_manager:
-                self.file_manager.stop_cleanup_service()
-            
-            if self.status_reporter:
-                self.status_reporter.stop()
-            
+
+            # Stop components in reverse order with proper error handling
+            self._safe_stop_component("command_handler", self.command_handler)
+            self._safe_stop_component("stream_manager", self.stream_manager, "stop_all_streams")
+            self._safe_stop_component("process_manager", self.process_manager, "stop_all")
+            self._safe_stop_component("file_manager", self.file_manager, "stop_cleanup_service")
+            self._safe_stop_component("status_reporter", self.status_reporter)
+
             logging.info("✅ EZStream Agent shutdown complete")
-            
+
         except Exception as e:
             logging.error(f"❌ Error during shutdown: {e}")
+
+    def _safe_stop_component(self, name: str, component, method_name: str = "stop"):
+        """Safely stop a component with error handling"""
+        try:
+            if component:
+                if hasattr(component, method_name):
+                    method = getattr(component, method_name)
+                    method()
+                    logging.info(f"✅ {name} stopped successfully")
+                else:
+                    logging.warning(f"⚠️ {name} has no {method_name} method")
+        except Exception as e:
+            logging.error(f"❌ Error stopping {name}: {e}")
+            # Continue with shutdown even if one component fails
     
     def _main_loop(self):
         """Main agent loop"""

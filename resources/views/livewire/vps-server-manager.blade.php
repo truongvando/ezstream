@@ -5,11 +5,19 @@
             <p class="text-gray-600 dark:text-gray-400 mt-1">Thêm và quản lý các VPS servers cho hệ thống streaming</p>
         </div>
         <div class="flex space-x-3">
-            <button wire:click="openBulkUpdateModal" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-medium inline-flex items-center">
-                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <button wire:click="openBulkUpdateModal"
+                    class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-medium inline-flex items-center transition-colors duration-200"
+                    wire:loading.attr="disabled"
+                    wire:loading.class="opacity-50 cursor-not-allowed">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" wire:loading.remove.delay>
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                 </svg>
-                Cập nhật tất cả VPS
+                <svg class="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" wire:loading.delay>
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span wire:loading.remove.delay>Cập nhật tất cả VPS</span>
+                <span wire:loading.delay>Đang xử lý...</span>
             </button>
             <button wire:click="openModal" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium inline-flex items-center">
                 <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -59,11 +67,12 @@
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
                                     @switch($server->status)
-                                        @case('ACTIVE') bg-green-100 text-green-800 @break
-                                        @case('PROVISIONING') bg-yellow-100 text-yellow-800 @break
-                                        @case('PROVISION_FAILED') bg-red-100 text-red-800 @break
-                                        @case('FAILED') bg-red-100 text-red-800 @break
-                                        @default bg-gray-100 text-gray-800
+                                        @case('ACTIVE') bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 @break
+                                        @case('PROVISIONING') bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 @break
+                                        @case('PROVISION_FAILED') bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 @break
+                                        @case('FAILED') bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 @break
+                                        @case('UPDATING') bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 @break
+                                        @default bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200
                                     @endswitch
                                 ">
                                     {{ $server->status }}

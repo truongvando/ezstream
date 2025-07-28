@@ -334,6 +334,9 @@ class VpsServerManager extends Component
                 ]);
 
                 try {
+                    // Update VPS status to UPDATING
+                    $vps->update(['status' => 'UPDATING']);
+
                     // Dispatch UpdateAgentJob
                     UpdateAgentJob::dispatch($vps->id)->onQueue('vps-provisioning');
 
