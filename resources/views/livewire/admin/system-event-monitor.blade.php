@@ -90,7 +90,7 @@
                                     </div>
                                     <div class="flex items-center space-x-2">
                                         <span class="text-xs">Streams:</span>
-                                        <span class="font-mono text-xs">{{ $event->context['active_streams'] ?? 0 }}</span>
+                                        <span class="font-mono text-xs">{{ $event->context['stream_count'] ?? $event->context['active_streams'] ?? 0 }}</span>
                                     </div>
                                     @if(isset($event->context['disk_usage']))
                                     <div class="flex items-center space-x-2">
@@ -107,7 +107,16 @@
                                     </div>
                                     <div class="flex items-center space-x-2">
                                         <span class="text-xs">Streams:</span>
-                                        <span class="font-mono text-xs">{{ implode(', ', $event->context['active_streams'] ?? []) ?: 'None' }}</span>
+                                        <span class="font-mono text-xs">
+                                            @php
+                                                $activeStreams = $event->context['active_streams'] ?? [];
+                                                if (is_array($activeStreams)) {
+                                                    echo implode(', ', $activeStreams) ?: 'None';
+                                                } else {
+                                                    echo $activeStreams ?: 'None';
+                                                }
+                                            @endphp
+                                        </span>
                                     </div>
                                     <div class="flex items-center space-x-2">
                                         <span class="text-xs">TTL:</span>

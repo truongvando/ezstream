@@ -102,7 +102,8 @@ class SystemEventMonitor extends Component
                             'cpu_usage' => $stats['cpu_usage'] ?? 0,
                             'ram_usage' => $stats['ram_usage'] ?? 0,
                             'disk_usage' => $stats['disk_usage'] ?? 0,
-                            'active_streams' => $stats['active_streams'] ?? 0,
+                            'active_streams' => is_array($stats['active_streams'] ?? 0) ? $stats['active_streams'] : [$stats['active_streams'] ?? 0],
+                            'stream_count' => is_array($stats['active_streams'] ?? 0) ? count($stats['active_streams']) : ($stats['active_streams'] ?? 0),
                             'network_sent_mb' => $stats['network_sent_mb'] ?? 0,
                             'network_recv_mb' => $stats['network_recv_mb'] ?? 0
                         ],
