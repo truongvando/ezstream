@@ -59,7 +59,16 @@ class SystemEventMonitor extends Component
                 $ttl = Redis::ttl($key);
 
                 if ($activeStreamsJson && $ttl > 0) {
-                    $activeStreams = json_decode($activeStreamsJson, true) ?: [];
+                    $decoded = json_decode($activeStreamsJson, true);
+                    $activeStreams = [];
+
+                    // Extract active_streams from the decoded data
+                    if (isset($decoded['active_streams']) && is_array($decoded['active_streams'])) {
+                        $activeStreams = $decoded['active_streams'];
+                    } else {
+                        // Fallback: empty array
+                        $activeStreams = [];
+                    }
 
                     $reports[] = (object) [
                         'id' => 'heartbeat_' . $vpsId . '_' . time(),
@@ -68,7 +77,7 @@ class SystemEventMonitor extends Component
                         'message' => "VPS #{$vpsId} heartbeat - " . count($activeStreams) . " active streams",
                         'context' => [
                             'vps_id' => $vpsId,
-                            'active_streams' => $activeStreams,
+                            'active_streams' => $activeStreams, // Now guaranteed to be array
                             'stream_count' => count($activeStreams),
                             'ttl_seconds' => $ttl
                         ],
