@@ -686,9 +686,12 @@ fi
 echo -e "${YELLOW}🔄 Syncing stream state with all VPS agents...${NC}"
 php artisan stream:sync --force
 
-# Restart all VPS agents to apply new heartbeat settings
-echo -e "${YELLOW}🔄 Restarting VPS agents for new settings...${NC}"
-php artisan vps:restart-agents
+# 🚨 AGENT RESTART - COMMENTED OUT FOR STABLE OPERATIONS
+# Agent system is now stable and only Laravel features are being developed
+# No need to restart agents unless there are agent-specific updates
+# Uncomment when agent code changes are deployed
+# echo -e "${YELLOW}🔄 Restarting VPS agents for new settings...${NC}"
+# php artisan vps:restart-agents
 
 # Test application
 echo -e "${YELLOW}🧪 Testing application...${NC}"
