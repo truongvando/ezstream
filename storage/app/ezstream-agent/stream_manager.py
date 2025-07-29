@@ -284,6 +284,8 @@ class StreamManager:
                 
                 if self.file_manager:
                     local_files = self.file_manager.download_files(stream_id, stream_info.config.video_files)
+                    if not local_files:
+                        raise Exception("No files were downloaded successfully - files may have been deleted or are inaccessible")
                     stream_info.config.local_files = local_files
                 else:
                     raise Exception("File manager not available")
@@ -433,40 +435,13 @@ application stream_{stream_id} {{
     record off;
     allow play all;
 
-    # PREMIUM BUFFERING - 96GB RAM allows aggressive buffering
-    buflen 120s;             # 2 minute buffer for maximum stability
-    idle_streams on;         # CRITICAL: Keep stream alive when publisher disconnects
-    drop_idle_publisher 300s; # 5 minute timeout - plenty of time for restart
-    sync 30s;               # 30s sync tolerance for maximum flexibility
-
-    # PREMIUM BUFFER SIZES - No memory constraints
-    chunk_size 16384;       # 16KB chunks for maximum throughput
-    max_message 50M;        # 50MB max message for large keyframes
-    ack_window 50000000;    # 50MB ack window for smooth streaming
-
-    # Connection resilience
-    timeout 300s;           # 5 minute socket timeout
-    ping 120s;              # Ping every 2 minutes
-    ping_timeout 60s;       # 1 minute ping timeout
-
-    # Stream quality settings
+    # Basic streaming settings
     wait_key on;            # Start with keyframe for better quality
     wait_video on;          # Wait for video before audio
     meta copy;              # Copy exact metadata
 
     # Push to YouTube/platform
     push {rtmp_url};
-
-    # Enhanced notifications
-    publish_notify on;
-    play_restart on;
-
-    # HLS backup generation (optional)
-    hls on;
-    hls_path /tmp/hls/stream_{stream_id};
-    hls_fragment 10s;
-    hls_playlist_length 60s;
-    hls_cleanup on;
 }}
 """
             

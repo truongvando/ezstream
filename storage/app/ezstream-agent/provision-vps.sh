@@ -77,7 +77,10 @@ rtmp {
     server {
         listen 1935;
         chunk_size 4096;
-        
+
+        # PREMIUM BUFFERING - 96GB RAM allows aggressive buffering
+        buflen 120s;             # 2 minute buffer for maximum stability
+
         # Chỉ cho phép ffmpeg chạy trên localhost publish stream
         allow publish 127.0.0.1;
         deny publish all;

@@ -144,9 +144,14 @@ class UpdateStreamStatusJob implements ShouldQueue
     private function handleErrorStatus(StreamConfiguration $stream, $message): void
     {
         Log::warning("📨 [UpdateStreamStatus] Stream #{$stream->id} status: {$stream->status} → ERROR");
-        
+
         $originalVpsId = $stream->vps_server_id;
-        
+
+        // Check if this is a file-related error
+        $isFileError = str_contains($message, 'No files were downloaded') ||
+                      str_contains($message, 'files may have been deleted') ||
+                      str_contains($message, 'FILE_NOT_FOUND');
+
         $stream->update([
             'status' => 'ERROR',
             'error_message' => $message,
@@ -160,7 +165,17 @@ class UpdateStreamStatusJob implements ShouldQueue
             VpsServer::find($originalVpsId)?->decrement('current_streams');
         }
 
-        StreamProgressService::createStageProgress($stream->id, 'error', $message ?: 'Stream gặp lỗi');
+        // Create appropriate progress message
+        $progressMessage = $isFileError ?
+            '❌ Files không tồn tại hoặc đã bị xóa. Vui lòng kiểm tra lại files.' :
+            ($message ?: 'Stream gặp lỗi');
+
+        StreamProgressService::createStageProgress($stream->id, 'error', $progressMessage);
+
+        // Log file errors for debugging
+        if ($isFileError) {
+            Log::warning("📁 [UpdateStreamStatus] File-related error for stream #{$stream->id}: {$message}");
+        }
     }
 
     private function handleStartingStatus(StreamConfiguration $stream, $vpsId, $message): void

@@ -47,16 +47,26 @@ class RefreshAgentSettings extends Command
     private function refreshVpsSettings(VpsServer $vps): void
     {
         try {
+            // Step 1: Store current settings in Redis
+            $settings = [
+                'ffmpeg_encoding_mode' => \App\Models\Setting::where('key', 'ffmpeg_encoding_mode')->value('value') ?? 'copy',
+                'storage_mode' => \App\Models\Setting::where('key', 'storage_mode')->value('value') ?? 'server',
+                'updated_at' => now()->toISOString()
+            ];
+
+            Redis::set('agent_settings', json_encode($settings));
+
+            // Step 2: Send refresh command
             $command = [
                 'command' => 'REFRESH_SETTINGS',
                 'timestamp' => now()->toISOString()
             ];
-            
+
             $channel = "vps-commands:{$vps->id}";
             $result = Redis::publish($channel, json_encode($command));
-            
+
             $this->line("📤 VPS #{$vps->id} ({$vps->name}): Sent REFRESH_SETTINGS (subscribers: {$result})");
-            
+
         } catch (\Exception $e) {
             $this->error("❌ Failed to send command to VPS #{$vps->id}: {$e->getMessage()}");
         }

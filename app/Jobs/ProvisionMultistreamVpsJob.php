@@ -144,16 +144,17 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         $remoteDir = '/opt/ezstream-agent';
         $sshService->execute("mkdir -p {$remoteDir}");
 
-        // 2. Upload all agent files
+        // 2. Upload all agent files (Premium Solution with conflict fixes)
         $agentFiles = [
-            'agent.py',           // Main entry point
-            'config.py',          // Configuration management
-            'stream_manager.py',  // Stream lifecycle management
-            'process_manager.py', // FFmpeg process management
-            'file_manager.py',    // File download/cleanup
-            'status_reporter.py', // Status reporting
-            'command_handler.py', // Command processing
-            'utils.py'            // Shared utilities
+            'agent.py',                 // Main entry point
+            'config.py',                // Configuration management
+            'stream_manager.py',        // Stream lifecycle management (with mutex locks)
+            'process_manager.py',       // FFmpeg process management (with conflict fixes)
+            'file_manager.py',          // File download/cleanup
+            'status_reporter.py',       // Status reporting
+            'command_handler.py',       // Command processing
+            'monitoring_dashboard.py',  // Premium monitoring dashboard
+            'utils.py'                  // Shared utilities
         ];
 
         foreach ($agentFiles as $filename) {
@@ -176,12 +177,19 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
 
         Log::info("✅ [VPS #{$vps->id}] Uploaded " . count($agentFiles) . " agent files");
 
-        // 3. Get Redis connection details from Laravel's config
+        // 3. Upload logrotate config for log management
+        $logrotateLocal = storage_path('app/ezstream-agent/ezstream-agent-logrotate.conf');
+        if (file_exists($logrotateLocal)) {
+            $sshService->uploadFile($logrotateLocal, '/etc/logrotate.d/ezstream-agent');
+            Log::info("✅ [VPS #{$vps->id}] Logrotate config uploaded");
+        }
+
+        // 4. Get Redis connection details from Laravel's config
         $redisHost = config('database.redis.default.host', '127.0.0.1');
         $redisPort = config('database.redis.default.port', 6379);
         $redisPassword = config('database.redis.default.password', null);
 
-        // 4. Create systemd service file on the VPS
+        // 5. Create systemd service file on the VPS
         $serviceName = 'ezstream-agent.service';
         $remoteAgentPath = "{$remoteDir}/agent.py"; // Đường dẫn đến agent.py trên VPS
         $serviceContent = $this->generateAgentSystemdService($remoteAgentPath, $redisHost, $redisPort, $redisPassword, $vps);

@@ -5,6 +5,7 @@ Centralized configuration for all agent components
 """
 
 import os
+import json
 from dataclasses import dataclass
 from typing import Optional
 import logging
@@ -13,12 +14,16 @@ import logging
 @dataclass
 class AgentConfig:
     """Main configuration class for EZStream Agent"""
-    
+
     # VPS and Redis settings
     vps_id: int
     redis_host: str = '127.0.0.1'
     redis_port: int = 6379
     redis_password: Optional[str] = None
+
+    # Laravel API settings
+    laravel_base_url: str = 'http://localhost'
+    agent_token: Optional[str] = None
     
     # Process management
     max_concurrent_streams: int = 50
@@ -57,33 +62,48 @@ class AgentConfig:
             logging.info(f"🔧 FFmpeg mode updated from Laravel: {'encoding' if self.ffmpeg_use_encoding else 'copy'}")
 
     def fetch_laravel_settings(self):
-        """Fetch settings from Laravel API"""
+        """Fetch settings from Redis (not HTTP API)"""
         try:
-            import requests
+            import redis
 
-            # Get settings from Laravel
-            response = requests.get(
-                f"{self.laravel_base_url}/api/agent/settings",
-                headers={'Authorization': f'Bearer {self.agent_token}'},
-                timeout=10
+            # Connect to Redis to get settings
+            redis_client = redis.Redis(
+                host=self.redis_host,
+                port=self.redis_port,
+                password=self.redis_password,
+                decode_responses=True,
+                socket_connect_timeout=5,
+                socket_timeout=5
             )
 
-            if response.status_code == 200:
-                settings = response.json()
+            # Get settings from Redis
+            settings_key = "agent_settings"
+            settings_data = redis_client.get(settings_key)
+
+            if settings_data:
+                settings = json.loads(settings_data)
                 self.update_from_laravel_settings(settings)
-                logging.info("✅ Successfully fetched settings from Laravel")
+                logging.info("✅ Successfully fetched settings from Redis")
                 return True
             else:
-                logging.warning(f"⚠️ Failed to fetch settings: HTTP {response.status_code}")
+                logging.warning(f"⚠️ No settings found in Redis key: {settings_key}")
                 return False
 
         except Exception as e:
-            logging.warning(f"⚠️ Error fetching Laravel settings: {e}")
+            logging.warning(f"⚠️ Error fetching settings from Redis: {e}")
             return False
     
     # Nginx settings
     nginx_rtmp_base_url: str = 'rtmp://127.0.0.1:1935'
-    nginx_config_dir: str = '/etc/nginx/rtmp-apps'
+    nginx_config_dir: str = '/etc/nginx/rtmp-apps'  # VPS path
+
+    # Windows development override
+    def __post_init__(self):
+        if os.name == 'nt':  # Windows
+            # For Windows development, use a local temp directory
+            self.nginx_config_dir = os.path.join(os.getcwd(), 'temp', 'rtmp-apps')
+            # Create directory if it doesn't exist
+            os.makedirs(self.nginx_config_dir, exist_ok=True)
     
     # Thread pool settings
     command_thread_pool_size: int = 10
@@ -101,7 +121,9 @@ class AgentConfig:
             vps_id=vps_id,
             redis_host=redis_host,
             redis_port=redis_port,
-            redis_password=redis_password
+            redis_password=redis_password,
+            laravel_base_url=os.getenv('APP_URL', 'http://localhost'),
+            agent_token=os.getenv('AGENT_SECRET_TOKEN')
         )
     
     @classmethod
@@ -115,7 +137,9 @@ class AgentConfig:
             max_concurrent_streams=int(os.getenv('MAX_CONCURRENT_STREAMS', 50)),
             download_base_dir=os.getenv('DOWNLOAD_BASE_DIR', '/tmp/ezstream_downloads'),
             cleanup_interval_seconds=int(os.getenv('CLEANUP_INTERVAL', 3600)),
-            cleanup_threshold_hours=int(os.getenv('CLEANUP_THRESHOLD_HOURS', 24))
+            cleanup_threshold_hours=int(os.getenv('CLEANUP_THRESHOLD_HOURS', 24)),
+            laravel_base_url=os.getenv('APP_URL', 'http://localhost'),
+            agent_token=os.getenv('AGENT_SECRET_TOKEN')
         )
     
     def get_redis_url(self) -> str:
