@@ -183,7 +183,7 @@ class TestAgentRecovery extends Command
                 'timestamp' => time()
             ];
 
-            $channel = "vps_commands:{$vpsId}";
+            $channel = "vps-commands:{$vpsId}";
             $result = Redis::publish($channel, json_encode($command));
 
             $this->line("   📤 Sent STOP command for ghost stream #{$streamId} (subscribers: {$result})");

@@ -24,7 +24,7 @@ class BunnyStorageService
     }
 
     /**
-     * Upload file to Bunny.net Storage
+     * Upload file based on storage mode setting
      */
     public function uploadFile($source, $fileName, $mimeType = null)
     {
@@ -43,54 +43,105 @@ class BunnyStorageService
             $uniqueFileName = time() . '_' . $userId . '_' . $fileName;
             $remotePath = "users/{$userId}/{$datePrefix}/{$uniqueFileName}";
 
-            Log::info("Starting Bunny.net upload", [
+            // Get storage mode from admin settings
+            $storageMode = \App\Models\Setting::where('key', 'storage_mode')->value('value') ?? 'server';
+
+            Log::info("Starting file upload", [
                 'file_name' => $fileName,
                 'file_size' => $fileSize,
-                'remote_path' => $remotePath
+                'remote_path' => $remotePath,
+                'storage_mode' => $storageMode
             ]);
 
-            // Use chunked upload for files larger than 50MB
-            if ($fileSize > 50 * 1024 * 1024) {
-                return $this->uploadFileChunked($filePath, $remotePath, $fileName, $fileSize, $mimeType);
-            }
-
-            // Read file content for small files
+            // Read file content
             $fileContent = file_get_contents($filePath);
             if ($fileContent === false) {
                 throw new Exception("Cannot read file content");
             }
 
-            // Upload to Bunny.net via HTTP API with extended timeout
-            $response = Http::timeout(600) // 10 minutes timeout
-                ->withHeaders([
-                    'AccessKey' => $this->accessKey,
-                    'Content-Type' => $mimeType ?: 'application/octet-stream'
-                ])->withBody($fileContent)
-                ->put("{$this->baseUrl}/{$remotePath}");
-
-            if ($response->failed()) {
-                throw new Exception("Bunny.net upload failed: " . $response->body());
-            }
-
-            $cdnUrl = "{$this->cdnUrl}/{$remotePath}";
-
-            Log::info("Bunny.net upload completed", [
-                'remote_path' => $remotePath,
-                'cdn_url' => $cdnUrl,
-                'response_status' => $response->status()
-            ]);
-
-            return [
+            $result = [
                 'success' => true,
                 'file_name' => $fileName,
                 'file_size' => $fileSize,
                 'remote_path' => $remotePath,
-                'cdn_url' => $cdnUrl,
-                'storage_type' => 'bunny_cdn'
             ];
 
+            switch ($storageMode) {
+                case 'server':
+                    // Only save to server storage
+                    $localPath = storage_path('app/files/' . $remotePath);
+                    $localDir = dirname($localPath);
+
+                    if (!is_dir($localDir)) {
+                        mkdir($localDir, 0755, true);
+                    }
+
+                    file_put_contents($localPath, $fileContent);
+
+                    $result['local_path'] = $localPath;
+                    $result['storage_type'] = 'server';
+                    break;
+
+                case 'cdn':
+                    // Only upload to Bunny CDN
+                    $response = Http::timeout(600)
+                        ->withHeaders([
+                            'AccessKey' => $this->accessKey,
+                            'Content-Type' => $mimeType ?: 'application/octet-stream'
+                        ])->withBody($fileContent)
+                        ->put("{$this->baseUrl}/{$remotePath}");
+
+                    if ($response->failed()) {
+                        throw new Exception("Bunny.net upload failed: " . $response->body());
+                    }
+
+                    $result['cdn_url'] = "{$this->cdnUrl}/{$remotePath}";
+                    $result['storage_type'] = 'bunny_cdn';
+                    break;
+
+                case 'hybrid':
+                    // Save to both server and CDN
+                    // 1. Save to server
+                    $localPath = storage_path('app/files/' . $remotePath);
+                    $localDir = dirname($localPath);
+
+                    if (!is_dir($localDir)) {
+                        mkdir($localDir, 0755, true);
+                    }
+
+                    file_put_contents($localPath, $fileContent);
+
+                    // 2. Upload to CDN
+                    $response = Http::timeout(600)
+                        ->withHeaders([
+                            'AccessKey' => $this->accessKey,
+                            'Content-Type' => $mimeType ?: 'application/octet-stream'
+                        ])->withBody($fileContent)
+                        ->put("{$this->baseUrl}/{$remotePath}");
+
+                    if ($response->failed()) {
+                        Log::warning("CDN upload failed in hybrid mode, continuing with server only: " . $response->body());
+                    } else {
+                        $result['cdn_url'] = "{$this->cdnUrl}/{$remotePath}";
+                    }
+
+                    $result['local_path'] = $localPath;
+                    $result['storage_type'] = 'hybrid';
+                    break;
+
+                default:
+                    throw new Exception("Invalid storage mode: {$storageMode}");
+            }
+
+            Log::info("File upload completed", [
+                'storage_mode' => $storageMode,
+                'storage_type' => $result['storage_type']
+            ]);
+
+            return $result;
+
         } catch (Exception $e) {
-            Log::error('Bunny.net upload failed: ' . $e->getMessage());
+            Log::error('File upload failed: ' . $e->getMessage());
             return [
                 'success' => false,
                 'error' => $e->getMessage()
@@ -137,13 +188,24 @@ class BunnyStorageService
 
             $cdnUrl = "{$this->cdnUrl}/{$remotePath}";
 
+            // Also save to local server storage for cost optimization
+            $localPath = storage_path('app/files/' . $remotePath);
+            $localDir = dirname($localPath);
+
+            if (!is_dir($localDir)) {
+                mkdir($localDir, 0755, true);
+            }
+
+            file_put_contents($localPath, $fileContent);
+
             return [
                 'success' => true,
                 'file_name' => $fileName,
                 'file_size' => strlen($fileContent),
                 'remote_path' => $remotePath,
                 'cdn_url' => $cdnUrl,
-                'storage_type' => 'bunny_cdn'
+                'local_path' => $localPath,
+                'storage_type' => 'hybrid' // Both CDN and local
             ];
 
         } catch (Exception $e) {
@@ -156,19 +218,52 @@ class BunnyStorageService
     }
 
     /**
-     * Get direct download URL (CDN URL)
+     * Get direct download URL based on storage mode setting
      */
     public function getDirectDownloadLink($remotePath)
     {
-        // URL encode the path to handle spaces and special characters
+        // Get storage mode from admin settings
+        $storageMode = \App\Models\Setting::where('key', 'storage_mode')->value('value') ?? 'server';
+
         $encodedPath = implode('/', array_map('rawurlencode', explode('/', $remotePath)));
         $cdnUrl = "{$this->cdnUrl}/{$encodedPath}";
+        $serverUrl = config('app.url') . '/storage/files/' . $remotePath;
 
-        return [
-            'success' => true,
-            'download_link' => $cdnUrl,
-            'cdn_url' => $cdnUrl
-        ];
+        switch ($storageMode) {
+            case 'server':
+                return [
+                    'success' => true,
+                    'download_link' => $serverUrl,
+                    'cdn_url' => $cdnUrl, // Keep as fallback
+                    'storage_type' => 'server'
+                ];
+
+            case 'cdn':
+                return [
+                    'success' => true,
+                    'download_link' => $cdnUrl,
+                    'server_url' => $serverUrl, // Keep as fallback
+                    'storage_type' => 'cdn'
+                ];
+
+            case 'hybrid':
+                // Try server first, fallback to CDN
+                return [
+                    'success' => true,
+                    'download_link' => $serverUrl,
+                    'fallback_url' => $cdnUrl,
+                    'storage_type' => 'hybrid'
+                ];
+
+            default:
+                // Default to server for cost savings
+                return [
+                    'success' => true,
+                    'download_link' => $serverUrl,
+                    'cdn_url' => $cdnUrl,
+                    'storage_type' => 'server'
+                ];
+        }
     }
 
     /**

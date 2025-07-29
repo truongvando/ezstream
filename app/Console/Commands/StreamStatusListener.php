@@ -142,8 +142,11 @@ class StreamStatusListener extends Command
 
         $activeStreams = $data['active_streams'] ?? [];
         $isReAnnounce = $data['re_announce'] ?? false;
+        $isImmediateUpdate = $data['immediate_update'] ?? false;
 
-        if ($isReAnnounce) {
+        if ($isImmediateUpdate) {
+            $this->info("   -> ⚡ IMMEDIATE HEARTBEAT from VPS #{$vpsId} with " . count($activeStreams) . " active streams (stream state changed)");
+        } elseif ($isReAnnounce) {
             $this->warn("   -> 🔄 RE-ANNOUNCE HEARTBEAT from VPS #{$vpsId} with " . count($activeStreams) . " active streams (potential restart recovery)");
         } else {
             $this->info("   -> Processing HEARTBEAT from VPS #{$vpsId} with " . count($activeStreams) . " active streams.");
@@ -155,7 +158,7 @@ class StreamStatusListener extends Command
         }
 
         // Dispatch job để xử lý heartbeat (tránh Redis commands trong subscription context)
-        \App\Jobs\ProcessHeartbeatJob::dispatch($vpsId, $activeStreams, $isReAnnounce);
+        \App\Jobs\ProcessHeartbeatJob::dispatch($vpsId, $activeStreams, $isReAnnounce, $isImmediateUpdate);
     }
 
 

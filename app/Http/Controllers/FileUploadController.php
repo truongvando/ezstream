@@ -228,8 +228,9 @@ class FileUploadController extends Controller
                 'upload_url' => $uploadData['upload_url'],
                 'upload_token' => $uploadData['upload_token'],
                 'path' => $uploadData['remote_path'],
-                'access_key' => $uploadData['access_key'],
-                'method' => 'PUT'
+                'access_key' => $uploadData['access_key'] ?? null,
+                'method' => $uploadData['method'] ?? 'PUT',
+                'storage_mode' => $uploadData['storage_mode'] ?? 'cdn'
             ]);
 
         } catch (\Exception $e) {
@@ -280,6 +281,104 @@ class FileUploadController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'error' => 'Failed to confirm upload: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Handle server upload for server storage mode
+     */
+    public function serverUpload(Request $request, $token)
+    {
+        \Log::info('Server upload started', ['token' => $token, 'files' => $request->allFiles()]);
+
+        try {
+            // Get upload metadata from cache
+            $uploadData = cache("upload_token_{$token}");
+
+            \Log::info('Upload data from cache', ['upload_data' => $uploadData]);
+
+            if (!$uploadData) {
+                \Log::error('Upload token not found', ['token' => $token]);
+                return response()->json(['error' => 'Invalid or expired upload token'], 400);
+            }
+
+            // Verify upload hasn't expired (parse ISO string back to Carbon)
+            $expiresAt = \Carbon\Carbon::parse($uploadData['expires_at']);
+            if (now()->gt($expiresAt)) {
+                \Log::error('Upload token expired', ['token' => $token, 'expires_at' => $uploadData['expires_at']]);
+                return response()->json(['error' => 'Upload token has expired'], 400);
+            }
+
+            // Validate file upload (allow up to 10GB like in generateUploadUrl)
+            $request->validate([
+                'file' => 'required|file|max:' . (10 * 1024 * 1024) // 10GB = 10485760 KB
+            ]);
+
+            $file = $request->file('file');
+            $storageMode = $uploadData['storage_mode'] ?? 'server';
+
+            // Get file info before moving (file object becomes invalid after move)
+            $fileSize = $file->getSize();
+            $mimeType = $file->getMimeType();
+            $originalName = $file->getClientOriginalName();
+
+            \Log::info('File received', [
+                'original_name' => $originalName,
+                'size' => $fileSize,
+                'mime_type' => $mimeType,
+                'storage_mode' => $storageMode
+            ]);
+
+            // Save to server storage
+            $localPath = storage_path('app/files/' . $uploadData['remote_path']);
+            $localDir = dirname($localPath);
+
+            \Log::info('Saving to local path', ['local_path' => $localPath, 'local_dir' => $localDir]);
+
+            if (!is_dir($localDir)) {
+                mkdir($localDir, 0755, true);
+                \Log::info('Created directory', ['dir' => $localDir]);
+            }
+
+            $file->move($localDir, basename($localPath));
+            \Log::info('File moved successfully', ['final_path' => $localPath]);
+
+            $result = [
+                'success' => true,
+                'file_size' => $fileSize,
+                'mime_type' => $mimeType,
+                'local_path' => $localPath
+            ];
+
+            // If hybrid mode, also upload to CDN
+            if ($storageMode === 'hybrid') {
+                try {
+                    $bunnyService = app(\App\Services\BunnyStorageService::class);
+                    $cdnResult = $bunnyService->uploadFile($localPath, $uploadData['file_name'], $file->getMimeType());
+                    if ($cdnResult['success']) {
+                        $result['cdn_url'] = $cdnResult['cdn_url'] ?? null;
+                    }
+                } catch (\Exception $e) {
+                    \Log::warning('CDN upload failed in hybrid mode: ' . $e->getMessage());
+                    // Don't fail the whole upload if CDN fails in hybrid mode
+                }
+            }
+
+            \Log::info('Server upload completed successfully', $result);
+
+            // Return response in same format as Bunny upload (empty response with 200 status)
+            // This matches how Bunny.net responds to successful uploads
+            return response('', 200);
+
+        } catch (\Exception $e) {
+            \Log::error('Server upload failed', [
+                'token' => $token,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'error' => 'Server upload failed: ' . $e->getMessage()
             ], 500);
         }
     }

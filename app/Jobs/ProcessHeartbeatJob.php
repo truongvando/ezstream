@@ -22,19 +22,22 @@ class ProcessHeartbeatJob implements ShouldQueue
     public function __construct(
         public int $vpsId,
         public array $activeStreams,
-        public bool $isReAnnounce = false
+        public bool $isReAnnounce = false,
+        public bool $isImmediateUpdate = false
     ) {
     }
 
     public function handle(): void
     {
         try {
-            $logPrefix = $this->isReAnnounce ? "🔄 [ProcessHeartbeat-ReAnnounce]" : "💓 [ProcessHeartbeat]";
+            $logPrefix = $this->isImmediateUpdate ? "⚡ [ProcessHeartbeat-Immediate]" :
+                        ($this->isReAnnounce ? "🔄 [ProcessHeartbeat-ReAnnounce]" : "💓 [ProcessHeartbeat]");
 
             Log::info("{$logPrefix} Processing enhanced heartbeat for VPS #{$this->vpsId}", [
                 'active_streams' => $this->activeStreams,
                 'stream_count' => count($this->activeStreams),
-                'is_re_announce' => $this->isReAnnounce
+                'is_re_announce' => $this->isReAnnounce,
+                'is_immediate_update' => $this->isImmediateUpdate
             ]);
 
             // Lưu trạng thái thực tế của agent vào Redis với enhanced data, TTL 10 phút
@@ -43,6 +46,7 @@ class ProcessHeartbeatJob implements ShouldQueue
                 'active_streams' => $this->activeStreams,
                 'last_heartbeat' => now()->toISOString(),
                 'is_re_announce' => $this->isReAnnounce,
+                'is_immediate_update' => $this->isImmediateUpdate,
                 'heartbeat_count' => Redis::incr("heartbeat_count:{$this->vpsId}")
             ];
 
@@ -213,7 +217,7 @@ class ProcessHeartbeatJob implements ShouldQueue
                 'source' => 'ProcessHeartbeatJob'
             ];
 
-            $channel = "vps_commands:{$this->vpsId}";
+            $channel = "vps-commands:{$this->vpsId}";
             $result = \Illuminate\Support\Facades\Redis::publish($channel, json_encode($command));
 
             Log::warning("📤 [GhostStream] Sent STOP command for stream #{$streamId} to VPS #{$this->vpsId} (subscribers: {$result}). Reason: {$reason}");

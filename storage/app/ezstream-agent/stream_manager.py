@@ -70,9 +70,26 @@ class StreamManager:
         # Stream tracking
         self.streams: Dict[int, StreamInfo] = {}
         self.stream_lock = threading.RLock()
-        
-        logging.info("🎬 Stream manager initialized")
-    
+
+        # Restart operation locks to prevent conflicts
+        self.restart_locks = {}  # Per-stream locks for restart operations
+        self.restart_lock_mutex = threading.Lock()  # Protect restart_locks dict
+
+        logging.info("🎬 Stream manager initialized with conflict prevention")
+
+    def _get_restart_lock(self, stream_id: int) -> threading.Lock:
+        """Get or create restart lock for stream to prevent conflicts"""
+        with self.restart_lock_mutex:
+            if stream_id not in self.restart_locks:
+                self.restart_locks[stream_id] = threading.Lock()
+            return self.restart_locks[stream_id]
+
+    def _cleanup_restart_lock(self, stream_id: int):
+        """Cleanup restart lock when stream is removed"""
+        with self.restart_lock_mutex:
+            if stream_id in self.restart_locks:
+                del self.restart_locks[stream_id]
+
     def start_stream(self, stream_config_data: Dict[str, Any]) -> bool:
         """Start a new stream with complete lifecycle management"""
         stream_id = stream_config_data.get('id')
@@ -163,13 +180,20 @@ class StreamManager:
                 
                 # Remove from tracking
                 del self.streams[stream_id]
-                
+                # Cleanup restart lock
+                self._cleanup_restart_lock(stream_id)
+
                 logging.info(f"✅ Stream {stream_id} stopped (reason: {reason})")
-                
+
+                # Always report STOPPED status for command stops to ensure Laravel knows
                 if self.status_reporter and reason in ["manual", "command"]:
                     self.status_reporter.publish_stream_status(
                         stream_id, 'STOPPED', 'Stream đã được dừng'
                     )
+
+                    # Force immediate heartbeat update to reflect the change
+                    logging.info(f"🔄 Triggering immediate heartbeat update after stopping stream {stream_id}")
+                    self._trigger_immediate_heartbeat()
                 
                 return success
                 
@@ -320,6 +344,8 @@ class StreamManager:
             with self.stream_lock:
                 if stream_id in self.streams:
                     del self.streams[stream_id]
+                    # Cleanup restart lock
+                    self._cleanup_restart_lock(stream_id)
     
     def _update_stream_async(self, stream_info: StreamInfo, new_config_data: Dict[str, Any]):
         """Asynchronously update stream"""
@@ -356,8 +382,9 @@ class StreamManager:
                     )
                 
                 if self.process_manager:
-                    success = self.process_manager.restart_ffmpeg(
-                        stream_id, new_input_path, new_config_data
+                    # Use centralized restart to prevent conflicts with fast restart
+                    success = self.process_manager.centralized_restart(
+                        stream_id, "USER_UPDATE", new_input_path, new_config_data
                     )
                     
                     if success:
@@ -394,12 +421,6 @@ class StreamManager:
             stream_id = stream_info.config.id
             rtmp_url = stream_info.config.rtmp_url
             
-            # Extract stream key from RTMP URL
-            if '/' in rtmp_url:
-                stream_key = rtmp_url.split('/')[-1]
-            else:
-                stream_key = str(stream_id)
-            
             # Create nginx app config
             app_dir = self.config.nginx_config_dir
             ensure_directory(app_dir)
@@ -411,7 +432,41 @@ application stream_{stream_id} {{
     live on;
     record off;
     allow play all;
+
+    # PREMIUM BUFFERING - 96GB RAM allows aggressive buffering
+    buflen 120s;             # 2 minute buffer for maximum stability
+    idle_streams on;         # CRITICAL: Keep stream alive when publisher disconnects
+    drop_idle_publisher 300s; # 5 minute timeout - plenty of time for restart
+    sync 30s;               # 30s sync tolerance for maximum flexibility
+
+    # PREMIUM BUFFER SIZES - No memory constraints
+    chunk_size 16384;       # 16KB chunks for maximum throughput
+    max_message 50M;        # 50MB max message for large keyframes
+    ack_window 50000000;    # 50MB ack window for smooth streaming
+
+    # Connection resilience
+    timeout 300s;           # 5 minute socket timeout
+    ping 120s;              # Ping every 2 minutes
+    ping_timeout 60s;       # 1 minute ping timeout
+
+    # Stream quality settings
+    wait_key on;            # Start with keyframe for better quality
+    wait_video on;          # Wait for video before audio
+    meta copy;              # Copy exact metadata
+
+    # Push to YouTube/platform
     push {rtmp_url};
+
+    # Enhanced notifications
+    publish_notify on;
+    play_restart on;
+
+    # HLS backup generation (optional)
+    hls on;
+    hls_path /tmp/hls/stream_{stream_id};
+    hls_fragment 10s;
+    hls_playlist_length 60s;
+    hls_cleanup on;
 }}
 """
             
@@ -438,6 +493,29 @@ application stream_{stream_id} {{
                 
         except Exception as e:
             logging.error(f"❌ Error removing nginx config for stream {stream_id}: {e}")
+
+    def _trigger_immediate_heartbeat(self):
+        """Trigger immediate heartbeat to update Laravel about stream changes"""
+        try:
+            if self.status_reporter:
+                # Get current active streams
+                active_stream_ids = self.get_active_stream_ids()
+
+                # Create heartbeat payload
+                heartbeat_payload = {
+                    'type': 'HEARTBEAT',
+                    'vps_id': self.config.vps_id,
+                    'active_streams': active_stream_ids,
+                    'timestamp': int(time.time()),
+                    'immediate_update': True  # Flag to indicate this is an immediate update
+                }
+
+                # Publish directly through status reporter
+                self.status_reporter._publish_report(heartbeat_payload)
+                logging.info(f"📤 Immediate heartbeat sent with {len(active_stream_ids)} active streams")
+
+        except Exception as e:
+            logging.error(f"❌ Error triggering immediate heartbeat: {e}")
 
 
 # Global stream manager instance

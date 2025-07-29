@@ -241,10 +241,14 @@ function initializeFileUpload() {
                 throw new Error(uploadUrlData.message || 'Failed to generate upload URL');
             }
 
-            // Step 2: Upload directly to Bunny.net
-            updateProgress('📤 Đang upload lên Bunny.net CDN...', 10);
-
-            await uploadToBunny(file, uploadUrlData);
+            // Step 2: Upload based on storage mode
+            if (uploadUrlData.storage_mode === 'server' || uploadUrlData.storage_mode === 'hybrid') {
+                updateProgress('📤 Đang upload lên server...', 10);
+                await uploadToServer(file, uploadUrlData);
+            } else {
+                updateProgress('📤 Đang upload lên Bunny.net CDN...', 10);
+                await uploadToBunny(file, uploadUrlData);
+            }
 
             // Step 3: Confirm upload
             updateProgress('✅ Đang xác nhận upload...', 95);
@@ -545,6 +549,42 @@ function initializeFileUpload() {
             xhr.setRequestHeader('AccessKey', uploadData.access_key);
             xhr.setRequestHeader('Content-Type', file.type);
             xhr.send(file);
+        });
+    }
+
+    async function uploadToServer(file, uploadData) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Progress handler
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    const percentComplete = Math.round((e.loaded / e.total) * 80) + 10; // 10-90%
+                    updateProgress(`📤 Đang upload... ${formatFileSize(e.loaded)}/${formatFileSize(e.total)}`, percentComplete);
+                }
+            });
+
+            // Success handler
+            xhr.addEventListener('load', function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    console.log('✅ Upload to server successful');
+                    resolve();
+                } else {
+                    reject(new Error(`Server upload failed: ${xhr.status} ${xhr.statusText}`));
+                }
+            });
+
+            // Error handler
+            xhr.addEventListener('error', function() {
+                reject(new Error('Network error during upload to server'));
+            });
+
+            // Upload to server
+            xhr.open('POST', uploadData.upload_url);
+            xhr.setRequestHeader('X-CSRF-TOKEN', document.querySelector('meta[name="csrf-token"]').getAttribute('content'));
+            xhr.send(formData);
         });
     }
 

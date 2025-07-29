@@ -15,6 +15,8 @@ class SettingsManager extends Component
         'payment_bank_id',
         'payment_account_no',
         'payment_account_name',
+        'storage_mode', // server, cdn, hybrid
+        'ffmpeg_encoding_mode', // encoding, copy
     ];
 
     public function mount()
@@ -22,7 +24,13 @@ class SettingsManager extends Component
         // Load existing settings or initialize with empty values
         $dbSettings = Setting::whereIn('key', $this->settingKeys)->pluck('value', 'key');
         foreach ($this->settingKeys as $key) {
-            $this->settings[$key] = $dbSettings[$key] ?? '';
+            if ($key === 'storage_mode') {
+                $this->settings[$key] = $dbSettings[$key] ?? 'server'; // Default to server for cost savings
+            } elseif ($key === 'ffmpeg_encoding_mode') {
+                $this->settings[$key] = $dbSettings[$key] ?? 'copy'; // Default to copy with fast restart
+            } else {
+                $this->settings[$key] = $dbSettings[$key] ?? '';
+            }
         }
     }
 
@@ -32,7 +40,23 @@ class SettingsManager extends Component
             Setting::updateOrCreate(['key' => $key], ['value' => $value]);
         }
 
-        session()->flash('message', 'Settings saved successfully!');
+        // Auto-refresh agent settings after save
+        $this->refreshAgentSettings();
+
+        session()->flash('message', 'Settings saved and agents refreshed successfully!');
+    }
+
+    public function refreshAgentSettings()
+    {
+        try {
+            \Artisan::call('agent:refresh-settings');
+            $output = \Artisan::output();
+
+            session()->flash('message', 'Agent settings refreshed successfully!');
+
+        } catch (\Exception $e) {
+            session()->flash('error', 'Failed to refresh agent settings: ' . $e->getMessage());
+        }
     }
 
     public function render()

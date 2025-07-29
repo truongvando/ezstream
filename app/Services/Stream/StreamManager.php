@@ -215,20 +215,21 @@ class StreamManager
     private function getDownloadUrl(\App\Models\UserFile $userFile): ?string
     {
         try {
-            if ($userFile->disk === 'bunny_cdn') {
+            // Handle all storage types through BunnyStorageService
+            if (in_array($userFile->disk, ['bunny_cdn', 'local', 'hybrid'])) {
                 $bunnyService = app(\App\Services\BunnyStorageService::class);
                 $result = $bunnyService->getDirectDownloadLink($userFile->path);
                 if ($result['success']) {
                     return $result['download_link'];
                 }
             }
-            
+
             // Fallback to secure download
             $downloadToken = \Illuminate\Support\Str::random(32);
             cache()->put("download_token_{$downloadToken}", $userFile->id, now()->addDays(7));
-            
+
             return url("/api/secure-download/{$downloadToken}");
-            
+
         } catch (\Exception $e) {
             Log::error("Failed to get download URL", [
                 'file_id' => $userFile->id,

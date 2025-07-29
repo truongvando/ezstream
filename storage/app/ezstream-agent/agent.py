@@ -59,7 +59,11 @@ class EZStreamAgent:
         try:
             logging.info("🚀 Starting EZStream Agent v3.0...")
             self.running = True
-            
+
+            # Fetch settings from Laravel first
+            logging.info("🔧 Fetching settings from Laravel...")
+            self.config.fetch_laravel_settings()
+
             # Initialize components in dependency order
             self.status_reporter = init_status_reporter()
             self.process_manager = init_process_manager()
@@ -122,7 +126,17 @@ class EZStreamAgent:
     def _main_loop(self):
         """Main agent loop"""
         try:
+            last_settings_fetch = 0
+            settings_fetch_interval = 300  # 5 minutes
+
             while self.running:
+                # Periodic settings refresh from Laravel
+                current_time = time.time()
+                if current_time - last_settings_fetch > settings_fetch_interval:
+                    logging.info("🔧 Refreshing settings from Laravel...")
+                    self.config.fetch_laravel_settings()
+                    last_settings_fetch = current_time
+
                 # Check for restart flag
                 restart_flag = os.path.join(os.path.dirname(__file__), '.restart_required')
                 if os.path.exists(restart_flag):

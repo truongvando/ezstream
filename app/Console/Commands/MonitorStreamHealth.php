@@ -206,7 +206,7 @@ class MonitorStreamHealth extends Command
                 'source' => 'MonitorStreamHealth'
             ];
 
-            $channel = "vps_commands:{$stream->vps_server_id}";
+            $channel = "vps-commands:{$stream->vps_server_id}";
             Redis::publish($channel, json_encode($command));
             
             Log::info("[HEALTH] Sent STOP command for ghost stream #{$stream->id}");

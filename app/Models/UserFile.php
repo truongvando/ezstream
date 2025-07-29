@@ -32,12 +32,15 @@ class UserFile extends Model
         's3_key',
         's3_etag',
         'public_url',
+        'is_locked',
+        'upload_session_url',
     ];
 
     protected $casts = [
         'downloaded_at' => 'datetime',
         'scheduled_deletion_at' => 'datetime',
         'auto_delete_after_stream' => 'boolean',
+        'is_locked' => 'boolean',
         'storage_locations' => 'array',
     ];
 

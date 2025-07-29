@@ -7,6 +7,7 @@ Centralized configuration for all agent components
 import os
 from dataclasses import dataclass
 from typing import Optional
+import logging
 
 
 @dataclass
@@ -21,9 +22,9 @@ class AgentConfig:
     
     # Process management
     max_concurrent_streams: int = 50
-    graceful_shutdown_timeout: int = 10
+    graceful_shutdown_timeout: int = 15  # Increased from 10s to 15s
     system_cleanup_wait: int = 3
-    force_kill_timeout: int = 5
+    force_kill_timeout: int = 10  # Increased from 5s to 10s
     
     # File management
     download_base_dir: str = '/tmp/ezstream_downloads'
@@ -38,9 +39,47 @@ class AgentConfig:
     progress_throttle_interval: int = 2   # 2 seconds
     
     # FFmpeg settings
-    ffmpeg_reconnect_attempts: int = 5
-    ffmpeg_reconnect_delay: int = 2
-    ffmpeg_startup_timeout: int = 15
+    ffmpeg_reconnect_attempts: int = 5   # Reconnect attempts
+    ffmpeg_reconnect_delay: int = 2      # Delay between reconnects
+    ffmpeg_startup_timeout: int = 15     # Startup timeout
+    ffmpeg_use_encoding: bool = False    # Use copy mode by default (faster, with fast restart on DTS errors)
+
+    # Fast restart settings for DTS errors
+    enable_fast_restart: bool = True     # Enable fast restart on DTS errors
+    dts_error_threshold: int = 3         # Number of DTS errors before fast restart
+    max_fast_restarts: int = 5           # Max fast restarts before falling back to normal error handling
+    fast_restart_delay: int = 2          # Delay between fast restarts (seconds)
+
+    def update_from_laravel_settings(self, settings: dict):
+        """Update config from Laravel settings"""
+        if 'ffmpeg_encoding_mode' in settings:
+            self.ffmpeg_use_encoding = settings['ffmpeg_encoding_mode'] == 'encoding'
+            logging.info(f"🔧 FFmpeg mode updated from Laravel: {'encoding' if self.ffmpeg_use_encoding else 'copy'}")
+
+    def fetch_laravel_settings(self):
+        """Fetch settings from Laravel API"""
+        try:
+            import requests
+
+            # Get settings from Laravel
+            response = requests.get(
+                f"{self.laravel_base_url}/api/agent/settings",
+                headers={'Authorization': f'Bearer {self.agent_token}'},
+                timeout=10
+            )
+
+            if response.status_code == 200:
+                settings = response.json()
+                self.update_from_laravel_settings(settings)
+                logging.info("✅ Successfully fetched settings from Laravel")
+                return True
+            else:
+                logging.warning(f"⚠️ Failed to fetch settings: HTTP {response.status_code}")
+                return False
+
+        except Exception as e:
+            logging.warning(f"⚠️ Error fetching Laravel settings: {e}")
+            return False
     
     # Nginx settings
     nginx_rtmp_base_url: str = 'rtmp://127.0.0.1:1935'

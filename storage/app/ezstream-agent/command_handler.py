@@ -31,6 +31,7 @@ class CommandType(Enum):
     FORCE_KILL_STREAM = "FORCE_KILL_STREAM"
     CLEANUP_FILES = "CLEANUP_FILES"
     UPDATE_AGENT = "UPDATE_AGENT"
+    REFRESH_SETTINGS = "REFRESH_SETTINGS"
 
 
 @dataclass
@@ -70,6 +71,7 @@ class CommandHandler:
             CommandType.FORCE_KILL_STREAM: self._handle_force_kill_stream,
             CommandType.CLEANUP_FILES: self._handle_cleanup_files,
             CommandType.UPDATE_AGENT: self._handle_update_agent,
+            CommandType.REFRESH_SETTINGS: self._handle_refresh_settings,
         }
         
         # Active command tracking
@@ -513,6 +515,31 @@ class CommandHandler:
             logging.error(f"❌ [UPDATE] Error in update_agent handler: {e}")
             import traceback
             logging.error(f"❌ [UPDATE] Traceback: {traceback.format_exc()}")
+            return False
+
+    def _handle_refresh_settings(self, stream_id: Optional[int], config: Dict[str, Any], command_data: Dict[str, Any]) -> bool:
+        """Handle REFRESH_SETTINGS command"""
+        try:
+            logging.info("🔧 [COMMAND] Refreshing settings from Laravel...")
+
+            # Get config instance and refresh settings
+            from config import get_config
+            config_instance = get_config()
+
+            if config_instance:
+                success = config_instance.fetch_laravel_settings()
+                if success:
+                    logging.info("✅ Settings refreshed successfully")
+                    return True
+                else:
+                    logging.warning("⚠️ Failed to refresh settings")
+                    return False
+            else:
+                logging.error("❌ Config instance not available")
+                return False
+
+        except Exception as e:
+            logging.error(f"❌ Error in refresh_settings handler: {e}")
             return False
 
 

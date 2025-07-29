@@ -154,7 +154,8 @@ class StartMultistreamJob implements ShouldQueue
     private function getDownloadUrl(\App\Models\UserFile $userFile): ?string
     {
         try {
-            if ($userFile->disk === 'bunny_cdn') {
+            // Handle all storage types through BunnyStorageService
+            if (in_array($userFile->disk, ['bunny_cdn', 'local', 'hybrid'])) {
                 $bunnyService = app(\App\Services\BunnyStorageService::class);
                 $result = $bunnyService->getDirectDownloadLink($userFile->path);
                 if ($result['success']) {

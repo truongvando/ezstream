@@ -430,6 +430,17 @@ Route::get('/', function () {
 Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');
 Route::get('/blog/{post:slug}', [BlogController::class, 'show'])->name('blog.show');
 
+// File serving route for VPS downloads (cost optimization)
+Route::get('/storage/files/{path}', function ($path) {
+    $filePath = storage_path('app/files/' . $path);
+
+    if (!file_exists($filePath)) {
+        abort(404, 'File not found');
+    }
+
+    return response()->file($filePath);
+})->where('path', '.*')->name('files.serve');
+
 
 // Simple test route
 Route::get('/test', function () {
@@ -444,6 +455,10 @@ Route::get('/test', function () {
         'vendor_path_exists' => file_exists(base_path('vendor/livewire/livewire')) ? 'YES' : 'NO'
     ]);
 })->name('test');
+
+
+
+
 
 // Test route without Livewire
 Route::get('/simple', function () {

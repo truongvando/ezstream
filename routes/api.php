@@ -41,6 +41,9 @@ Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/confirm-upload', [FileUploadController::class, 'confirmUpload']);
 });
 
+// Server upload endpoint - separate from auth middleware to avoid session issues
+Route::post('/server-upload/{token}', [FileUploadController::class, 'serverUpload']);
+
 // 🔥 DEPRECATED: OLD WEBHOOK ENDPOINTS (Now using Redis agent reports)
 // Route::prefix('webhook')->middleware('agent.token')->group(function () {
 //     // Single webhooks
@@ -108,3 +111,26 @@ Route::prefix('v1')->group(function () {
         ->middleware('agent.token')
         ->name('agent.report');
 });
+
+// Agent settings endpoint
+Route::get('/agent/settings', function () {
+    try {
+        $settings = \App\Models\Setting::whereIn('key', [
+            'ffmpeg_encoding_mode',
+            'storage_mode'
+        ])->pluck('value', 'key');
+
+        return response()->json([
+            'ffmpeg_encoding_mode' => $settings['ffmpeg_encoding_mode'] ?? 'copy',
+            'storage_mode' => $settings['storage_mode'] ?? 'server'
+        ]);
+
+    } catch (\Exception $e) {
+        \Log::error('Agent settings API error: ' . $e->getMessage());
+        return response()->json([
+            'ffmpeg_encoding_mode' => 'encoding', // Safe default
+            'storage_mode' => 'server'
+        ]);
+    }
+})->middleware('agent.token')->name('agent.settings');
+

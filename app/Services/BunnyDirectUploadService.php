@@ -22,7 +22,7 @@ class BunnyDirectUploadService
     }
 
     /**
-     * Generate signed upload URL for direct browser upload
+     * Generate upload URL based on storage mode setting
      */
     public function generateUploadUrl($fileName, $userId, $maxFileSize = null)
     {
@@ -36,28 +36,56 @@ class BunnyDirectUploadService
             $uploadToken = Str::random(32);
             $expiresAt = now()->addHours(2); // 2 hour expiry
 
-            // Store upload metadata in cache
+            // Get storage mode from admin settings
+            $storageMode = \App\Models\Setting::where('key', 'storage_mode')->value('value') ?? 'server';
+
+            // Store upload metadata in cache (use timestamps for better serialization)
             cache()->put("upload_token_{$uploadToken}", [
                 'user_id' => $userId,
                 'file_name' => $fileName,
                 'remote_path' => $remotePath,
                 'max_file_size' => $maxFileSize ?: 10 * 1024 * 1024 * 1024, // 10GB default
-                'expires_at' => $expiresAt,
-                'created_at' => now()
+                'expires_at' => $expiresAt->toISOString(),
+                'created_at' => now()->toISOString(),
+                'storage_mode' => $storageMode
             ], $expiresAt);
 
-
-
-            return [
+            $result = [
                 'success' => true,
-                'upload_url' => "{$this->baseUrl}/{$remotePath}",
                 'upload_token' => $uploadToken,
                 'remote_path' => $remotePath,
                 'cdn_url' => "{$this->cdnUrl}/{$remotePath}",
-                'access_key' => $this->accessKey, // Client needs this for upload
                 'expires_at' => $expiresAt->toISOString(),
-                'max_file_size' => $maxFileSize ?: 10 * 1024 * 1024 * 1024
+                'max_file_size' => $maxFileSize ?: 10 * 1024 * 1024 * 1024,
+                'storage_mode' => $storageMode
             ];
+
+            switch ($storageMode) {
+                case 'server':
+                    // Upload to server endpoint
+                    $result['upload_url'] = config('app.url') . "/api/server-upload/{$uploadToken}";
+                    $result['method'] = 'POST'; // Use POST for server upload
+                    break;
+
+                case 'cdn':
+                    // Direct upload to Bunny CDN
+                    $result['upload_url'] = "{$this->baseUrl}/{$remotePath}";
+                    $result['access_key'] = $this->accessKey;
+                    $result['method'] = 'PUT'; // Use PUT for CDN upload
+                    break;
+
+                case 'hybrid':
+                    // Upload to server first, then sync to CDN
+                    $result['upload_url'] = config('app.url') . "/api/server-upload/{$uploadToken}";
+                    $result['method'] = 'POST';
+                    $result['sync_to_cdn'] = true;
+                    break;
+
+                default:
+                    throw new Exception("Invalid storage mode: {$storageMode}");
+            }
+
+            return $result;
 
         } catch (Exception $e) {
             return [
@@ -88,8 +116,9 @@ class BunnyDirectUploadService
                 throw new Exception('Invalid or expired upload token');
             }
 
-            // Verify upload hasn't expired
-            if (now()->gt($uploadData['expires_at'])) {
+            // Verify upload hasn't expired (parse ISO string back to Carbon)
+            $expiresAt = \Carbon\Carbon::parse($uploadData['expires_at']);
+            if (now()->gt($expiresAt)) {
                 throw new Exception('Upload token has expired');
             }
 
@@ -103,9 +132,18 @@ class BunnyDirectUploadService
                 throw new Exception('User not found');
             }
 
+            // Get storage mode to set correct disk
+            $storageMode = \App\Models\Setting::where('key', 'storage_mode')->value('value') ?? 'server';
+            $disk = match($storageMode) {
+                'server' => 'local',
+                'cdn' => 'bunny_cdn',
+                'hybrid' => 'hybrid',
+                default => 'local'
+            };
+
             // Create database record (match actual database structure)
             $userFile = $user->files()->create([
-                'disk' => 'bunny_cdn',
+                'disk' => $disk,
                 'path' => $uploadData['remote_path'],
                 'original_name' => $uploadData['file_name'],
                 'mime_type' => $mimeType,
@@ -125,12 +163,20 @@ class BunnyDirectUploadService
                 'file_size' => $actualFileSize
             ]);
 
+            // Generate appropriate URL based on storage mode
+            $fileUrl = match($storageMode) {
+                'server' => config('app.url') . "/storage/files/" . basename($uploadData['remote_path']),
+                'hybrid' => config('app.url') . "/storage/files/" . basename($uploadData['remote_path']),
+                'cdn' => "{$this->cdnUrl}/{$uploadData['remote_path']}",
+                default => config('app.url') . "/storage/files/" . basename($uploadData['remote_path'])
+            };
+
             return [
                 'success' => true,
                 'file_id' => $userFile->id,
                 'file_name' => $uploadData['file_name'],
                 'file_size' => $actualFileSize,
-                'cdn_url' => "{$this->cdnUrl}/{$uploadData['remote_path']}",
+                'cdn_url' => $fileUrl,
                 'remote_path' => $uploadData['remote_path']
             ];
 

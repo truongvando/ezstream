@@ -123,12 +123,30 @@ class FileUpload extends Component
             
             $fileName = $file->original_name;
 
-            // Delete from Bunny.net if exists
-            if ($file->disk === 'bunny_cdn' && $file->path) {
-                $bunnyService = app(BunnyStorageService::class);
-                $result = $bunnyService->deleteFile($file->path);
-                if (!$result['success']) {
-                    \Log::warning('Failed to delete file from Bunny.net: ' . ($result['error'] ?? 'Unknown error'));
+            // Delete from storage based on disk type
+            if ($file->path) {
+                if ($file->disk === 'bunny_cdn') {
+                    // Delete from Bunny CDN
+                    $bunnyService = app(BunnyStorageService::class);
+                    $result = $bunnyService->deleteFile($file->path);
+                    if (!$result['success']) {
+                        \Log::warning('Failed to delete file from Bunny.net: ' . ($result['error'] ?? 'Unknown error'));
+                    }
+                } elseif (in_array($file->disk, ['local', 'hybrid'])) {
+                    // Delete from server storage
+                    $localPath = storage_path('app/files/' . $file->path);
+                    if (file_exists($localPath)) {
+                        unlink($localPath);
+                    }
+
+                    // If hybrid, also delete from CDN
+                    if ($file->disk === 'hybrid') {
+                        $bunnyService = app(BunnyStorageService::class);
+                        $result = $bunnyService->deleteFile($file->path);
+                        if (!$result['success']) {
+                            \Log::warning('Failed to delete file from Bunny.net in hybrid mode: ' . ($result['error'] ?? 'Unknown error'));
+                        }
+                    }
                 }
             }
             
