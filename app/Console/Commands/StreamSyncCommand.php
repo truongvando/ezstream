@@ -77,7 +77,22 @@ class StreamSyncCommand extends Command
 
             // Lấy trạng thái thực tế từ agent (qua heartbeat)
             $agentStateJson = Redis::get(self::AGENT_STATE_KEY_PREFIX . $vps->id);
-            $agentStreams = collect($agentStateJson ? json_decode($agentStateJson, true) : []);
+            $agentData = $agentStateJson ? json_decode($agentStateJson, true) : [];
+
+            // Extract stream IDs from agent data (handle different formats)
+            $streamIds = [];
+            if (is_array($agentData)) {
+                // Handle both simple array and nested structure
+                $activeStreams = $agentData['active_streams'] ?? $agentData;
+                foreach ($activeStreams as $streamId) {
+                    if (is_numeric($streamId)) {
+                        $streamIds[] = (int) $streamId;
+                    } elseif (is_array($streamId) && isset($streamId['id'])) {
+                        $streamIds[] = (int) $streamId['id'];
+                    }
+                }
+            }
+            $agentStreams = collect($streamIds);
 
             $this->info("  Database expects: " . ($dbStreams->isEmpty() ? 'None' : $dbStreams->implode(', ')));
             $this->info("  Agent actually has: " . ($agentStreams->isEmpty() ? 'None' : $agentStreams->implode(', ')));
