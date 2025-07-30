@@ -121,12 +121,8 @@ class CommandHandler:
         self.running = False
 
         # Close pubsub safely
-        try:
-            if self.pubsub:
-                self.pubsub.close()
-                logging.info("✅ Pubsub connection closed")
-        except Exception as e:
-            logging.error(f"❌ Error closing pubsub: {e}")
+        self._safe_pubsub_cleanup()
+        logging.info("✅ Pubsub connection closed")
 
         # Close Redis connection safely
         try:
@@ -152,13 +148,27 @@ class CommandHandler:
         command_channel = f"vps-commands:{self.config.vps_id}"
         
         try:
+            # Create pubsub connection safely
+            if not self.redis_conn:
+                logging.error("❌ Redis connection not available for pubsub")
+                return
+
             self.pubsub = self.redis_conn.pubsub(ignore_subscribe_messages=True)
+            if not self.pubsub:
+                logging.error("❌ Failed to create pubsub connection")
+                return
+
             self.pubsub.subscribe(command_channel)
-            
+
             logging.info(f"📡 Subscribed to command channel: {command_channel}")
-            
+
             for message in self.pubsub.listen():
                 if not self.running:
+                    break
+
+                # Check if pubsub is still valid
+                if not self.pubsub:
+                    logging.warning("⚠️ Pubsub connection lost during listen")
                     break
 
                 try:
@@ -173,12 +183,22 @@ class CommandHandler:
             if self.running:  # Only log if we're still supposed to be running
                 logging.error(f"❌ Error in command listener loop: {e}")
         finally:
-            try:
-                if self.pubsub:
+            self._safe_pubsub_cleanup()
+
+    def _safe_pubsub_cleanup(self):
+        """Safely cleanup pubsub connection"""
+        try:
+            if self.pubsub:
+                if hasattr(self.pubsub, 'close'):
                     self.pubsub.close()
-            except Exception:
-                pass  # Ignore errors during cleanup
-    
+                elif hasattr(self.pubsub, 'unsubscribe'):
+                    self.pubsub.unsubscribe()
+                self.pubsub = None
+                logging.debug("🧹 Pubsub connection cleaned up safely")
+        except Exception as e:
+            logging.debug(f"⚠️ Error during pubsub cleanup: {e}")
+            self.pubsub = None
+
     def _process_message(self, message: Dict[str, Any]):
         """Process incoming command message"""
         try:

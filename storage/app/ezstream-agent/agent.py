@@ -133,10 +133,15 @@ class EZStreamAgent:
     def _setup_signal_handlers(self):
         """Setup signal handlers"""
         def signal_handler(signum, frame):
-            logging.info(f"Received signal {signum}")
+            logging.info(f"Received signal {signum} - initiating graceful shutdown")
             self.stop()
+
+            # Give components time to cleanup
+            time.sleep(2)
+
+            logging.info("Graceful shutdown complete")
             sys.exit(0)
-        
+
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
 
