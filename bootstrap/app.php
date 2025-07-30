@@ -29,6 +29,11 @@ return Application::configure(basePath: dirname(__DIR__))
                  ->dailyAt('09:00')
                  ->withoutOverlapping();
 
+        // 📺 YouTube channels sync
+        $schedule->command('youtube:sync')
+                 ->dailyAt('06:00')
+                 ->withoutOverlapping();
+
         // 🧹 VPS cleanup
         $schedule->command('vps:cleanup')
                  ->dailyAt('02:00')

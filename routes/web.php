@@ -13,6 +13,7 @@ use App\Livewire\ServicePackageManager;
 use App\Models\VpsServer;
 use App\Http\Controllers\VpsProvisionController;
 use App\Jobs\ProvisionMultistreamVpsJob;
+use App\Services\YoutubeAIAnalysisService;
 
 
 
@@ -981,6 +982,44 @@ Route::get('/debug/fix-stream/{streamId}', function($streamId) {
         'progress_created' => $progressCreated,
         'progress_error' => $progressError ?? null
     ]);
+});
+
+// YouTube Monitoring Routes
+Route::middleware(['auth'])->group(function () {
+    Route::get('/youtube-monitoring', [App\Http\Controllers\YoutubeMonitoringController::class, 'index'])->name('youtube.index');
+    Route::get('/youtube-monitoring/{channel}', [App\Http\Controllers\YoutubeMonitoringController::class, 'show'])->name('youtube.show');
+    Route::post('/youtube-monitoring', [App\Http\Controllers\YoutubeMonitoringController::class, 'store'])->name('youtube.store');
+    Route::delete('/youtube-monitoring/{channel}', [App\Http\Controllers\YoutubeMonitoringController::class, 'destroy'])->name('youtube.destroy');
+    Route::patch('/youtube-monitoring/{channel}/toggle', [App\Http\Controllers\YoutubeMonitoringController::class, 'toggleActive'])->name('youtube.toggle');
+
+    // YouTube Alerts Routes
+    Route::get('/youtube-alerts', [App\Http\Controllers\YoutubeAlertController::class, 'index'])->name('youtube.alerts.index');
+    Route::get('/youtube-alerts/page', function() { return view('youtube-monitoring.alerts'); })->name('youtube.alerts.page');
+    Route::patch('/youtube-alerts/{alert}/read', [App\Http\Controllers\YoutubeAlertController::class, 'markAsRead'])->name('youtube.alerts.read');
+    Route::patch('/youtube-alerts/read-all', [App\Http\Controllers\YoutubeAlertController::class, 'markAllAsRead'])->name('youtube.alerts.read-all');
+    Route::delete('/youtube-alerts/{alert}', [App\Http\Controllers\YoutubeAlertController::class, 'destroy'])->name('youtube.alerts.destroy');
+    Route::get('/youtube-alerts/unread-count', [App\Http\Controllers\YoutubeAlertController::class, 'getUnreadCount'])->name('youtube.alerts.unread-count');
+    Route::get('/youtube-alerts/recent', [App\Http\Controllers\YoutubeAlertController::class, 'getRecent'])->name('youtube.alerts.recent');
+
+    // Alert Settings Routes
+    Route::get('/youtube-monitoring/{channel}/alert-settings', [App\Http\Controllers\YoutubeAlertController::class, 'getSettings'])->name('youtube.alerts.settings');
+    Route::put('/youtube-monitoring/{channel}/alert-settings', [App\Http\Controllers\YoutubeAlertController::class, 'updateSettings'])->name('youtube.alerts.settings.update');
+
+    // YouTube Comparison Routes
+    Route::get('/youtube-comparison', [App\Http\Controllers\YoutubeComparisonController::class, 'index'])->name('youtube.comparison.index');
+    Route::post('/youtube-comparison/compare', [App\Http\Controllers\YoutubeComparisonController::class, 'compare'])->name('youtube.comparison.compare');
+
+    // YouTube AI Analysis Routes
+    Route::post('/youtube-ai/analyze', [App\Http\Controllers\YoutubeAIController::class, 'analyzeChannel'])->name('youtube.ai.analyze');
+    Route::post('/youtube-ai/status', [App\Http\Controllers\YoutubeAIController::class, 'checkAnalysisStatus'])->name('youtube.ai.status');
+    Route::post('/youtube-ai/compare', [App\Http\Controllers\YoutubeAIController::class, 'compareChannels'])->name('youtube.ai.compare');
+
+    // YouTube Video Management Routes
+    Route::get('/youtube-monitoring/{channel}/videos', [App\Http\Controllers\YoutubeMonitoringController::class, 'getChannelVideos'])->name('youtube.videos.list');
+    Route::post('/youtube-monitoring/{channel}/sync-more-videos', [App\Http\Controllers\YoutubeMonitoringController::class, 'syncMoreVideos'])->name('youtube.videos.sync-more');
+
+    // Debug route to see AI prompt data
+    Route::get('/debug-ai-prompt/{channelId}', [App\Http\Controllers\YoutubeAIController::class, 'debugPrompt'])->name('debug.ai.prompt');
 });
 
 require __DIR__.'/auth.php';

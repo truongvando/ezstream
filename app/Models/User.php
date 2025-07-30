@@ -91,6 +91,22 @@ class User extends Authenticatable
     }
 
     /**
+     * Get all YouTube channels for this user
+     */
+    public function youtubeChannels()
+    {
+        return $this->hasMany(\App\Models\YoutubeChannel::class);
+    }
+
+    /**
+     * Get all YouTube alerts for this user
+     */
+    public function youtubeAlerts()
+    {
+        return $this->hasMany(\App\Models\YoutubeAlert::class);
+    }
+
+    /**
      * Get the subscriptions for the user.
      */
     public function subscriptions()

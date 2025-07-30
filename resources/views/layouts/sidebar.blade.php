@@ -72,13 +72,44 @@
 
             <!-- Main content -->
             <div class="flex flex-col w-0 flex-1 overflow-hidden">
-                <div class="lg:hidden pl-1 pt-1 sm:pl-3 sm:pt-3">
-                     <button @click="sidebarOpen = true" type="button" class="-ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-900 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500">
-                        <span class="sr-only">Open sidebar</span>
-                        <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                        </svg>
-                    </button>
+                <!-- Top bar -->
+                <div class="flex items-center justify-between bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-2">
+                    <div class="lg:hidden">
+                         <button @click="sidebarOpen = true" type="button" class="-ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-900 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500">
+                            <span class="sr-only">Open sidebar</span>
+                            <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <!-- Right side - Notifications -->
+                    <div class="flex items-center space-x-4 ml-auto">
+                        <!-- YouTube Alerts Notification -->
+                        <div class="relative" x-data="{ open: false, unreadCount: 0 }" x-init="loadUnreadCount()">
+                            <a href="{{ route('youtube.alerts.page') }}"
+                               class="relative p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-5 5v-5zM4 19h6v-2H4v2zM4 15h8v-2H4v2zM4 11h10V9H4v2zM4 7h12V5H4v2z"/>
+                                </svg>
+                                <!-- Unread count badge -->
+                                <span x-show="unreadCount > 0" x-text="unreadCount"
+                                      class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"></span>
+                            </a>
+
+
+                        </div>
+
+                        <!-- Dark mode toggle -->
+                        <button @click="darkMode = !darkMode" class="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg">
+                            <svg x-show="!darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+                            </svg>
+                            <svg x-show="darkMode" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
                 <main class="flex-1 relative overflow-y-auto focus:outline-none h-full">
                     <div class="h-full">
@@ -105,6 +136,113 @@
 
         <!-- Global file upload script -->
         <script src="{{ asset('js/file-upload.js') }}"></script>
+
+        <!-- YouTube Alerts Script -->
+        <script>
+            async function loadUnreadCount() {
+                try {
+                    const response = await fetch('/youtube-alerts/unread-count', {
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            'Accept': 'application/json',
+                        }
+                    });
+                    const data = await response.json();
+                    this.unreadCount = data.unread_count || 0;
+                } catch (error) {
+                    console.error('Error loading unread count:', error);
+                }
+            }
+
+            async function loadRecentAlerts() {
+                try {
+                    const response = await fetch('/youtube-alerts/recent', {
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            'Accept': 'application/json',
+                        }
+                    });
+                    const data = await response.json();
+
+                    const alertsList = document.getElementById('alertsList');
+
+                    if (data.alerts.length === 0) {
+                        alertsList.innerHTML = '<p class="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Không có alert nào</p>';
+                        return;
+                    }
+
+                    alertsList.innerHTML = data.alerts.map(alert => `
+                        <div class="flex items-start space-x-3 p-2 rounded-lg ${alert.is_read ? 'bg-gray-50 dark:bg-gray-700' : 'bg-blue-50 dark:bg-blue-900'} hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                            <span class="text-lg">${getAlertIcon(alert.type)}</span>
+                            <div class="flex-1 min-w-0">
+                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">${alert.title}</p>
+                                <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">${alert.message}</p>
+                                <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">${formatDate(alert.triggered_at)}</p>
+                            </div>
+                            ${!alert.is_read ? '<div class="w-2 h-2 bg-blue-500 rounded-full"></div>' : ''}
+                        </div>
+                    `).join('');
+
+                } catch (error) {
+                    console.error('Error loading recent alerts:', error);
+                    document.getElementById('alertsList').innerHTML = '<p class="text-sm text-red-500 text-center py-4">Lỗi tải alerts</p>';
+                }
+            }
+
+            async function markAllAsRead() {
+                try {
+                    const response = await fetch('/youtube-alerts/read-all', {
+                        method: 'PATCH',
+                        headers: {
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            'Accept': 'application/json',
+                        }
+                    });
+
+                    if (response.ok) {
+                        // Reload alerts and count
+                        await loadRecentAlerts();
+                        await loadUnreadCount();
+                    }
+                } catch (error) {
+                    console.error('Error marking all as read:', error);
+                }
+            }
+
+            function getAlertIcon(type) {
+                const icons = {
+                    'new_video': '<span class="text-blue-500">📹</span>',
+                    'subscriber_milestone': '<span class="text-green-500">🎯</span>',
+                    'view_milestone': '<span class="text-purple-500">👁️</span>',
+                    'growth_spike': '<span class="text-emerald-500">📊</span>',
+                    'video_viral': '<span class="text-red-500">🔥</span>',
+                    'channel_inactive': '<span class="text-gray-500">💤</span>'
+                };
+                return icons[type] || '<span class="text-blue-500">📢</span>';
+            }
+
+            function formatDate(dateString) {
+                const date = new Date(dateString);
+                const now = new Date();
+                const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
+
+                if (diffInHours < 1) {
+                    return 'Vừa xong';
+                } else if (diffInHours < 24) {
+                    return `${diffInHours} giờ trước`;
+                } else {
+                    const diffInDays = Math.floor(diffInHours / 24);
+                    return `${diffInDays} ngày trước`;
+                }
+            }
+
+            // Auto-refresh unread count every 5 minutes
+            setInterval(async () => {
+                if (typeof loadUnreadCount === 'function') {
+                    await loadUnreadCount();
+                }
+            }, 300000); // 5 minutes
+        </script>
 
         @stack('scripts')
     </body>

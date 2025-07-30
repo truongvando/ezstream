@@ -53,6 +53,14 @@ return [
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
     ],
 
+    'youtube' => [
+        'api_key' => env('YOUTUBE_API_KEY'),
+    ],
+
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+    ],
+
     'cloudflare' => [
         'worker_url' => env('CLOUDFLARE_WORKER_URL'),
         'api_token' => env('CLOUDFLARE_API_TOKEN'),

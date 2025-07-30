@@ -244,12 +244,29 @@ class StreamManager:
             return self.streams.get(stream_id)
     
     def get_active_stream_ids(self) -> List[int]:
-        """Get list of active stream IDs"""
+        """Get list of active stream IDs - verify actual process status"""
         with self.stream_lock:
-            return [
-                stream_id for stream_id, info in self.streams.items()
-                if info.state in [StreamState.STARTING, StreamState.DOWNLOADING, StreamState.STREAMING, StreamState.UPDATING]
-            ]
+            active_streams = []
+            
+            for stream_id, info in self.streams.items():
+                # Check if state indicates it should be running
+                if info.state in [StreamState.STARTING, StreamState.DOWNLOADING, StreamState.STREAMING, StreamState.UPDATING]:
+                    # Verify actual process is running
+                    if self.process_manager:
+                        process_info = self.process_manager.get_process_info(stream_id)
+                        if process_info and process_info.process and process_info.process.poll() is None:
+                            # Process is actually running
+                            active_streams.append(stream_id)
+                        else:
+                            # Process died but state wasn't updated - fix state
+                            logging.warning(f"🔄 Stream {stream_id} state is {info.state} but process is dead, updating to ERROR")
+                            info.state = StreamState.ERROR
+                            info.error_message = "Process died but state wasn't updated"
+                    else:
+                        # No process manager, trust the state
+                        active_streams.append(stream_id)
+            
+            return active_streams
     
     def get_all_streams(self) -> Dict[int, StreamInfo]:
         """Get all streams (copy)"""
