@@ -409,17 +409,20 @@ abstract class BaseStreamManager extends Component
         $this->showCreateModal = false;
         $this->showEditModal = false;
 
+        // CRITICAL: Reset editingStream to ensure CREATE mode
+        $this->editingStream = null;
+
         // Reset quick stream fields
         $this->reset([
             'quickTitle', 'quickDescription', 'quickPlatform', 'quickRtmpUrl', 'quickStreamKey',
             'quickLoop', 'quickPlaylistOrder', 'quickEnableSchedule', 'quickScheduledAt', 'quickScheduledEnd',
             'quickSelectedFiles', 'video_source_id'
         ]);
-        
+
         $this->quickPlatform = 'youtube';
         $this->quickPlaylistOrder = 'sequential';
         $this->quickSelectedFiles = [];
-        
+
         $this->showQuickStreamModal = true;
         
         Log::info('✅ Quick Stream Modal opened successfully');

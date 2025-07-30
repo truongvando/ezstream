@@ -13,12 +13,12 @@
          }
      })"
      class="quick-stream-modal fixed inset-0 z-50 overflow-y-auto px-4 py-6 sm:px-0">
-    {{-- Gray Background --}}
+    
     <div class="fixed inset-0 transform transition-all" @click="$wire.showQuickStreamModal = false">
         <div class="absolute inset-0 bg-gray-500 dark:bg-gray-900 opacity-75"></div>
     </div>
 
-    {{-- Modal Content --}}
+    
     <div class="mb-6 bg-white dark:bg-gray-800 rounded-lg overflow-hidden shadow-xl transform transition-all sm:w-full sm:max-w-4xl sm:mx-auto max-h-[90vh] flex flex-col">
             <!-- Header -->
             <div class="bg-white dark:bg-gray-800 px-6 py-4 flex-shrink-0">
@@ -65,7 +65,14 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Tiêu đề stream *</label>
                                 <input type="text" wire:model="quickTitle" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Nhập tiêu đề stream...">
-                                @error('quickTitle') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['quickTitle'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> <span class="text-red-500 text-sm"><?php echo e($message); ?></span> <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             </div>
 
                             <!-- Description -->
@@ -83,37 +90,58 @@
                                         <option value="custom">Custom RTMP</option>
                                     </select>
                                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                        @if($quickPlatform === 'youtube')
+                                        <!--[if BLOCK]><![endif]--><?php if($quickPlatform === 'youtube'): ?>
                                             <!-- YouTube Icon -->
                                             <svg class="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 24 24">
                                                 <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                                             </svg>
-                                        @else
+                                        <?php else: ?>
                                             <!-- Custom RTMP Icon -->
                                             <svg class="h-5 w-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                             </svg>
-                                        @endif
+                                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                     </div>
                                 </div>
-                                @error('quickPlatform') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['quickPlatform'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> <span class="text-red-500 text-sm"><?php echo e($message); ?></span> <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             </div>
 
                             <!-- RTMP URL (chỉ hiện khi custom) -->
-                            @if($quickPlatform === 'custom')
+                            <!--[if BLOCK]><![endif]--><?php if($quickPlatform === 'custom'): ?>
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">RTMP URL *</label>
                                 <input type="url" wire:model="quickRtmpUrl" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="rtmp://your-server.com/live">
-                                @error('quickRtmpUrl') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['quickRtmpUrl'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> <span class="text-red-500 text-sm"><?php echo e($message); ?></span> <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             </div>
-                            @endif
+                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 
                             <!-- Stream Key -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Stream Key *</label>
                                 <input type="password" wire:model="quickStreamKey" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Nhập stream key...">
-                                @error('quickStreamKey') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
+                                <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['quickStreamKey'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> <span class="text-red-500 text-sm"><?php echo e($message); ?></span> <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             </div>
                         </div>
 
@@ -128,7 +156,7 @@
                                     <div class="flex space-x-2">
                                         <button type="button"
                                                 wire:click.prevent="switchTab('upload')"
-                                                class="px-3 py-2 text-sm font-medium border rounded-md transition-colors flex items-center {{ $videoSource === 'upload' ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'bg-gray-100 text-gray-700 border-gray-300' }}">
+                                                class="px-3 py-2 text-sm font-medium border rounded-md transition-colors flex items-center <?php echo e($videoSource === 'upload' ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'bg-gray-100 text-gray-700 border-gray-300'); ?>">
                                             <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
                                             </svg>
@@ -136,7 +164,7 @@
                                         </button>
                                         <button type="button"
                                                 wire:click.prevent="switchTab('library')"
-                                                class="px-3 py-2 text-sm font-medium border rounded-md transition-colors flex items-center {{ $videoSource === 'library' ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'bg-gray-100 text-gray-700 border-gray-300' }}">
+                                                class="px-3 py-2 text-sm font-medium border rounded-md transition-colors flex items-center <?php echo e($videoSource === 'library' ? 'bg-indigo-100 text-indigo-700 border-indigo-300' : 'bg-gray-100 text-gray-700 border-gray-300'); ?>">
                                             <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/>
                                             </svg>
@@ -145,44 +173,44 @@
                                     </div>
 
                                     <!-- Upload Section -->
-                                    @if($videoSource === 'upload')
+                                    <!--[if BLOCK]><![endif]--><?php if($videoSource === 'upload'): ?>
                                     <div>
-                                        @include('livewire.shared.quick-upload-area')
+                                        <?php echo $__env->make('livewire.shared.quick-upload-area', array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>
                                     </div>
-                                    @endif
+                                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                     
                                     <!-- Library Selection -->
-                                    @if($videoSource === 'library')
+                                    <!--[if BLOCK]><![endif]--><?php if($videoSource === 'library'): ?>
                                     <div>
                                         <div class="border border-gray-300 dark:border-gray-600 rounded-lg">
-                                            @if(isset($userFiles) && count($userFiles) > 0)
+                                            <!--[if BLOCK]><![endif]--><?php if(isset($userFiles) && count($userFiles) > 0): ?>
                                                 <div class="p-2 bg-gray-50 dark:bg-gray-700 text-xs text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-600">
-                                                    Đã chọn: <span>{{ count($quickSelectedFiles) }}</span> file(s)
+                                                    Đã chọn: <span><?php echo e(count($quickSelectedFiles)); ?></span> file(s)
                                                 </div>
                                                 <!-- Scrollable file list with fixed height -->
                                                 <div class="max-h-48 overflow-y-auto">
-                                                    @foreach($userFiles as $file)
-                                                    <label wire:key="file-{{ $file->id }}" class="quick-stream-file-label flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors">
+                                                    <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $userFiles; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $file): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
+                                                    <label wire:key="file-<?php echo e($file->id); ?>" class="quick-stream-file-label flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors">
                                                         <input type="checkbox"
-                                                               wire:click="toggleFileSelection({{ $file->id }})"
-                                                               @if(in_array($file->id, $quickSelectedFiles)) checked @endif
+                                                               wire:click="toggleFileSelection(<?php echo e($file->id); ?>)"
+                                                               <?php if(in_array($file->id, $quickSelectedFiles)): ?> checked <?php endif; ?>
                                                                class="quick-stream-checkbox form-checkbox h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer">
                                                         <div class="ml-3 flex-1">
-                                                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $file->original_name }}</p>
-                                                            <p class="text-xs text-gray-500">{{ number_format($file->size / 1024 / 1024, 1) }}MB • {{ $file->created_at->format('d/m/Y') }}</p>
+                                                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100"><?php echo e($file->original_name); ?></p>
+                                                            <p class="text-xs text-gray-500"><?php echo e(number_format($file->size / 1024 / 1024, 1)); ?>MB • <?php echo e($file->created_at->format('d/m/Y')); ?></p>
                                                         </div>
                                                     </label>
-                                                    @endforeach
+                                                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
                                                 </div>
-                                            @else
+                                            <?php else: ?>
                                                 <div class="p-6 text-center text-gray-500">
                                                     <p class="text-sm">Chưa có video nào trong thư viện.</p>
                                                     <p class="text-xs mt-1">Hãy upload video trước hoặc sử dụng tab "Upload nhanh"</p>
                                                 </div>
-                                            @endif
+                                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                         </div>
                                     </div>
-                                    @endif
+                                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                 </div>
                             </div>
                             
@@ -218,7 +246,7 @@
                                         Tự động xóa video sau khi stream
                                     </label>
                                 </div>
-                                @if($quickAutoDelete)
+                                <!--[if BLOCK]><![endif]--><?php if($quickAutoDelete): ?>
                                 <div class="ml-6 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-xs text-red-700 dark:text-red-400">
                                     <div class="flex items-start">
                                         <svg class="w-4 h-4 mr-1.5 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
@@ -230,11 +258,11 @@
                                         </div>
                                     </div>
                                 </div>
-                                @else
+                                <?php else: ?>
                                 <div class="ml-6 text-xs text-green-600 dark:text-green-400">
                                     ✅ Video sẽ được giữ lại sau khi stream kết thúc
                                 </div>
-                                @endif
+                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                             </div>
 
                             <!-- Schedule -->
@@ -249,7 +277,7 @@
                                     </label>
                                 </div>
 
-                                @if($quickEnableSchedule)
+                                <!--[if BLOCK]><![endif]--><?php if($quickEnableSchedule): ?>
                                 <div class="ml-6 space-y-3">
                                     <div>
                                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Thời gian bắt đầu</label>
@@ -260,7 +288,7 @@
                                         <input type="datetime-local" wire:model.defer="quickScheduledEnd" wire:ignore.self class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                     </div>
                                 </div>
-                                @endif
+                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                             </div>
                         </div>
                     </div>
@@ -271,25 +299,25 @@
             <div class="bg-gray-50 dark:bg-gray-900 flex justify-end space-x-3 border-t pt-4 p-6 flex-shrink-0">
                 <button type="button" @click="$wire.showQuickStreamModal = false" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">Hủy</button>
                 <button id="quickStreamSubmitButton"
-                        wire:click.prevent="{{ $editingStream ? 'updateQuickStream' : 'createQuickStream' }}"
+                        wire:click.prevent="<?php echo e($editingStream ? 'updateQuickStream' : 'createQuickStream'); ?>"
                         wire:loading.attr="disabled"
                         wire:loading.class="opacity-50 cursor-not-allowed"
-                        wire:target="{{ $editingStream ? 'updateQuickStream' : 'createQuickStream' }}"
+                        wire:target="<?php echo e($editingStream ? 'updateQuickStream' : 'createQuickStream'); ?>"
                         type="button"
                         class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                         x-data="{ clicked: false }"
                         x-on:click="if (clicked) return false; clicked = true; setTimeout(() => clicked = false, 3000)"
                         :disabled="clicked">
-                    <span wire:loading.remove wire:target="{{ $editingStream ? 'updateQuickStream' : 'createQuickStream' }}" class="flex items-center">
-                        @if ($editingStream)
+                    <span wire:loading.remove wire:target="<?php echo e($editingStream ? 'updateQuickStream' : 'createQuickStream'); ?>" class="flex items-center">
+                        <!--[if BLOCK]><![endif]--><?php if($editingStream): ?>
                             <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
                             Cập nhật Stream
-                        @else
+                        <?php else: ?>
                             <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
                             </svg>
                             Tạo & Stream Ngay
-                        @endif
+                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                     </span>
                     <span wire:loading wire:target="createQuickStream" class="flex items-center">
                         <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -304,7 +332,7 @@
     </div>
 </div>
 
-@push('scripts')
+<?php $__env->startPush('scripts'); ?>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🎬 Quick Stream Modal script loaded');
@@ -351,4 +379,5 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
-@endpush
+<?php $__env->stopPush(); ?>
+<?php /**PATH D:\laragon\www\ezstream\resources\views/livewire/shared/quick-stream-modal.blade.php ENDPATH**/ ?>

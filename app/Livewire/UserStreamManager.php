@@ -479,11 +479,8 @@ class UserStreamManager extends BaseStreamManager
 
     public function createQuickStream()
     {
-        // Check if we're editing an existing stream
-        if ($this->editingStream && $this->editingStream->is_quick_stream) {
-            $this->updateQuickStream();
-            return;
-        }
+        // This method should ONLY create new streams
+        // Edit functionality is handled by updateQuickStream() method
 
         Log::info(' [QuickStream] Starting createQuickStream', [
             'quickTitle' => $this->quickTitle,
