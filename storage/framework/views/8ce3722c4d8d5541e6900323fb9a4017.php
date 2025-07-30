@@ -87,18 +87,38 @@
                     <!-- Right side - Notifications -->
                     <div class="flex items-center space-x-4 ml-auto">
                         <!-- YouTube Alerts Notification -->
-                        <div class="relative" x-data="{ open: false, unreadCount: 0 }" x-init="loadUnreadCount()">
+                        <div class="relative"
+                             x-data="{
+                                 open: false,
+                                 unreadCount: 0,
+                                 async loadCount() {
+                                     try {
+                                         const response = await fetch('/youtube-alerts/unread-count', {
+                                             headers: {
+                                                 'X-CSRF-TOKEN': document.querySelector('meta[name=\"csrf-token\"]').content,
+                                                 'Accept': 'application/json',
+                                             }
+                                         });
+                                         const data = await response.json();
+                                         this.unreadCount = data.unread_count || 0;
+                                     } catch (error) {
+                                         console.error('Error loading unread count:', error);
+                                     }
+                                 }
+                             }"
+                             x-init="loadCount(); setInterval(() => loadCount(), 300000)">
                             <a href="<?php echo e(route('youtube.alerts.page')); ?>"
-                               class="relative p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg">
+                               class="relative p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-lg transition-colors">
+                                <!-- Bell Icon -->
                                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-5 5v-5zM4 19h6v-2H4v2zM4 15h8v-2H4v2zM4 11h10V9H4v2zM4 7h12V5H4v2z"/>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-5 5v-5zM10.5 3.75a6 6 0 0 1 6 6v2.25l2.25 2.25v.75H2.25v-.75L4.5 12V9.75a6 6 0 0 1 6-6z"/>
                                 </svg>
                                 <!-- Unread count badge -->
-                                <span x-show="unreadCount > 0" x-text="unreadCount"
-                                      class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"></span>
+                                <span x-show="unreadCount > 0"
+                                      x-text="unreadCount"
+                                      x-transition
+                                      class="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium shadow-lg"></span>
                             </a>
-
-
                         </div>
 
                         <!-- Dark mode toggle -->
@@ -162,7 +182,8 @@
 
         <!-- YouTube Alerts Script -->
         <script>
-            async function loadUnreadCount() {
+            // Global function for loading unread count
+            window.loadUnreadCount = async function() {
                 try {
                     const response = await fetch('/youtube-alerts/unread-count', {
                         headers: {
@@ -171,9 +192,17 @@
                         }
                     });
                     const data = await response.json();
-                    this.unreadCount = data.unread_count || 0;
+
+                    // Update Alpine.js data
+                    const notificationElement = document.querySelector('[x-data*="unreadCount"]');
+                    if (notificationElement && notificationElement._x_dataStack) {
+                        notificationElement._x_dataStack[0].unreadCount = data.unread_count || 0;
+                    }
+
+                    return data.unread_count || 0;
                 } catch (error) {
                     console.error('Error loading unread count:', error);
+                    return 0;
                 }
             }
 
