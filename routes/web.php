@@ -213,6 +213,29 @@ Route::get('/test-agent-command', function () {
     return '<pre>' . implode("\n", $output) . '</pre>';
 });
 
+// Test YouTube API Service
+Route::get('/test-youtube-api', function () {
+    try {
+        $youtube = new \App\Services\YoutubeApiService();
+        $testUrl = 'https://www.youtube.com/@trieuphongsoicau';
+        $channelId = $youtube->extractChannelId($testUrl);
+
+        return response()->json([
+            'success' => true,
+            'input' => $testUrl,
+            'channel_id' => $channelId,
+            'message' => $channelId ? 'Channel found!' : 'Channel not found'
+        ]);
+
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'file' => $e->getFile() . ':' . $e->getLine()
+        ]);
+    }
+});
+
 // Debug scheduled streams
 Route::get('/debug-scheduled', function () {
     $now = now();

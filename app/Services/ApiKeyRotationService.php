@@ -20,12 +20,34 @@ class ApiKeyRotationService
     {
         $currentIndex = $this->getCurrentKeyIndex();
         $key = env("YOUTUBE_API_KEY_{$currentIndex}");
-        
+
         if (empty($key) || $key === 'your_second_youtube_api_key_here' || $key === 'your_third_youtube_api_key_here') {
-            // Fallback to key 1 if current key is not set
-            return env('YOUTUBE_API_KEY_1', env('YOUTUBE_API_KEY', ''));
+            // Multiple fallback attempts
+            $fallbackKey = env('YOUTUBE_API_KEY_1');
+
+            if (empty($fallbackKey) || $fallbackKey === 'your_second_youtube_api_key_here') {
+                $fallbackKey = env('YOUTUBE_API_KEY');
+            }
+
+            // Last resort: hardcoded for production (temporary fix)
+            if (empty($fallbackKey) && app()->environment('production')) {
+                $fallbackKey = 'AIzaSyAZsUCvHOGHYoUuVBMZsKJSXuDH5Czj1qw';
+                Log::warning('Using hardcoded YouTube API key as last resort');
+            }
+
+            Log::info('Using fallback YouTube API key', [
+                'requested_index' => $currentIndex,
+                'fallback_used' => !empty($fallbackKey) ? 'yes' : 'no',
+                'key_preview' => !empty($fallbackKey) ? substr($fallbackKey, 0, 10) . '...' : 'empty',
+                'env_check' => [
+                    'YOUTUBE_API_KEY_1' => env('YOUTUBE_API_KEY_1') ? 'found' : 'empty',
+                    'YOUTUBE_API_KEY' => env('YOUTUBE_API_KEY') ? 'found' : 'empty'
+                ]
+            ]);
+
+            return $fallbackKey ?: '';
         }
-        
+
         return $key;
     }
 

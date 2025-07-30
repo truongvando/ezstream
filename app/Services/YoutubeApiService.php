@@ -218,6 +218,13 @@ class YoutubeApiService
             return $matches[1];
         }
 
+        // Pattern 1.5: Extract from video URL and get channel from video
+        if (preg_match('/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)([a-zA-Z0-9_-]+)/', $input, $matches)) {
+            $videoId = $matches[1];
+            Log::info('Extracting channel from video URL', ['video_id' => $videoId]);
+            return $this->getChannelIdFromVideo($videoId);
+        }
+
         // Pattern 2: Direct Channel ID (UC...)
         if (preg_match('/^UC[a-zA-Z0-9_-]{22}$/', $input)) {
             Log::info('Found direct channel ID', ['channel_id' => $input]);
@@ -232,11 +239,14 @@ class YoutubeApiService
             $username = substr($username, 1);
         }
 
-        // Extract username from URL patterns
-        if (preg_match('/youtube\.com\/@([a-zA-Z0-9_-]+)/', $input, $matches)) {
+        // Extract username from URL patterns (improved regex)
+        if (preg_match('/youtube\.com\/@([a-zA-Z0-9_.-]+)/', $input, $matches)) {
             $username = $matches[1];
+            Log::info('Extracted handle from URL', ['handle' => $username]);
+            return $this->resolveHandleToChannelId($username);
         } elseif (preg_match('/youtube\.com\/(?:c|user)\/([a-zA-Z0-9_-]+)/', $input, $matches)) {
             $username = $matches[1];
+            Log::info('Extracted username from URL', ['username' => $username]);
         }
 
         if ($username && $username !== $input) {
@@ -246,6 +256,46 @@ class YoutubeApiService
 
         Log::warning('No valid pattern found for input', ['input' => $input]);
         return null;
+    }
+
+    /**
+     * Get channel ID from video ID
+     */
+    private function getChannelIdFromVideo(string $videoId): ?string
+    {
+        try {
+            Log::info('Getting channel ID from video', ['video_id' => $videoId]);
+
+            $response = $this->makeApiRequest("{$this->baseUrl}/videos", [
+                'key' => $this->apiKey,
+                'id' => $videoId,
+                'part' => 'snippet',
+                'maxResults' => 1
+            ]);
+
+            if (!$response || empty($response['items'])) {
+                Log::warning('Video not found', ['video_id' => $videoId]);
+                return null;
+            }
+
+            $channelId = $response['items'][0]['snippet']['channelId'] ?? null;
+
+            if ($channelId) {
+                Log::info('Successfully extracted channel ID from video', [
+                    'video_id' => $videoId,
+                    'channel_id' => $channelId
+                ]);
+            }
+
+            return $channelId;
+
+        } catch (\Exception $e) {
+            Log::error('Error getting channel ID from video', [
+                'video_id' => $videoId,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
     }
 
     /**
@@ -268,6 +318,65 @@ class YoutubeApiService
 
         Log::warning('Failed to resolve username', ['username' => $username]);
         return null;
+    }
+
+    /**
+     * Resolve handle (@username) to channel ID using search
+     */
+    private function resolveHandleToChannelId(string $handle): ?string
+    {
+        try {
+            Log::info('Resolving handle to channel ID', ['handle' => $handle]);
+
+            // Try search API to find channel by handle
+            $response = $this->makeApiRequest("{$this->baseUrl}/search", [
+                'key' => $this->apiKey,
+                'q' => "@{$handle}",
+                'type' => 'channel',
+                'part' => 'snippet',
+                'maxResults' => 5
+            ]);
+
+            if (!$response || empty($response['items'])) {
+                Log::warning('No channels found for handle', ['handle' => $handle]);
+                return null;
+            }
+
+            // Look for exact match in custom URL or title
+            foreach ($response['items'] as $item) {
+                $channelId = $item['id']['channelId'] ?? null;
+                $customUrl = $item['snippet']['customUrl'] ?? '';
+
+                // Check if custom URL matches handle
+                if (strtolower($customUrl) === strtolower("@{$handle}") ||
+                    strtolower($customUrl) === strtolower($handle)) {
+                    Log::info('Found channel by custom URL match', [
+                        'handle' => $handle,
+                        'channel_id' => $channelId,
+                        'custom_url' => $customUrl
+                    ]);
+                    return $channelId;
+                }
+            }
+
+            // If no exact match, return first result
+            $firstChannelId = $response['items'][0]['id']['channelId'] ?? null;
+            if ($firstChannelId) {
+                Log::info('Using first search result for handle', [
+                    'handle' => $handle,
+                    'channel_id' => $firstChannelId
+                ]);
+            }
+
+            return $firstChannelId;
+
+        } catch (\Exception $e) {
+            Log::error('Error resolving handle to channel ID', [
+                'handle' => $handle,
+                'error' => $e->getMessage()
+            ]);
+            return null;
+        }
     }
 
     /**
