@@ -144,17 +144,17 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         $remoteDir = '/opt/ezstream-agent';
         $sshService->execute("mkdir -p {$remoteDir}");
 
-        // 2. Upload all agent files (Premium Solution with conflict fixes)
+        // 2. Upload all agent files (Enhanced HLS Pipeline v4.0)
         $agentFiles = [
-            'agent.py',                 // Main entry point
-            'config.py',                // Configuration management
-            'stream_manager.py',        // Stream lifecycle management (with mutex locks)
-            'process_manager.py',       // FFmpeg process management (with conflict fixes)
-            'file_manager.py',          // File download/cleanup
-            'status_reporter.py',       // Status reporting
-            'command_handler.py',       // Command processing
-            'monitoring_dashboard.py',  // Premium monitoring dashboard
-            'utils.py'                  // Shared utilities
+            'agent.py',                    // Main entry point
+            'config.py',                   // Configuration management
+            'enhanced_stream_manager.py',  // Enhanced stream manager with HLS pipeline
+            'hls_process_manager.py',      // HLS 2-stage pipeline manager
+            'file_manager.py',             // File download/cleanup
+            'status_reporter.py',          // Status reporting
+            'command_handler.py',          // Command processing
+            'monitoring_dashboard.py',     // Premium monitoring dashboard
+            'utils.py'                     // Shared utilities
         ];
 
         foreach ($agentFiles as $filename) {

@@ -18,7 +18,7 @@ import redis
 from config import get_config
 from utils import safe_json_loads, PerformanceTimer
 from status_reporter import get_status_reporter
-from stream_manager import get_stream_manager
+from enhanced_stream_manager import get_enhanced_stream_manager
 
 
 
@@ -49,7 +49,7 @@ class CommandHandler:
     def __init__(self):
         self.config = get_config()
         self.status_reporter = get_status_reporter()
-        self.stream_manager = get_stream_manager()
+        self.stream_manager = get_enhanced_stream_manager()
 
         # Redis connection for command listening
         self.redis_conn = None
@@ -196,8 +196,13 @@ class CommandHandler:
             command = command_data.get('command')
             config = command_data.get('config', {})
 
-            # Get stream_id from config.id (for START_STREAM) or root level (for STOP_STREAM)
+            # Get stream_id with proper fallback logic
             stream_id = config.get('id') or command_data.get('stream_id')
+
+            # For UPDATE_STREAM, ensure we have stream_id
+            if command == 'UPDATE_STREAM' and not stream_id:
+                logging.error("UPDATE_STREAM command missing stream_id")
+                return
             
             if not command:
                 logging.warning("No command specified in message")
@@ -341,19 +346,139 @@ class CommandHandler:
             return False
     
     def _handle_update_stream(self, stream_id: int, config: Dict[str, Any], command_data: Dict[str, Any]) -> bool:
-        """Handle UPDATE_STREAM command"""
+        """Handle UPDATE_STREAM command with HLS settings support"""
         try:
             logging.info(f"🔄 [COMMAND] Updating stream {stream_id}")
-            
+
             if not self.stream_manager:
                 logging.error("Stream manager not available")
                 return False
-            
-            return self.stream_manager.update_stream(stream_id, config)
-            
+
+            # Validate config structure
+            if not self._validate_update_config(config, stream_id):
+                return False
+
+            # Extract HLS-specific settings from config
+            hls_settings = {}
+            original_config = {}  # For rollback
+
+            # Check for encoding mode change
+            if 'ffmpeg_use_encoding' in config:
+                original_config['ffmpeg_use_encoding'] = self.config.ffmpeg_use_encoding
+                hls_settings['ffmpeg_use_encoding'] = config['ffmpeg_use_encoding']
+                logging.info(f"🔧 [UPDATE] Encoding mode change: {config['ffmpeg_use_encoding']}")
+
+            # Check for HLS-specific settings
+            hls_keys = [
+                'hls_segment_duration', 'hls_playlist_size', 'hls_video_preset',
+                'hls_video_crf', 'hls_video_maxrate', 'hls_audio_bitrate'
+            ]
+
+            for key in hls_keys:
+                if key in config:
+                    original_config[key] = getattr(self.config, key, None)
+                    hls_settings[key] = config[key]
+                    logging.info(f"🔧 [UPDATE] HLS setting change: {key} = {config[key]}")
+
+            # Special handling for video_files
+            if 'video_files' in config:
+                video_files = config['video_files']
+                if not isinstance(video_files, list) or not video_files:
+                    logging.error(f"Invalid video_files in UPDATE_STREAM for stream {stream_id}")
+                    return False
+                logging.info(f"🎬 [UPDATE] Video files change: {len(video_files)} files")
+
+            # If HLS settings changed, update global config first
+            if hls_settings:
+                self._update_global_hls_config(hls_settings)
+
+            # Call enhanced stream manager's update method
+            success = self.stream_manager.update_stream(stream_id, config)
+
+            if not success and hls_settings:
+                # Rollback global config on failure
+                logging.warning(f"🔄 Rolling back global config changes for stream {stream_id}")
+                self._update_global_hls_config(original_config)
+
+            return success
+
         except Exception as e:
             logging.error(f"❌ Error in update_stream handler: {e}")
             return False
+
+    def _validate_update_config(self, config: Dict[str, Any], stream_id: int) -> bool:
+        """Validate UPDATE_STREAM config structure"""
+        try:
+            # Check for required fields if video_files is being updated
+            if 'video_files' in config:
+                video_files = config['video_files']
+
+                if not isinstance(video_files, list):
+                    logging.error(f"video_files must be a list for stream {stream_id}")
+                    return False
+
+                if not video_files:
+                    logging.error(f"video_files cannot be empty for stream {stream_id}")
+                    return False
+
+                # Validate each video file
+                for i, video_file in enumerate(video_files):
+                    if not isinstance(video_file, dict):
+                        logging.error(f"video_files[{i}] must be a dict for stream {stream_id}")
+                        return False
+
+                    if 'url' not in video_file and 'path' not in video_file:
+                        logging.error(f"video_files[{i}] must have 'url' or 'path' for stream {stream_id}")
+                        return False
+
+            # Validate HLS settings ranges
+            if 'hls_segment_duration' in config:
+                duration = config['hls_segment_duration']
+                if not isinstance(duration, int) or duration < 1 or duration > 30:
+                    logging.error(f"Invalid hls_segment_duration: {duration} (must be 1-30)")
+                    return False
+
+            if 'hls_playlist_size' in config:
+                size = config['hls_playlist_size']
+                if not isinstance(size, int) or size < 3 or size > 50:
+                    logging.error(f"Invalid hls_playlist_size: {size} (must be 3-50)")
+                    return False
+
+            if 'hls_video_crf' in config:
+                crf = config['hls_video_crf']
+                if not isinstance(crf, int) or crf < 15 or crf > 35:
+                    logging.error(f"Invalid hls_video_crf: {crf} (must be 15-35)")
+                    return False
+
+            return True
+
+        except Exception as e:
+            logging.error(f"❌ Error validating update config for stream {stream_id}: {e}")
+            return False
+
+    def _update_global_hls_config(self, hls_settings: Dict[str, Any]):
+        """Update global HLS configuration with validation"""
+        try:
+            from config import get_config
+            config_instance = get_config()
+
+            updated_settings = []
+
+            for key, value in hls_settings.items():
+                if hasattr(config_instance, key):
+                    old_value = getattr(config_instance, key)
+                    setattr(config_instance, key, value)
+                    updated_settings.append(f"{key}: {old_value} → {value}")
+                    logging.info(f"🔧 [CONFIG] Updated {key}: {old_value} → {value}")
+                else:
+                    logging.warning(f"⚠️ [CONFIG] Unknown setting: {key}")
+
+            if updated_settings:
+                logging.info(f"✅ [CONFIG] Global HLS config updated: {', '.join(updated_settings)}")
+
+        except Exception as e:
+            logging.error(f"❌ Error updating global HLS config: {e}")
+            raise  # Re-raise to handle in caller
     
     def _handle_sync_state(self, stream_id: Optional[int], config: Dict[str, Any], command_data: Dict[str, Any]) -> bool:
         """Handle SYNC_STATE command"""
@@ -532,17 +657,47 @@ class CommandHandler:
             from config import get_config
             config_instance = get_config()
 
-            if config_instance:
-                success = config_instance.fetch_laravel_settings()
-                if success:
-                    logging.info("✅ Settings refreshed successfully")
-                    return True
-                else:
-                    logging.warning("⚠️ Failed to refresh settings")
-                    return False
-            else:
+            if not config_instance:
                 logging.error("❌ Config instance not available")
                 return False
+
+            # Fetch new settings from Laravel
+            updated_settings = config_instance.fetch_laravel_settings()
+            if not updated_settings:
+                logging.warning("⚠️ Failed to refresh settings or no changes detected")
+                return False
+
+            logging.info("✅ Settings refreshed successfully")
+
+            # Apply settings to running streams if needed
+            if self.stream_manager:
+                active_streams = self.stream_manager.get_active_streams()
+                if active_streams:
+                    logging.info(f"🔄 Applying new settings to {len(active_streams)} active streams...")
+
+                    # Check if critical settings changed that require restart
+                    critical_settings = [
+                        'ffmpeg_mode', 'hls_video_preset', 'hls_video_crf',
+                        'hls_video_maxrate', 'hls_audio_bitrate'
+                    ]
+
+                    needs_restart = any(
+                        any(setting in change for setting in critical_settings)
+                        for change in updated_settings
+                    )
+
+                    if needs_restart:
+                        logging.info("🔄 Critical settings changed - streams will restart on next update")
+                        # Don't auto-restart streams, let Laravel decide
+                        # Just log that restart is recommended
+                        for stream_id in active_streams:
+                            logging.info(f"💡 Stream {stream_id} should be restarted to apply new encoding settings")
+                    else:
+                        logging.info("✅ Non-critical settings updated - no stream restart needed")
+                else:
+                    logging.info("ℹ️ No active streams to apply settings to")
+
+            return True
 
         except Exception as e:
             logging.error(f"❌ Error in refresh_settings handler: {e}")

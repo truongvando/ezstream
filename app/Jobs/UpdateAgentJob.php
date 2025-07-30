@@ -32,7 +32,7 @@ class UpdateAgentJob implements ShouldQueue
     {
         $vps = VpsServer::findOrFail($this->vpsId);
 
-        Log::info("🔄 [VPS #{$vps->id}] Bắt đầu cập nhật Redis Agent v3.0");
+        Log::info("🔄 [VPS #{$vps->id}] Bắt đầu cập nhật Enhanced HLS Agent v4.0");
 
         try {
             // Update VPS status
@@ -42,7 +42,7 @@ class UpdateAgentJob implements ShouldQueue
             ]);
 
             // Initialize progress tracking
-            $this->setUpdateProgress($vps->id, 'starting', 5, 'Bắt đầu cập nhật Redis Agent v3.0');
+            $this->setUpdateProgress($vps->id, 'starting', 5, 'Bắt đầu cập nhật Enhanced HLS Agent v4.0');
 
             // Check if VPS operations are enabled for this environment
             if (!config('deployment.vps_operations_enabled')) {
@@ -99,22 +99,22 @@ class UpdateAgentJob implements ShouldQueue
             $this->verifyAgentRunning($sshService, $vps);
 
             // Step 7: Verify agent compatibility
-            $this->setUpdateProgress($vps->id, 'compatibility', 95, 'Kiểm tra tương thích v3.0');
+            $this->setUpdateProgress($vps->id, 'compatibility', 95, 'Kiểm tra tương thích v4.0');
             $this->verifyAgentCompatibility($sshService, $vps);
 
             // Update status to active
-            $this->setUpdateProgress($vps->id, 'completed', 100, 'Cập nhật Redis Agent v3.0 hoàn tất');
+            $this->setUpdateProgress($vps->id, 'completed', 100, 'Cập nhật Enhanced HLS Agent v4.0 hoàn tất');
             $vps->update([
                 'status' => 'ACTIVE',
-                'status_message' => 'Redis Agent v3.0 đã được cập nhật thành công'
+                'status_message' => 'Enhanced HLS Agent v4.0 đã được cập nhật thành công'
             ]);
 
-            Log::info("✅ [VPS #{$vps->id}] Cập nhật Redis Agent v3.0 hoàn tất");
+            Log::info("✅ [VPS #{$vps->id}] Cập nhật Enhanced HLS Agent v4.0 hoàn tất");
 
         } catch (\Exception $e) {
             $this->setUpdateProgress($vps->id, 'error', 0, 'Lỗi: ' . $e->getMessage());
 
-            Log::error("❌ [VPS #{$vps->id}] Cập nhật Redis Agent thất bại: {$e->getMessage()}", [
+            Log::error("❌ [VPS #{$vps->id}] Cập nhật Enhanced HLS Agent thất bại: {$e->getMessage()}", [
                 'trace' => $e->getTraceAsString(),
                 'vps_name' => $vps->name,
                 'error_type' => get_class($e)
@@ -443,8 +443,8 @@ PYTHON;
                 'command_handler.py',
                 'config.py',
                 'status_reporter.py',
-                'stream_manager.py',
-                'process_manager.py',
+                'enhanced_stream_manager.py',
+                'hls_process_manager.py',
                 'file_manager.py',
                 'utils.py'
             ];

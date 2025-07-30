@@ -203,9 +203,9 @@ class StatusReporter:
 
         while self.running:
             try:
-                # Get active streams from stream manager
-                from stream_manager import get_stream_manager
-                stream_manager = get_stream_manager()
+                # Get active streams from enhanced stream manager
+                from enhanced_stream_manager import get_enhanced_stream_manager
+                stream_manager = get_enhanced_stream_manager()
                 active_stream_ids = stream_manager.get_active_stream_ids() if stream_manager else []
 
                 heartbeat_payload = {
@@ -270,8 +270,8 @@ class StatusReporter:
             network_recv_mb = network.bytes_recv / (1024**2)
             
             # Active streams count
-            from stream_manager import get_stream_manager
-            stream_manager = get_stream_manager()
+            from enhanced_stream_manager import get_enhanced_stream_manager
+            stream_manager = get_enhanced_stream_manager()
             active_streams = len(stream_manager.get_active_stream_ids()) if stream_manager else 0
             
             stats = {

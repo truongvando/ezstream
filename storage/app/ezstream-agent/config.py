@@ -49,6 +49,20 @@ class AgentConfig:
     ffmpeg_startup_timeout: int = 15     # Startup timeout
     ffmpeg_use_encoding: bool = False    # Use copy mode by default (faster, with fast restart on DTS errors)
 
+    # HLS Pipeline settings
+    hls_segment_duration: int = 4        # HLS segment duration in seconds
+    hls_playlist_size: int = 10          # Number of segments to keep in playlist
+    hls_base_dir: str = '/tmp/ezstream_hls'  # Base directory for HLS files
+
+    # HLS Encoding settings (Stage 1)
+    hls_video_codec: str = 'libx264'     # Video codec for HLS generation
+    hls_video_preset: str = 'ultrafast'  # Encoding preset (ultrafast/superfast/veryfast/faster/fast)
+    hls_video_crf: int = 28              # CRF value (18-28, lower = better quality)
+    hls_video_maxrate: str = '2000k'     # Max bitrate for HLS
+    hls_video_bufsize: str = '4000k'     # Buffer size
+    hls_audio_codec: str = 'aac'         # Audio codec
+    hls_audio_bitrate: str = '128k'      # Audio bitrate
+
     # Fast restart settings for DTS errors
     enable_fast_restart: bool = True     # Enable fast restart on DTS errors
     dts_error_threshold: int = 3         # Number of DTS errors before fast restart
@@ -57,9 +71,80 @@ class AgentConfig:
 
     def update_from_laravel_settings(self, settings: dict):
         """Update config from Laravel settings"""
+        updated_settings = []
+
+        # FFmpeg encoding mode
         if 'ffmpeg_encoding_mode' in settings:
+            old_mode = 'encoding' if self.ffmpeg_use_encoding else 'copy'
             self.ffmpeg_use_encoding = settings['ffmpeg_encoding_mode'] == 'encoding'
-            logging.info(f"🔧 FFmpeg mode updated from Laravel: {'encoding' if self.ffmpeg_use_encoding else 'copy'}")
+            new_mode = 'encoding' if self.ffmpeg_use_encoding else 'copy'
+            if old_mode != new_mode:
+                updated_settings.append(f"ffmpeg_mode: {old_mode} → {new_mode}")
+
+        # HLS encoding settings
+        if 'hls_video_preset' in settings:
+            old_preset = self.hls_video_preset
+            self.hls_video_preset = settings['hls_video_preset']
+            if old_preset != self.hls_video_preset:
+                updated_settings.append(f"hls_video_preset: {old_preset} → {self.hls_video_preset}")
+
+        if 'hls_video_crf' in settings:
+            old_crf = self.hls_video_crf
+            self.hls_video_crf = int(settings['hls_video_crf'])
+            if old_crf != self.hls_video_crf:
+                updated_settings.append(f"hls_video_crf: {old_crf} → {self.hls_video_crf}")
+
+        if 'hls_video_maxrate' in settings:
+            old_maxrate = self.hls_video_maxrate
+            self.hls_video_maxrate = settings['hls_video_maxrate']
+            if old_maxrate != self.hls_video_maxrate:
+                updated_settings.append(f"hls_video_maxrate: {old_maxrate} → {self.hls_video_maxrate}")
+
+        if 'hls_audio_bitrate' in settings:
+            old_bitrate = self.hls_audio_bitrate
+            self.hls_audio_bitrate = settings['hls_audio_bitrate']
+            if old_bitrate != self.hls_audio_bitrate:
+                updated_settings.append(f"hls_audio_bitrate: {old_bitrate} → {self.hls_audio_bitrate}")
+
+        # HLS segment settings
+        if 'hls_segment_duration' in settings:
+            old_duration = self.hls_segment_duration
+            self.hls_segment_duration = int(settings['hls_segment_duration'])
+            if old_duration != self.hls_segment_duration:
+                updated_settings.append(f"hls_segment_duration: {old_duration} → {self.hls_segment_duration}")
+
+        if 'hls_playlist_size' in settings:
+            old_size = self.hls_playlist_size
+            self.hls_playlist_size = int(settings['hls_playlist_size'])
+            if old_size != self.hls_playlist_size:
+                updated_settings.append(f"hls_playlist_size: {old_size} → {self.hls_playlist_size}")
+
+        # Performance settings
+        if 'max_concurrent_streams' in settings:
+            old_max = self.max_concurrent_streams
+            self.max_concurrent_streams = int(settings['max_concurrent_streams'])
+            if old_max != self.max_concurrent_streams:
+                updated_settings.append(f"max_concurrent_streams: {old_max} → {self.max_concurrent_streams}")
+
+        if 'restart_threshold_failures' in settings:
+            old_threshold = self.restart_threshold_failures
+            self.restart_threshold_failures = int(settings['restart_threshold_failures'])
+            if old_threshold != self.restart_threshold_failures:
+                updated_settings.append(f"restart_threshold_failures: {old_threshold} → {self.restart_threshold_failures}")
+
+        if 'fast_restart_delay' in settings:
+            old_delay = self.fast_restart_delay
+            self.fast_restart_delay = int(settings['fast_restart_delay'])
+            if old_delay != self.fast_restart_delay:
+                updated_settings.append(f"fast_restart_delay: {old_delay} → {self.fast_restart_delay}")
+
+        # Log all changes
+        if updated_settings:
+            logging.info(f"🔧 Settings updated from Laravel: {', '.join(updated_settings)}")
+            return updated_settings
+        else:
+            logging.info("🔧 No settings changes detected from Laravel")
+            return []
 
     def fetch_laravel_settings(self):
         """Fetch settings from Redis (not HTTP API)"""
@@ -82,28 +167,28 @@ class AgentConfig:
 
             if settings_data:
                 settings = json.loads(settings_data)
-                self.update_from_laravel_settings(settings)
+                updated_settings = self.update_from_laravel_settings(settings)
                 logging.info("✅ Successfully fetched settings from Redis")
-                return True
+                return updated_settings  # Return list of changes
             else:
                 logging.warning(f"⚠️ No settings found in Redis key: {settings_key}")
-                return False
+                return []
 
         except Exception as e:
             logging.warning(f"⚠️ Error fetching settings from Redis: {e}")
-            return False
+            return []
     
-    # Nginx settings
-    nginx_rtmp_base_url: str = 'rtmp://127.0.0.1:1935'
-    nginx_config_dir: str = '/etc/nginx/rtmp-apps'  # VPS path
+    # DEPRECATED: Nginx settings (removed in HLS Pipeline v4.0)
+    # nginx_rtmp_base_url: str = 'rtmp://127.0.0.1:1935'  # ← REMOVED
+    # nginx_config_dir: str = '/etc/nginx/rtmp-apps'       # ← REMOVED
 
     # Windows development override
     def __post_init__(self):
         if os.name == 'nt':  # Windows
-            # For Windows development, use a local temp directory
-            self.nginx_config_dir = os.path.join(os.getcwd(), 'temp', 'rtmp-apps')
-            # Create directory if it doesn't exist
-            os.makedirs(self.nginx_config_dir, exist_ok=True)
+            # Ensure HLS base directory exists on Windows
+            os.makedirs(self.hls_base_dir, exist_ok=True)
+            # Ensure download directory exists
+            os.makedirs(self.download_base_dir, exist_ok=True)
     
     # Thread pool settings
     command_thread_pool_size: int = 10
@@ -152,13 +237,17 @@ class AgentConfig:
         """Get download directory for specific stream"""
         return os.path.join(self.download_base_dir, str(stream_id))
     
-    def get_nginx_app_config_path(self, stream_id: int) -> str:
-        """Get nginx app config path for stream"""
-        return os.path.join(self.nginx_config_dir, f'stream_{stream_id}.conf')
-    
-    def get_rtmp_endpoint(self, stream_id: int) -> str:
-        """Get RTMP endpoint for stream"""
-        return f"{self.nginx_rtmp_base_url}/stream_{stream_id}/stream_{stream_id}"
+    # DEPRECATED: Nginx methods (removed in HLS Pipeline v4.0)
+    # def get_nginx_app_config_path(self, stream_id: int) -> str:  # ← REMOVED
+    # def get_rtmp_endpoint(self, stream_id: int) -> str:          # ← REMOVED
+
+    def get_hls_output_dir(self, stream_id: int) -> str:
+        """Get HLS output directory for stream"""
+        return os.path.join(self.hls_base_dir, f'stream_{stream_id}')
+
+    def get_hls_playlist_path(self, stream_id: int) -> str:
+        """Get HLS playlist path for stream"""
+        return os.path.join(self.get_hls_output_dir(stream_id), 'playlist.m3u8')
 
 
 # Global config instance
