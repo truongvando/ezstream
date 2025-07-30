@@ -136,9 +136,9 @@ class CommandHandler:
         except Exception as e:
             logging.error(f"❌ Error closing Redis connection: {e}")
 
-        # Shutdown executor
+        # Shutdown executor (compatible with older Python)
         try:
-            self.command_executor.shutdown(wait=True, timeout=10)
+            self.command_executor.shutdown(wait=True)
             logging.info("✅ Command executor shutdown")
         except Exception as e:
             logging.error(f"❌ Error shutting down executor: {e}")
@@ -160,18 +160,24 @@ class CommandHandler:
             for message in self.pubsub.listen():
                 if not self.running:
                     break
-                
+
                 try:
                     self._process_message(message)
                 except Exception as e:
-                    logging.error(f"❌ Error processing command message: {e}")
-                    logging.error(f"Raw message: {message}")
-                    
+                    if self.running:  # Only log if we're still supposed to be running
+                        logging.error(f"❌ Error processing command message: {e}")
+                        logging.error(f"Raw message: {message}")
+                    break  # Exit loop on error
+
         except Exception as e:
-            logging.error(f"❌ Error in command listener loop: {e}")
+            if self.running:  # Only log if we're still supposed to be running
+                logging.error(f"❌ Error in command listener loop: {e}")
         finally:
-            if self.pubsub:
-                self.pubsub.close()
+            try:
+                if self.pubsub:
+                    self.pubsub.close()
+            except Exception:
+                pass  # Ignore errors during cleanup
     
     def _process_message(self, message: Dict[str, Any]):
         """Process incoming command message"""

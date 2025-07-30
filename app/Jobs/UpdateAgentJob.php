@@ -18,8 +18,8 @@ class UpdateAgentJob implements ShouldQueue
 
     protected $vpsId;
 
-    // Job configuration
-    public $timeout = 600; // 10 minutes timeout
+    // Job configuration - increased for production stability
+    public $timeout = 900; // 15 minutes timeout for production
     public $tries = 1;     // Don't retry automatically
     public $maxExceptions = 1;
 
@@ -51,9 +51,24 @@ class UpdateAgentJob implements ShouldQueue
                 return;
             }
 
-            // Connect to VPS
-            if (!$sshService->connect($vps)) {
-                throw new \Exception('Không thể kết nối tới VPS qua SSH');
+            // Connect to VPS with retry logic
+            $maxRetries = 3;
+            $connected = false;
+
+            for ($i = 0; $i < $maxRetries; $i++) {
+                if ($sshService->connect($vps)) {
+                    $connected = true;
+                    break;
+                }
+
+                if ($i < $maxRetries - 1) {
+                    Log::warning("🔄 [VPS #{$vps->id}] SSH connection failed, retrying... (" . ($i + 1) . "/{$maxRetries})");
+                    sleep(5);
+                }
+            }
+
+            if (!$connected) {
+                throw new \Exception("Không thể kết nối tới VPS qua SSH sau {$maxRetries} lần thử");
             }
 
             Log::info("✅ [VPS #{$vps->id}] Kết nối SSH thành công");
@@ -193,8 +208,22 @@ class UpdateAgentJob implements ShouldQueue
                 continue;
             }
 
-            if (!$sshService->uploadFile($localPath, $remotePath)) {
-                throw new \Exception("Không thể upload file: {$filename}");
+            // Upload with retry logic
+            $uploadSuccess = false;
+            for ($retry = 0; $retry < 3; $retry++) {
+                if ($sshService->uploadFile($localPath, $remotePath)) {
+                    $uploadSuccess = true;
+                    break;
+                }
+
+                if ($retry < 2) {
+                    Log::warning("🔄 [VPS #{$vps->id}] Upload failed for {$filename}, retrying... (" . ($retry + 1) . "/3)");
+                    sleep(2);
+                }
+            }
+
+            if (!$uploadSuccess) {
+                throw new \Exception("Không thể upload file sau 3 lần thử: {$filename}");
             }
 
             // Set appropriate permissions

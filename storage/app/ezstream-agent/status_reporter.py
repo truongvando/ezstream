@@ -85,9 +85,9 @@ class StatusReporter:
         """Stop all reporting"""
         self.running = False
 
-        # Shutdown executor safely
+        # Shutdown executor safely (compatible with older Python)
         try:
-            self.executor.shutdown(wait=True, timeout=10)
+            self.executor.shutdown(wait=True)
             logging.info("✅ Status reporter executor shutdown")
         except Exception as e:
             logging.error(f"❌ Error shutting down status reporter executor: {e}")

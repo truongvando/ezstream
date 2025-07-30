@@ -394,9 +394,9 @@ class ProcessManager:
             except Exception as e:
                 logging.error(f"❌ Error stopping stream {stream_id} during shutdown: {e}")
 
-        # Shutdown monitor executor safely
+        # Shutdown monitor executor safely (compatible with older Python)
         try:
-            self.monitor_executor.shutdown(wait=True, timeout=30)
+            self.monitor_executor.shutdown(wait=True)
             logging.info("✅ Enhanced process manager stopped")
         except Exception as e:
             logging.error(f"❌ Error shutting down monitor executor: {e}")

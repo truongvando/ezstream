@@ -561,6 +561,23 @@ echo -e "${YELLOW}🗄️ Running database migrations...${NC}"
 echo -e "${BLUE}   Checking migration status...${NC}"
 php artisan migrate:status
 
+echo -e "${BLUE}   Checking for missing YouTube tables...${NC}"
+php artisan tinker --execute="
+use Illuminate\Support\Facades\Schema;
+\$tables = ['youtube_channels', 'youtube_videos', 'youtube_video_snapshots', 'youtube_channel_snapshots', 'youtube_alerts', 'youtube_alert_settings', 'youtube_ai_analysis'];
+\$missing = [];
+foreach(\$tables as \$table) {
+    if(!Schema::hasTable(\$table)) {
+        \$missing[] = \$table;
+    }
+}
+if(count(\$missing) > 0) {
+    echo 'MISSING_TABLES: ' . implode(',', \$missing) . PHP_EOL;
+} else {
+    echo 'ALL_TABLES_EXIST' . PHP_EOL;
+}
+"
+
 echo -e "${BLUE}   Running migrations (skipping existing tables)...${NC}"
 # Run migrations and capture output, ignore table exists errors
 if php artisan migrate --force 2>&1 | tee /tmp/migration_output.log; then
@@ -573,6 +590,8 @@ else
     else
         echo -e "${RED}❌ Migration failed with unexpected errors${NC}"
         cat /tmp/migration_output.log
+        echo -e "${YELLOW}🔍 Checking migration files...${NC}"
+        ls -la database/migrations/*youtube* || echo "No YouTube migration files found"
         exit 1
     fi
 fi
