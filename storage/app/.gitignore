@@ -4,4 +4,7 @@
 !agent/
 !credentials/
 !ezstream-agent/
+!ezstream-agent/*.py
+!ezstream-agent/*.sh
+!ezstream-agent/*.conf
 !.gitignore
