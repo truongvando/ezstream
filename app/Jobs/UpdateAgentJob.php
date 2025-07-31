@@ -388,7 +388,7 @@ PYTHON;
         Log::info("🚀 [VPS #{$vps->id}] Khởi động Redis Agent mới");
 
         // Clear Python cache before restart
-        $sshService->execute('cd /var/www/ezstream/storage/app/ezstream-agent && rm -rf __pycache__/ *.pyc *.pyo');
+        $sshService->execute('cd /opt/ezstream-agent && rm -rf __pycache__/ *.pyc *.pyo');
         Log::info("🧹 [VPS #{$vps->id}] Cleared Python cache");
 
         $sshService->execute('systemctl restart ezstream-agent');

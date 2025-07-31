@@ -178,15 +178,40 @@ class StreamSyncCommand extends Command
 
     /**
      * Xử lý stream mồ côi (agent có, DB không có).
+     * Enhanced with deploy-safe logic to prevent killing streams during Laravel restart.
      */
     private function fixOrphanedStream(int $vpsId, int $streamId): void
     {
         $stream = StreamConfiguration::find($streamId);
-        // Nếu stream không tồn tại trong DB, hoặc tồn tại nhưng không nên chạy -> Gửi lệnh STOP
-        if (!$stream || !in_array($stream->status, ['STREAMING', 'STARTING'])) {
+
+        // If stream doesn't exist in DB at all, it's truly orphaned
+        if (!$stream) {
             $this->sendCommand($vpsId, 'STOP_STREAM', ['stream_id' => $streamId]);
-            Log::warning("StreamSync: Sent STOP command for orphaned stream #{$streamId} on VPS #{$vpsId}.");
-            $this->line("    -> Fixed stream #{$streamId}: Sent STOP command to agent.");
+            Log::warning("StreamSync: Sent STOP command for truly orphaned stream #{$streamId} on VPS #{$vpsId} (not in DB).");
+            $this->line("    -> Fixed stream #{$streamId}: Sent STOP command (not in database).");
+            return;
+        }
+
+        // If stream exists but shouldn't be running, check for recent activity
+        if (!in_array($stream->status, ['STREAMING', 'STARTING'])) {
+            // Check if stream was recently active (within last 5 minutes)
+            // This could indicate Laravel restart or temporary status inconsistency
+            $minutesSinceUpdate = $stream->updated_at ?
+                abs(now()->diffInMinutes($stream->updated_at)) : 999;
+
+            if ($minutesSinceUpdate < 5 && in_array($stream->status, ['ERROR', 'INACTIVE'])) {
+                Log::info("StreamSync: Stream #{$streamId} recently updated ({$minutesSinceUpdate}m ago) with status {$stream->status}, giving grace period...");
+                $this->line("    -> Stream #{$streamId}: Recently updated ({$stream->status}), skipping stop (grace period)");
+                return;
+            }
+
+            $this->sendCommand($vpsId, 'STOP_STREAM', ['stream_id' => $streamId]);
+            Log::warning("StreamSync: Sent STOP command for orphaned stream #{$streamId} on VPS #{$vpsId} (status: {$stream->status}).");
+            $this->line("    -> Fixed stream #{$streamId}: Sent STOP command (status: {$stream->status}).");
+        } else {
+            // Stream should be running and is running - this is actually correct
+            Log::info("StreamSync: Stream #{$streamId} is running on agent and should be running (status: {$stream->status}) - no action needed.");
+            $this->line("    -> Stream #{$streamId}: Correctly running (status: {$stream->status}).");
         }
     }
 }

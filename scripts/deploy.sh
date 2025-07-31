@@ -701,9 +701,11 @@ else
     echo -e "${YELLOW}   💡 Or install Supervisor: apt install supervisor${NC}"
 fi
 
-# Run the stream sync command to ensure consistency after deploy
-echo -e "${YELLOW}🔄 Syncing stream state with all VPS agents...${NC}"
-php artisan stream:sync --force
+# 🚨 STREAM SYNC - DISABLED TO PREVENT STREAM LOSS DURING DEPLOY
+# The stream:sync command can kill active streams during Laravel restart
+# when agents haven't had time to report their state yet
+# echo -e "${YELLOW}🔄 Syncing stream state with all VPS agents...${NC}"
+# php artisan stream:sync --force
 
 # 🚨 AGENT RESTART - COMMENTED OUT FOR STABLE OPERATIONS
 # Agent system is now stable and only Laravel features are being developed
