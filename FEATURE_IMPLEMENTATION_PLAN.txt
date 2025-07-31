@@ -1,0 +1,930 @@
+# 🚀 KẾ HOẠCH THIẾT KẾ TÍNH NĂNG MỚI - EZSTREAM
+
+## 📋 TỔNG QUAN DỰ ÁN
+Thêm 3 tính năng chính vào sidebar:
+1. **Trang bán View** - Tích hợp API Just Another Panel
+2. **Trang bán Tool** - Showcase sản phẩm công nghệ  
+3. **Hệ thống License** - Kích hoạt bản quyền cho Python tools
+
+---
+
+## 🎯 TÍNH NĂNG 1: TRANG BÁN VIEW
+
+### 1.1 Database Schema
+```sql
+-- Bảng dịch vụ từ API
+CREATE TABLE api_services (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    service_id INT UNIQUE, -- ID từ API
+    name VARCHAR(255),
+    type VARCHAR(100),
+    category VARCHAR(100),
+    rate DECIMAL(10,2),
+    min_quantity INT,
+    max_quantity INT,
+    refill BOOLEAN DEFAULT FALSE,
+    cancel BOOLEAN DEFAULT FALSE,
+    markup_percentage INT DEFAULT 20, -- +20% giá
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+-- Bảng đơn hàng view
+CREATE TABLE view_orders (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT,
+    service_id BIGINT,
+    api_service_id BIGINT,
+    link VARCHAR(500),
+    quantity INT,
+    total_amount DECIMAL(10,2),
+    api_order_id INT NULL, -- ID từ API
+    status ENUM('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'),
+    api_response JSON NULL,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (api_service_id) REFERENCES api_services(id)
+);
+```
+
+### 1.2 Models
+```php
+// app/Models/ApiService.php
+class ApiService extends Model
+{
+    protected $fillable = [
+        'service_id', 'name', 'type', 'category', 'rate',
+        'min_quantity', 'max_quantity', 'refill', 'cancel',
+        'markup_percentage', 'is_active'
+    ];
+
+    public function getFinalPriceAttribute()
+    {
+        return $this->rate * (1 + $this->markup_percentage / 100);
+    }
+}
+
+// app/Models/ViewOrder.php  
+class ViewOrder extends Model
+{
+    protected $fillable = [
+        'user_id', 'service_id', 'api_service_id', 'link',
+        'quantity', 'total_amount', 'api_order_id', 'status'
+    ];
+
+    public function user() { return $this->belongsTo(User::class); }
+    public function apiService() { return $this->belongsTo(ApiService::class); }
+}
+```
+
+### 1.3 Services
+```php
+// app/Services/JustAnotherPanelService.php
+class JustAnotherPanelService
+{
+    private $apiUrl = 'https://justanotherpanel.com/api/v2';
+    private $apiKey;
+
+    public function __construct()
+    {
+        $this->apiKey = setting('jap_api_key');
+    }
+
+    public function getServices()
+    {
+        $response = Http::post($this->apiUrl, [
+            'key' => $this->apiKey,
+            'action' => 'services'
+        ]);
+        
+        return $response->json();
+    }
+
+    public function createOrder($data)
+    {
+        $response = Http::post($this->apiUrl, [
+            'key' => $this->apiKey,
+            'action' => 'add',
+            'service' => $data['service_id'],
+            'link' => $data['link'],
+            'quantity' => $data['quantity']
+        ]);
+        
+        return $response->json();
+    }
+}
+```
+
+### 1.4 Controllers & Livewire
+```php
+// app/Livewire/ViewServiceManager.php
+class ViewServiceManager extends Component
+{
+    public $selectedService = null;
+    public $link = '';
+    public $quantity = 100;
+    public $services = [];
+    
+    public function mount()
+    {
+        $this->loadServices();
+    }
+    
+    public function loadServices()
+    {
+        $this->services = ApiService::where('is_active', true)
+            ->orderBy('category')
+            ->orderBy('name')
+            ->get()
+            ->groupBy('category');
+    }
+    
+    public function calculatePrice()
+    {
+        if (!$this->selectedService) return 0;
+        
+        $service = ApiService::find($this->selectedService);
+        return $service->final_price * $this->quantity;
+    }
+    
+    public function placeOrder()
+    {
+        // Validate balance
+        // Create order
+        // Deduct balance
+        // Call API
+    }
+}
+```
+
+### 1.5 Views
+```blade
+<!-- resources/views/livewire/view-service-manager.blade.php -->
+<div class="bg-white rounded-lg shadow-lg p-6">
+    <h2 class="text-2xl font-bold mb-6">🛒 Mua View</h2>
+    
+    <!-- Service Dropdown -->
+    <div class="mb-4">
+        <label class="block text-sm font-medium mb-2">Chọn Dịch Vụ</label>
+        <select wire:model="selectedService" class="w-full border rounded-lg p-3">
+            <option value="">-- Chọn dịch vụ --</option>
+            @foreach($services as $category => $categoryServices)
+                <optgroup label="{{ $category }}">
+                    @foreach($categoryServices as $service)
+                        <option value="{{ $service->id }}">
+                            {{ $service->name }} - {{ number_format($service->final_price, 2) }} USD
+                        </option>
+                    @endforeach
+                </optgroup>
+            @endforeach
+        </select>
+    </div>
+    
+    <!-- Order Form -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-medium mb-2">Link</label>
+            <input wire:model="link" type="url" class="w-full border rounded-lg p-3" 
+                   placeholder="https://example.com">
+        </div>
+        
+        <div>
+            <label class="block text-sm font-medium mb-2">Số lượng</label>
+            <input wire:model="quantity" type="number" class="w-full border rounded-lg p-3" 
+                   min="1" max="10000">
+        </div>
+    </div>
+    
+    <!-- Price Display -->
+    <div class="mt-4 p-4 bg-blue-50 rounded-lg">
+        <div class="text-lg font-semibold">
+            Tổng tiền: ${{ number_format($this->calculatePrice(), 2) }}
+        </div>
+    </div>
+    
+    <button wire:click="placeOrder" class="mt-4 bg-blue-600 text-white px-6 py-3 rounded-lg">
+        Đặt hàng
+    </button>
+</div>
+```
+
+---
+
+## 🛠️ TÍNH NĂNG 2: TRANG BÁN TOOL
+
+### 2.1 Database Schema
+```sql
+-- Bảng sản phẩm tool
+CREATE TABLE tools (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    name VARCHAR(255),
+    slug VARCHAR(255) UNIQUE,
+    description TEXT,
+    short_description VARCHAR(500),
+    price DECIMAL(10,2),
+    sale_price DECIMAL(10,2) NULL,
+    image VARCHAR(255),
+    gallery JSON NULL, -- Multiple images
+    features JSON NULL, -- Feature list
+    system_requirements TEXT,
+    download_url VARCHAR(500),
+    demo_url VARCHAR(500) NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    is_featured BOOLEAN DEFAULT FALSE,
+    sort_order INT DEFAULT 0,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
+
+-- Bảng đơn hàng tool
+CREATE TABLE tool_orders (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT,
+    tool_id BIGINT,
+    amount DECIMAL(10,2),
+    status ENUM('PENDING', 'COMPLETED', 'FAILED'),
+    transaction_id BIGINT NULL,
+    license_key VARCHAR(255) NULL,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (tool_id) REFERENCES tools(id),
+    FOREIGN KEY (transaction_id) REFERENCES transactions(id)
+);
+```
+
+### 2.2 Models
+```php
+// app/Models/Tool.php
+class Tool extends Model
+{
+    protected $fillable = [
+        'name', 'slug', 'description', 'short_description',
+        'price', 'sale_price', 'image', 'gallery', 'features',
+        'system_requirements', 'download_url', 'demo_url',
+        'is_active', 'is_featured', 'sort_order'
+    ];
+
+    protected $casts = [
+        'gallery' => 'array',
+        'features' => 'array'
+    ];
+
+    public function getFinalPriceAttribute()
+    {
+        return $this->sale_price ?? $this->price;
+    }
+
+    public function getIsOnSaleAttribute()
+    {
+        return !is_null($this->sale_price);
+    }
+}
+
+// app/Models/ToolOrder.php
+class ToolOrder extends Model
+{
+    protected $fillable = [
+        'user_id', 'tool_id', 'amount', 'status',
+        'transaction_id', 'license_key'
+    ];
+
+    public function user() { return $this->belongsTo(User::class); }
+    public function tool() { return $this->belongsTo(Tool::class); }
+    public function transaction() { return $this->belongsTo(Transaction::class); }
+}
+```
+
+### 2.3 Controllers & Livewire
+```php
+// app/Livewire/ToolStore.php
+class ToolStore extends Component
+{
+    public $search = '';
+    public $category = '';
+    public $sortBy = 'created_at';
+    public $sortDirection = 'desc';
+    
+    public function render()
+    {
+        $query = Tool::where('is_active', true);
+        
+        if ($this->search) {
+            $query->where('name', 'like', "%{$this->search}%")
+                  ->orWhere('description', 'like', "%{$this->search}%");
+        }
+        
+        $tools = $query->orderBy($this->sortBy, $this->sortDirection)
+                       ->paginate(12);
+        
+        return view('livewire.tool-store', compact('tools'));
+    }
+}
+
+// app/Livewire/ToolDetail.php
+class ToolDetail extends Component
+{
+    public Tool $tool;
+    
+    public function mount($slug)
+    {
+        $this->tool = Tool::where('slug', $slug)->firstOrFail();
+    }
+    
+    public function purchase()
+    {
+        // Check balance
+        // Create order
+        // Generate license
+    }
+}
+```
+
+### 2.4 Views
+```blade
+<!-- resources/views/livewire/tool-store.blade.php -->
+<div class="bg-white rounded-lg shadow-lg p-6">
+    <h2 class="text-2xl font-bold mb-6">🛠️ Cửa hàng Tool</h2>
+    
+    <!-- Search & Filter -->
+    <div class="mb-6 flex gap-4">
+        <input wire:model.debounce.300ms="search" type="text" 
+               class="flex-1 border rounded-lg p-3" placeholder="Tìm kiếm tool...">
+        <select wire:model="sortBy" class="border rounded-lg p-3">
+            <option value="created_at">Mới nhất</option>
+            <option value="price">Giá thấp nhất</option>
+            <option value="name">Tên A-Z</option>
+        </select>
+    </div>
+    
+    <!-- Tool Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        @foreach($tools as $tool)
+            <div class="border rounded-lg overflow-hidden hover:shadow-lg transition">
+                <img src="{{ $tool->image }}" alt="{{ $tool->name }}" 
+                     class="w-full h-48 object-cover">
+                
+                <div class="p-4">
+                    <h3 class="text-lg font-semibold mb-2">{{ $tool->name }}</h3>
+                    <p class="text-gray-600 mb-3">{{ $tool->short_description }}</p>
+                    
+                    <div class="flex justify-between items-center">
+                        <div class="text-lg font-bold">
+                            @if($tool->is_on_sale)
+                                <span class="line-through text-gray-400">
+                                    ${{ number_format($tool->price, 2) }}
+                                </span>
+                                <span class="text-red-600">
+                                    ${{ number_format($tool->final_price, 2) }}
+                                </span>
+                            @else
+                                ${{ number_format($tool->final_price, 2) }}
+                            @endif
+                        </div>
+                        
+                        <a href="{{ route('tools.show', $tool->slug) }}" 
+                           class="bg-blue-600 text-white px-4 py-2 rounded-lg">
+                            Chi tiết
+                        </a>
+                    </div>
+                </div>
+            </div>
+        @endforeach
+    </div>
+    
+    {{ $tools->links() }}
+</div>
+```
+
+---
+
+## 🔑 TÍNH NĂNG 3: HỆ THỐNG LICENSE
+
+### 3.1 Database Schema
+```sql
+-- Bảng license keys
+CREATE TABLE licenses (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id BIGINT,
+    tool_id BIGINT,
+    license_key VARCHAR(255) UNIQUE,
+    device_id VARCHAR(255) NULL,
+    device_name VARCHAR(255) NULL,
+    device_info JSON NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    activated_at TIMESTAMP NULL,
+    expires_at TIMESTAMP NULL,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (tool_id) REFERENCES tools(id)
+);
+
+-- Bảng license activation logs
+CREATE TABLE license_activations (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    license_id BIGINT,
+    device_id VARCHAR(255),
+    device_name VARCHAR(255),
+    device_info JSON,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    activated_at TIMESTAMP,
+    FOREIGN KEY (license_id) REFERENCES licenses(id)
+);
+```
+
+### 3.2 Models
+```php
+// app/Models/License.php
+class License extends Model
+{
+    protected $fillable = [
+        'user_id', 'tool_id', 'license_key', 'device_id',
+        'device_name', 'device_info', 'is_active',
+        'activated_at', 'expires_at'
+    ];
+
+    protected $casts = [
+        'device_info' => 'array',
+        'activated_at' => 'datetime',
+        'expires_at' => 'datetime'
+    ];
+
+    public function user() { return $this->belongsTo(User::class); }
+    public function tool() { return $this->belongsTo(Tool::class); }
+    public function activations() { return $this->hasMany(LicenseActivation::class); }
+
+    public function generateKey()
+    {
+        return strtoupper(Str::random(4) . '-' . Str::random(4) . '-' . 
+                          Str::random(4) . '-' . Str::random(4));
+    }
+}
+
+// app/Models/LicenseActivation.php
+class LicenseActivation extends Model
+{
+    protected $fillable = [
+        'license_id', 'device_id', 'device_name', 
+        'device_info', 'ip_address', 'user_agent'
+    ];
+
+    protected $casts = [
+        'device_info' => 'array',
+        'activated_at' => 'datetime'
+    ];
+
+    public function license() { return $this->belongsTo(License::class); }
+}
+```
+
+### 3.3 API Controllers
+```php
+// app/Http/Controllers/Api/LicenseController.php
+class LicenseController extends Controller
+{
+    public function verify(Request $request)
+    {
+        $request->validate([
+            'license_key' => 'required|string',
+            'device_id' => 'required|string',
+            'device_name' => 'required|string',
+            'device_info' => 'required|array'
+        ]);
+
+        $license = License::where('license_key', $request->license_key)
+                         ->where('is_active', true)
+                         ->first();
+
+        if (!$license) {
+            return response()->json([
+                'success' => false,
+                'message' => 'License không hợp lệ'
+            ], 404);
+        }
+
+        // Check if device is already activated
+        $existingActivation = $license->activations()
+                                    ->where('device_id', $request->device_id)
+                                    ->first();
+
+        if ($existingActivation) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Device đã được kích hoạt',
+                'license' => [
+                    'key' => $license->license_key,
+                    'tool_name' => $license->tool->name,
+                    'expires_at' => $license->expires_at
+                ]
+            ]);
+        }
+
+        // Check if user has reached device limit (1 device per license)
+        if ($license->activations()->count() >= 1) {
+            return response()->json([
+                'success' => false,
+                'message' => 'License đã được kích hoạt trên thiết bị khác'
+            ], 403);
+        }
+
+        // Create activation
+        $license->activations()->create([
+            'device_id' => $request->device_id,
+            'device_name' => $request->device_name,
+            'device_info' => $request->device_info,
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->userAgent(),
+            'activated_at' => now()
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Kích hoạt thành công',
+            'license' => [
+                'key' => $license->license_key,
+                'tool_name' => $license->tool->name,
+                'expires_at' => $license->expires_at
+            ]
+        ]);
+    }
+
+    public function checkStatus(Request $request)
+    {
+        $request->validate([
+            'license_key' => 'required|string',
+            'device_id' => 'required|string'
+        ]);
+
+        $license = License::where('license_key', $request->license_key)
+                         ->where('is_active', true)
+                         ->first();
+
+        if (!$license) {
+            return response()->json(['valid' => false]);
+        }
+
+        $activation = $license->activations()
+                            ->where('device_id', $request->device_id)
+                            ->first();
+
+        return response()->json([
+            'valid' => !is_null($activation),
+            'expires_at' => $license->expires_at
+        ]);
+    }
+}
+```
+
+### 3.4 Livewire Components
+```php
+// app/Livewire/LicenseManager.php
+class LicenseManager extends Component
+{
+    public $licenses = [];
+    
+    public function mount()
+    {
+        $this->loadLicenses();
+    }
+    
+    public function loadLicenses()
+    {
+        $this->licenses = auth()->user()->licenses()
+            ->with(['tool', 'activations'])
+            ->get();
+    }
+    
+    public function deactivateLicense($licenseId)
+    {
+        $license = License::find($licenseId);
+        
+        if ($license && $license->user_id === auth()->id()) {
+            $license->activations()->delete();
+            session()->flash('success', 'Đã hủy kích hoạt license');
+        }
+    }
+}
+```
+
+### 3.5 Python Integration Guide
+```python
+# license_client.py
+import requests
+import hashlib
+import platform
+import uuid
+import json
+
+class LicenseClient:
+    def __init__(self, api_url, license_key):
+        self.api_url = api_url
+        self.license_key = license_key
+        self.device_id = self._generate_device_id()
+        
+    def _generate_device_id(self):
+        """Generate unique device ID based on hardware"""
+        system_info = {
+            'platform': platform.system(),
+            'machine': platform.machine(),
+            'processor': platform.processor(),
+            'node': platform.node()
+        }
+        
+        # Create hash from system info
+        device_hash = hashlib.md5(
+            json.dumps(system_info, sort_keys=True).encode()
+        ).hexdigest()
+        
+        return device_hash
+    
+    def verify_license(self):
+        """Verify license with server"""
+        try:
+            response = requests.post(f"{self.api_url}/api/license/verify", json={
+                'license_key': self.license_key,
+                'device_id': self.device_id,
+                'device_name': platform.node(),
+                'device_info': {
+                    'platform': platform.system(),
+                    'version': platform.version(),
+                    'machine': platform.machine()
+                }
+            })
+            
+            if response.status_code == 200:
+                data = response.json()
+                if data['success']:
+                    return True, data['license']
+                else:
+                    return False, data['message']
+            else:
+                return False, "Lỗi kết nối server"
+                
+        except Exception as e:
+            return False, f"Lỗi: {str(e)}"
+    
+    def check_status(self):
+        """Check license status"""
+        try:
+            response = requests.post(f"{self.api_url}/api/license/status", json={
+                'license_key': self.license_key,
+                'device_id': self.device_id
+            })
+            
+            if response.status_code == 200:
+                return response.json()
+            else:
+                return {'valid': False}
+                
+        except Exception as e:
+            return {'valid': False, 'error': str(e)}
+
+# Usage example
+if __name__ == "__main__":
+    client = LicenseClient(
+        api_url="https://your-domain.com",
+        license_key="XXXX-XXXX-XXXX-XXXX"
+    )
+    
+    # Verify license
+    is_valid, result = client.verify_license()
+    
+    if is_valid:
+        print("✅ License hợp lệ!")
+        print(f"Tool: {result['tool_name']}")
+        print(f"Hết hạn: {result['expires_at']}")
+    else:
+        print(f"❌ {result}")
+```
+
+---
+
+## 🔄 TÍCH HỢP VỚI HỆ THỐNG THANH TOÁN HIỆN TẠI
+
+### 4.1 Cập nhật Transaction Model
+```php
+// app/Models/Transaction.php
+class Transaction extends Model
+{
+    protected $fillable = [
+        'user_id', 'amount', 'status', 'payment_method',
+        'gateway_transaction_id', 'subscription_id',
+        'tool_order_id', 'view_order_id' // Thêm các trường mới
+    ];
+
+    public function toolOrder() { return $this->belongsTo(ToolOrder::class); }
+    public function viewOrder() { return $this->belongsTo(ViewOrder::class); }
+}
+```
+
+### 4.2 Cập nhật CheckBankTransactionsJob
+```php
+// app/Jobs/CheckBankTransactionsJob.php
+public function handle(): void
+{
+    // ... existing code ...
+    
+    foreach ($bankTransactions as $bankTx) {
+        // ... existing logic ...
+        
+        // Check for tool orders
+        $toolOrder = ToolOrder::where('status', 'PENDING')
+            ->whereHas('transaction', function($q) use ($paymentCode) {
+                $q->where('payment_code', $paymentCode);
+            })
+            ->first();
+            
+        if ($toolOrder) {
+            $this->processToolOrder($toolOrder, $bankTx);
+        }
+        
+        // Check for view orders  
+        $viewOrder = ViewOrder::where('status', 'PENDING')
+            ->whereHas('transaction', function($q) use ($paymentCode) {
+                $q->where('payment_code', $paymentCode);
+            })
+            ->first();
+            
+        if ($viewOrder) {
+            $this->processViewOrder($viewOrder, $bankTx);
+        }
+    }
+}
+
+private function processToolOrder($toolOrder, $bankTx)
+{
+    $toolOrder->update(['status' => 'COMPLETED']);
+    
+    // Generate license
+    $license = License::create([
+        'user_id' => $toolOrder->user_id,
+        'tool_id' => $toolOrder->tool_id,
+        'license_key' => (new License)->generateKey(),
+        'is_active' => true,
+        'expires_at' => now()->addYear() // 1 năm
+    ]);
+    
+    $toolOrder->update(['license_key' => $license->license_key]);
+}
+
+private function processViewOrder($viewOrder, $bankTx)
+{
+    $viewOrder->update(['status' => 'PROCESSING']);
+    
+    // Call Just Another Panel API
+    $japService = new JustAnotherPanelService();
+    $apiResponse = $japService->createOrder([
+        'service_id' => $viewOrder->apiService->service_id,
+        'link' => $viewOrder->link,
+        'quantity' => $viewOrder->quantity
+    ]);
+    
+    if (isset($apiResponse['order'])) {
+        $viewOrder->update([
+            'status' => 'PROCESSING',
+            'api_order_id' => $apiResponse['order'],
+            'api_response' => $apiResponse
+        ]);
+    }
+}
+```
+
+---
+
+## 📁 CẤU TRÚC FILE HOÀN CHỈNH
+
+```
+app/
+├── Console/Commands/
+│   ├── SyncApiServicesCommand.php
+│   └── ProcessViewOrdersCommand.php
+├── Http/Controllers/
+│   ├── Api/
+│   │   └── LicenseController.php
+│   ├── ToolController.php
+│   └── ViewServiceController.php
+├── Jobs/
+│   ├── SyncApiServicesJob.php
+│   └── ProcessViewOrderJob.php
+├── Livewire/
+│   ├── ToolStore.php
+│   ├── ToolDetail.php
+│   ├── ViewServiceManager.php
+│   ├── LicenseManager.php
+│   └── Admin/
+│       ├── ToolManager.php
+│       └── LicenseManager.php
+├── Models/
+│   ├── ApiService.php
+│   ├── ViewOrder.php
+│   ├── Tool.php
+│   ├── ToolOrder.php
+│   ├── License.php
+│   └── LicenseActivation.php
+├── Services/
+│   ├── JustAnotherPanelService.php
+│   ├── LicenseService.php
+│   └── ToolService.php
+└── View/
+    └── Components/
+        └── Sidebar/
+            ├── ViewServiceLink.php
+            ├── ToolStoreLink.php
+            └── LicenseManagerLink.php
+
+resources/views/
+├── livewire/
+│   ├── tool-store.blade.php
+│   ├── tool-detail.blade.php
+│   ├── view-service-manager.blade.php
+│   ├── license-manager.blade.php
+│   └── admin/
+│       ├── tool-manager.blade.php
+│       └── license-manager.blade.php
+└── components/
+    └── sidebar/
+        ├── view-service-link.blade.php
+        ├── tool-store-link.blade.php
+        └── license-manager-link.blade.php
+
+database/migrations/
+├── create_api_services_table.php
+├── create_view_orders_table.php
+├── create_tools_table.php
+├── create_tool_orders_table.php
+├── create_licenses_table.php
+└── create_license_activations_table.php
+```
+
+---
+
+## 🚀 LỘ TRÌNH TRIỂN KHAI
+
+### Phase 1: Cơ sở dữ liệu (1-2 ngày)
+- [ ] Tạo migrations cho tất cả bảng
+- [ ] Tạo models với relationships
+- [ ] Tạo seeders cho dữ liệu mẫu
+
+### Phase 2: API Integration (2-3 ngày)
+- [ ] Tích hợp Just Another Panel API
+- [ ] Tạo service classes
+- [ ] Tạo commands để sync services
+
+### Phase 3: Frontend Development (3-4 ngày)
+- [ ] Tạo Livewire components
+- [ ] Thiết kế UI/UX cho các trang
+- [ ] Tích hợp với sidebar
+
+### Phase 4: License System (2-3 ngày)
+- [ ] Tạo API endpoints
+- [ ] Viết Python client
+- [ ] Tạo hướng dẫn tích hợp
+
+### Phase 5: Testing & Optimization (1-2 ngày)
+- [ ] Test tất cả tính năng
+- [ ] Optimize performance
+- [ ] Fix bugs
+
+---
+
+## 💡 TÍNH NĂNG BỔ SUNG
+
+### 5.1 Admin Panel
+- Quản lý tools (CRUD)
+- Quản lý licenses
+- Xem thống kê bán hàng
+- Quản lý API services
+
+### 5.2 User Dashboard
+- Lịch sử mua hàng
+- Quản lý licenses
+- Theo dõi view orders
+- Download tools
+
+### 5.3 Notifications
+- Email thông báo khi mua thành công
+- Thông báo license sắp hết hạn
+- Thông báo view order hoàn thành
+
+### 5.4 Analytics
+- Thống kê doanh thu
+- Báo cáo bán hàng
+- Theo dõi license activations
+
+---
+
+## 🎯 KẾT LUẬN
+
+Thiết kế này cung cấp một hệ thống hoàn chỉnh với:
+- ✅ Tích hợp API bên thứ 3
+- ✅ Hệ thống thanh toán thống nhất
+- ✅ License management chuyên nghiệp
+- ✅ UI/UX hiện đại
+- ✅ Scalable architecture
+- ✅ Security best practices
+
+Tất cả tính năng đều tương thích với hệ thống hiện tại và có thể mở rộng dễ dàng trong tương lai. 

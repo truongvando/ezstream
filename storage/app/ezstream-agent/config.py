@@ -49,19 +49,23 @@ class AgentConfig:
     ffmpeg_startup_timeout: int = 15     # Startup timeout
     ffmpeg_use_encoding: bool = True     # Use encoding mode to fix SPS issues (slower but stable)
 
-    # HLS Pipeline settings
-    hls_segment_duration: int = 4        # HLS segment duration in seconds
+    # HLS settings for 24/7 stability
+    hls_segment_duration: int = 6        # Segment duration in seconds
     hls_playlist_size: int = 10          # Number of segments to keep in playlist
-    hls_base_dir: str = '/tmp/ezstream-hls'  # Base directory for HLS files (temp storage)
-
-    # HLS Encoding settings (Stage 1)
-    hls_video_codec: str = 'libx264'     # Video codec for HLS generation
-    hls_video_preset: str = 'ultrafast'  # Encoding preset (ultrafast/superfast/veryfast/faster/fast)
-    hls_video_crf: int = 28              # CRF value (18-28, lower = better quality)
-    hls_video_maxrate: str = '2000k'     # Max bitrate for HLS
-    hls_video_bufsize: str = '4000k'     # Buffer size
-    hls_audio_codec: str = 'aac'         # Audio codec
-    hls_audio_bitrate: str = '128k'      # Audio bitrate
+    hls_keep_segments: int = 0           # Keep all segments (0 = unlimited)
+    hls_temp_dir: str = '/tmp/hls'       # HLS temporary directory
+    hls_base_dir: str = '/tmp/ezstream-hls'  # HLS base directory
+    
+    # HLS video encoding settings
+    hls_video_codec: str = 'libx264'     # Video codec for HLS
+    hls_video_preset: str = 'fast'       # Video preset for HLS
+    hls_video_crf: int = 23              # Video CRF for HLS
+    hls_video_maxrate: str = '3000k'     # Video max bitrate for HLS
+    hls_video_bufsize: str = '6000k'     # Video buffer size for HLS
+    
+    # HLS audio encoding settings
+    hls_audio_codec: str = 'aac'         # Audio codec for HLS
+    hls_audio_bitrate: str = '128k'      # Audio bitrate for HLS
 
     # Fast restart settings for DTS errors
     enable_fast_restart: bool = True     # Enable fast restart on DTS errors

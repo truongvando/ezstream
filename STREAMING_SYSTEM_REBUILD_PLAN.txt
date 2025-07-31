@@ -1,0 +1,188 @@
+🎬 EZSTREAM SYSTEM REBUILD PLAN - ELIMINATE HLS, DIRECT FFMPEG TO YOUTUBE
+================================================================================
+
+📋 OVERVIEW
+-----------
+- Loại bỏ hoàn toàn HLS pipeline phức tạp
+- Chuyển sang Direct FFmpeg RTMP streaming
+- Tối ưu cho YouTube FHD technical standards
+- Robust reconnect logic cho network resilience
+- Đơn giản hóa codebase, giảm complexity
+
+📁 FILES TO MODIFY (trong d:\laragon\www\ezstream\storage\app\ezstream-agent\)
+============================================================================
+
+🔴 CORE FILES CẦN THAY ĐỔI:
+---------------------------
+
+1. hls_process_manager.py
+   - THAY ĐỔI: Loại bỏ toàn bộ HLS logic
+   - MỚI: Direct FFmpeg RTMP streaming
+   - MỚI: Reconnect logic với retry mechanism
+   - MỚI: YouTube optimized settings
+
+2. config.py  
+   - THAY ĐỔI: Remove HLS configurations
+   - MỚI: Direct streaming parameters
+   - MỚI: YouTube FHD technical specs
+   - MỚI: Reconnect settings
+
+3. stream_manager.py (nếu có)
+   - THAY ĐỔI: Update streaming logic
+   - MỚI: Direct RTMP management
+   - MỚI: Error handling cho direct streaming
+
+🟡 FILES CÓ THỂ CẦN ĐIỀU CHỈNH:
+------------------------------
+
+4. ezstream_agent.py (main agent)
+   - ĐIỀU CHỈNH: Update streaming workflow
+   - ĐIỀU CHỈNH: Remove HLS references
+
+5. utils.py (nếu có utility functions)
+   - ĐIỀU CHỈNH: Update helper functions
+   - REMOVE: HLS-related utilities
+
+🟢 FILES GIỮ NGUYÊN:
+--------------------
+- video_optimizer.py (đã hoàn thành)
+- Các file không liên quan đến streaming
+
+📊 TECHNICAL SPECIFICATIONS
+===========================
+
+🎥 VIDEO STANDARDS (YouTube FHD):
+---------------------------------
+Resolution: 1920x1080
+Codec: H.264 High Profile  
+Bitrate: 4500-6000 kbps CBR
+GOP Size: 60 frames (2s @ 30fps)
+No B-frames for streaming
+Keyframe interval: 2 seconds
+
+🔊 AUDIO STANDARDS:
+------------------
+Codec: AAC-LC
+Sample Rate: 44100 Hz
+Bitrate: 128 kbps
+Channels: Stereo
+
+📡 STREAMING PARAMETERS:
+-----------------------
+Container: FLV for RTMP
+Protocol: RTMP to YouTube
+Buffer: 1000ms
+Reconnect: Enabled with exponential backoff
+
+🔧 NEW FFMPEG COMMAND TEMPLATE
+==============================
+
+ffmpeg -re -stream_loop -1 -i {input_video} \
+  -c:v copy -c:a copy \
+  -f flv \
+  -reconnect 1 \
+  -reconnect_at_eof 1 \
+  -reconnect_streamed 1 \
+  -reconnect_delay_max 5 \
+  -rtmp_live live \
+  -rtmp_buffer 1000 \
+  -rtmp_conn_timeout 5 \
+  -timeout 10000000 \
+  rtmp://a.rtmp.youtube.com/live2/{stream_key}
+
+🏗️ IMPLEMENTATION PHASES
+========================
+
+📌 PHASE 1: CORE STREAMING (PRIORITY)
+-------------------------------------
+1. Modify hls_process_manager.py
+   - Replace HLS logic with direct FFmpeg
+   - Implement reconnect mechanism
+   - Add YouTube-optimized parameters
+
+2. Update config.py
+   - Remove HLS settings
+   - Add direct streaming configs
+   - Define YouTube technical specs
+
+3. Test basic streaming functionality
+
+📌 PHASE 2: ERROR HANDLING & RESILIENCE
+---------------------------------------
+1. Implement robust error handling
+2. Add network failure recovery
+3. Stream health monitoring
+4. Automatic restart logic
+
+📌 PHASE 3: OPTIMIZATION & CLEANUP
+----------------------------------
+1. Remove unused HLS files/functions
+2. Optimize performance
+3. Clean up codebase
+4. Documentation update
+
+🎯 EXPECTED BENEFITS
+===================
+
+✅ SIMPLIFIED ARCHITECTURE:
+- Loại bỏ HLS complexity
+- Direct FFmpeg pipeline
+- Fewer moving parts
+- Easier debugging
+
+✅ BETTER PERFORMANCE:
+- No HLS processing overhead
+- Lower latency
+- Direct RTMP streaming
+- GPU-optimized input videos
+
+✅ IMPROVED RELIABILITY:
+- Robust reconnect logic
+- Network failure resilience
+- YouTube-optimized settings
+- Fewer failure points
+
+✅ EASIER MAINTENANCE:
+- Simpler codebase
+- Less configuration
+- Standard FFmpeg approach
+- Better error tracking
+
+🚨 MIGRATION STRATEGY
+====================
+
+1. BACKUP CURRENT SYSTEM:
+   - Copy existing files
+   - Document current behavior
+   - Prepare rollback plan
+
+2. GRADUAL REPLACEMENT:
+   - Implement new streaming logic
+   - Test thoroughly
+   - Parallel testing if needed
+
+3. CUTOVER:
+   - Switch to new system
+   - Monitor performance
+   - Address any issues
+
+📝 NEXT STEPS
+=============
+
+1. Review and approve this plan
+2. Backup current system
+3. Start with hls_process_manager.py modification
+4. Implement direct FFmpeg streaming
+5. Test with real YouTube stream
+6. Iterate and optimize
+
+🎬 CONCLUSION
+=============
+
+Việc loại bỏ HLS và chuyển sang direct FFmpeg streaming sẽ:
+- Đơn giản hóa hệ thống đáng kể
+- Tăng độ tin cậy và performance
+- Dễ dàng maintain và debug
+- Tối ưu cho YouTube streaming
+
+Approach này phù hợp với mục tiêu stream loop ổn định 24/7!

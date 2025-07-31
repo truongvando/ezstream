@@ -505,10 +505,6 @@ class HLSProcessManager:
                 '-analyzeduration', '100M',    # Analyze up to 100MB to find stream info
                 '-probesize', '1G',           # Probe up to 1GB for codec parameters
 
-                # File input timeout
-                '-timeout', '30000000',        # 30 second timeout for file operations
-                '-rw_timeout', '30000000',     # 30 second read/write timeout
-
                 '-re',  # Realtime playback
                 '-stream_loop', '100',  # Loop 100 times then restart (prevents memory leak)
                 '-i', input_path,
@@ -545,10 +541,6 @@ class HLSProcessManager:
                 '-analyzeduration', '100M',    # Analyze up to 100MB to find stream info
                 '-probesize', '1G',           # Probe up to 1GB for codec parameters
 
-                # File input timeout
-                '-timeout', '30000000',        # 30 second timeout for file operations
-                '-rw_timeout', '30000000',     # 30 second read/write timeout
-
                 '-re',  # Realtime playback
                 '-stream_loop', '100',  # Loop 100 times then restart (prevents memory leak)
                 '-i', input_path,
@@ -558,7 +550,6 @@ class HLSProcessManager:
 
                 # SPS/PPS injection for copy mode (fix H.264 header issues)
                 '-bsf:v', 'h264_mp4toannexb',
-                '-bsf:v', 'dump_extra',
 
                 # Timestamp fixes for copy mode
                 '-avoid_negative_ts', 'make_zero',
@@ -587,14 +578,6 @@ class HLSProcessManager:
             '-analyzeduration', '100M',    # Analyze up to 100MB to find stream info
             '-probesize', '1G',           # Probe up to 1GB for codec parameters
 
-            # Network resilience options
-            '-timeout', '30000000',        # 30 second timeout
-            '-rw_timeout', '30000000',     # 30 second read/write timeout
-            '-reconnect', '1',             # Enable auto-reconnect
-            '-reconnect_at_eof', '1',      # Reconnect at EOF
-            '-reconnect_on_network_error', '1',  # Reconnect on network errors
-            '-reconnect_delay_max', '5',   # Max 5 second delay between reconnects
-
             '-re',  # Realtime playback
             '-i', hls_playlist_path,
 
@@ -607,7 +590,6 @@ class HLSProcessManager:
             # RTMP output settings with network optimizations
             '-f', 'flv',
             '-flvflags', 'no_duration_filesize',
-            '-tcp_nodelay', '1',           # Disable Nagle's algorithm for better streaming
 
             rtmp_endpoint
         ]
