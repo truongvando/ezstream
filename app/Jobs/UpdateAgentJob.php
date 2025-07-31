@@ -521,10 +521,10 @@ PYTHON;
     {
         $pythonCmd = "/usr/bin/python3";
 
-        // Build command arguments
-        $commandArgs = "{$vps->id} {$redisHost} {$redisPort}";
+        // Build command arguments (v4.0 uses named arguments)
+        $commandArgs = "--vps-id {$vps->id} --redis-host {$redisHost} --redis-port {$redisPort}";
         if ($redisPassword) {
-            $commandArgs .= " '{$redisPassword}'";
+            $commandArgs .= " --redis-password '{$redisPassword}'";
         }
 
         $command = "{$pythonCmd} {$agentPath} {$commandArgs}";

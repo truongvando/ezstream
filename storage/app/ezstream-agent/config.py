@@ -52,7 +52,7 @@ class AgentConfig:
     # HLS Pipeline settings
     hls_segment_duration: int = 4        # HLS segment duration in seconds
     hls_playlist_size: int = 10          # Number of segments to keep in playlist
-    hls_base_dir: str = '/opt/ezstream-hls'  # Base directory for HLS files
+    hls_base_dir: str = '/tmp/ezstream-hls'  # Base directory for HLS files (temp storage)
 
     # HLS Encoding settings (Stage 1)
     hls_video_codec: str = 'libx264'     # Video codec for HLS generation

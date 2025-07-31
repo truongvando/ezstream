@@ -221,10 +221,10 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
     {
         $pythonCmd = "/usr/bin/python3";
 
-        // Build the command arguments dynamically.
-        $commandArgs = "{$vps->id} {$redisHost} {$redisPort}";
+        // Build the command arguments dynamically (v4.0 uses named arguments).
+        $commandArgs = "--vps-id {$vps->id} --redis-host {$redisHost} --redis-port {$redisPort}";
         if ($redisPassword) {
-            $commandArgs .= " '{$redisPassword}'"; // Append password only if it exists
+            $commandArgs .= " --redis-password '{$redisPassword}'"; // Append password only if it exists
         }
 
         $command = "{$pythonCmd} {$agentPath} {$commandArgs}";
