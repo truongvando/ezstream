@@ -179,23 +179,19 @@ fi
 
 echo "✅ Nginx started successfully"
 
-# 6.5. START EZSTREAM AGENT SERVICE (if exists)
-echo "6.5. Checking EZStream Agent service..."
+# 6.5. PREPARE FOR EZSTREAM AGENT (don't start yet - files will be uploaded by ProvisionJob)
+echo "6.5. Preparing for EZStream Agent..."
 if systemctl list-unit-files | grep -q "ezstream-agent.service"; then
-    echo "Starting EZStream Agent service..."
-    systemctl enable ezstream-agent
-    systemctl restart ezstream-agent
-
-    sleep 5
-    if systemctl is-active --quiet ezstream-agent; then
-        echo "✅ EZStream Agent started successfully"
-    else
-        echo "⚠️ EZStream Agent failed to start (will be restarted by ProvisionJob)"
-        systemctl status ezstream-agent
-    fi
+    echo "⚠️ Stopping existing EZStream Agent service (will be reconfigured by ProvisionJob)"
+    systemctl stop ezstream-agent || true
+    systemctl disable ezstream-agent || true
 else
-    echo "⚠️ EZStream Agent service not found (will be created by ProvisionJob)"
+    echo "ℹ️ EZStream Agent service not found (will be created by ProvisionJob)"
 fi
+
+# Create agent directory (files will be uploaded later)
+mkdir -p /opt/ezstream-agent
+echo "✅ Agent directory prepared"
 
 # 7. FINAL CHECK
 echo "7. Performing final system check..."
