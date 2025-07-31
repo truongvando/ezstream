@@ -79,6 +79,11 @@ class UpdateStreamStatusJob implements ShouldQueue
                 $this->handleProgressStatus($stream, $vpsId, $message);
                 break;
 
+            case 'DEAD':
+                Log::warning("📨 [UpdateStreamStatus] Handling DEAD status for stream #{$streamId} (current: {$stream->status})");
+                $this->handleDeadStatus($stream, $message);
+                break;
+
             default:
                 Log::warning("📨 [UpdateStreamStatus] Unknown status '{$status}' for stream #{$streamId}");
                 break;
@@ -176,6 +181,38 @@ class UpdateStreamStatusJob implements ShouldQueue
         if ($isFileError) {
             Log::warning("📁 [UpdateStreamStatus] File-related error for stream #{$stream->id}: {$message}");
         }
+    }
+
+    private function handleDeadStatus(StreamConfiguration $stream, $message): void
+    {
+        Log::error("📨 [UpdateStreamStatus] Stream #{$stream->id} status: {$stream->status} → ERROR (DEAD)");
+
+        $originalVpsId = $stream->vps_server_id;
+
+        // DEAD status means all pipeline stages have terminated permanently
+        // This is more severe than regular ERROR - agent has given up on the stream
+        $stream->update([
+            'status' => 'ERROR',
+            'error_message' => $message ?: 'Stream died - all pipeline stages terminated',
+            'last_status_update' => now(),
+            'last_stopped_at' => now(),
+            'vps_server_id' => null,
+            'process_id' => null
+        ]);
+
+        // Decrement VPS stream count
+        if ($originalVpsId) {
+            VpsServer::find($originalVpsId)?->decrement('current_streams');
+        }
+
+        // Create progress message indicating stream death
+        StreamProgressService::createStageProgress(
+            $stream->id,
+            'error',
+            '💀 ' . ($message ?: 'Stream đã chết - tất cả pipeline stages đã dừng')
+        );
+
+        Log::error("💀 [UpdateStreamStatus] Stream #{$stream->id} marked as DEAD by agent: {$message}");
     }
 
     private function handleStartingStatus(StreamConfiguration $stream, $vpsId, $message): void

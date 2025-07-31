@@ -115,8 +115,17 @@ class EnhancedStreamManager:
             with self.stream_lock:
                 # Check if already running
                 if stream_id in self.streams:
-                    logging.warning(f"Stream {stream_id} already exists")
-                    return False
+                    existing_stream = self.streams[stream_id]
+                    logging.warning(f"🔄 Stream {stream_id} already exists - checking state")
+
+                    # If stream is in error state or stopping, allow restart
+                    if existing_stream.state in ['ERROR', 'STOPPING', 'STOPPED']:
+                        logging.info(f"🔄 Stream {stream_id} in {existing_stream.state} state - allowing restart")
+                        # Stop existing stream first
+                        self._stop_stream_internal(stream_id, "restart_conflict_resolution")
+                    else:
+                        logging.warning(f"🚫 Stream {stream_id} already running in {existing_stream.state} state - rejecting duplicate start")
+                        return False
                 
                 # Create enhanced config
                 config = EnhancedStreamConfig(

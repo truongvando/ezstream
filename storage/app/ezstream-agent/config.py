@@ -47,12 +47,12 @@ class AgentConfig:
     ffmpeg_reconnect_attempts: int = 5   # Reconnect attempts
     ffmpeg_reconnect_delay: int = 2      # Delay between reconnects
     ffmpeg_startup_timeout: int = 15     # Startup timeout
-    ffmpeg_use_encoding: bool = False    # Use copy mode by default (faster, with fast restart on DTS errors)
+    ffmpeg_use_encoding: bool = True     # Use encoding mode to fix SPS issues (slower but stable)
 
     # HLS Pipeline settings
     hls_segment_duration: int = 4        # HLS segment duration in seconds
     hls_playlist_size: int = 10          # Number of segments to keep in playlist
-    hls_base_dir: str = '/tmp/ezstream_hls'  # Base directory for HLS files
+    hls_base_dir: str = '/opt/ezstream-hls'  # Base directory for HLS files
 
     # HLS Encoding settings (Stage 1)
     hls_video_codec: str = 'libx264'     # Video codec for HLS generation

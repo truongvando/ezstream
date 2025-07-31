@@ -385,7 +385,7 @@ class HLSProcessManager:
             )
 
             logging.info(f"🎬 Starting HLS generator for stream {stream_id}")
-            logging.debug(f"HLS command: {' '.join(hls_cmd)}")
+            logging.info(f"🔧 HLS command: {' '.join(hls_cmd)}")
 
             # Start process
             process = subprocess.Popen(
@@ -433,7 +433,7 @@ class HLSProcessManager:
             )
 
             logging.info(f"📡 Starting RTMP streamer for stream {stream_id}")
-            logging.debug(f"RTMP command: {' '.join(rtmp_cmd)}")
+            logging.info(f"🔧 RTMP command: {' '.join(rtmp_cmd)}")
 
             # Start process
             process = subprocess.Popen(
@@ -500,8 +500,17 @@ class HLSProcessManager:
                 'ffmpeg',
                 '-hide_banner',
                 '-loglevel', 'error',
+
+                # Fix for SPS/PPS issues - analyze more data to find proper headers
+                '-analyzeduration', '100M',    # Analyze up to 100MB to find stream info
+                '-probesize', '1G',           # Probe up to 1GB for codec parameters
+
+                # File input timeout
+                '-timeout', '30000000',        # 30 second timeout for file operations
+                '-rw_timeout', '30000000',     # 30 second read/write timeout
+
                 '-re',  # Realtime playback
-                '-stream_loop', '-1',  # Loop infinitely
+                '-stream_loop', '100',  # Loop 100 times then restart (prevents memory leak)
                 '-i', input_path,
 
                 # Video encoding - configurable settings
@@ -531,12 +540,25 @@ class HLSProcessManager:
                 'ffmpeg',
                 '-hide_banner',
                 '-loglevel', 'error',
+
+                # Fix for SPS/PPS issues - analyze more data to find proper headers
+                '-analyzeduration', '100M',    # Analyze up to 100MB to find stream info
+                '-probesize', '1G',           # Probe up to 1GB for codec parameters
+
+                # File input timeout
+                '-timeout', '30000000',        # 30 second timeout for file operations
+                '-rw_timeout', '30000000',     # 30 second read/write timeout
+
                 '-re',  # Realtime playback
-                '-stream_loop', '-1',  # Loop infinitely
+                '-stream_loop', '100',  # Loop 100 times then restart (prevents memory leak)
                 '-i', input_path,
 
                 # Copy streams - no re-encoding
                 '-c', 'copy',
+
+                # SPS/PPS injection for copy mode (fix H.264 header issues)
+                '-bsf:v', 'h264_mp4toannexb',
+                '-bsf:v', 'dump_extra',
 
                 # Timestamp fixes for copy mode
                 '-avoid_negative_ts', 'make_zero',
@@ -560,15 +582,32 @@ class HLSProcessManager:
             'ffmpeg',
             '-hide_banner',
             '-loglevel', 'error',
+
+            # Fix for SPS/PPS issues - analyze more data to find proper headers
+            '-analyzeduration', '100M',    # Analyze up to 100MB to find stream info
+            '-probesize', '1G',           # Probe up to 1GB for codec parameters
+
+            # Network resilience options
+            '-timeout', '30000000',        # 30 second timeout
+            '-rw_timeout', '30000000',     # 30 second read/write timeout
+            '-reconnect', '1',             # Enable auto-reconnect
+            '-reconnect_at_eof', '1',      # Reconnect at EOF
+            '-reconnect_on_network_error', '1',  # Reconnect on network errors
+            '-reconnect_delay_max', '5',   # Max 5 second delay between reconnects
+
             '-re',  # Realtime playback
             '-i', hls_playlist_path,
 
             # Copy streams - no re-encoding needed
             '-c', 'copy',
 
-            # RTMP output settings
+            # SPS/PPS injection for RTMP (fix H.264 header issues)
+            '-bsf:v', 'h264_mp4toannexb',
+
+            # RTMP output settings with network optimizations
             '-f', 'flv',
             '-flvflags', 'no_duration_filesize',
+            '-tcp_nodelay', '1',           # Disable Nagle's algorithm for better streaming
 
             rtmp_endpoint
         ]
@@ -598,8 +637,13 @@ class HLSProcessManager:
 
             # Handle unexpected termination
             stage_info.error_count += 1
-            error_message = self._analyze_stage_error(stderr.decode('utf-8') if stderr else '',
-                                                    return_code, stage_type)
+            stderr_text = stderr.decode('utf-8') if stderr else ''
+
+            # Log raw stderr for debugging
+            if stderr_text.strip():
+                logging.error(f"🔍 {stage_type} stderr for stream {stream_id}: {stderr_text.strip()}")
+
+            error_message = self._analyze_stage_error(stderr_text, return_code, stage_type)
 
             if error_message:
                 stage_info.last_error = error_message
@@ -620,6 +664,25 @@ class HLSProcessManager:
             else:
                 logging.info(f"ℹ️ {stage_type} for stream {stream_id} ended normally")
 
+                # Check if this is unexpected termination (not during stopping)
+                if not pipeline_info.is_stopping:
+                    # For HLS_GENERATOR ending normally, this is expected after 100 loops
+                    if stage_type == 'HLS_GENERATOR':
+                        logging.info(f"🔄 HLS_GENERATOR for stream {stream_id} completed 100 loops, restarting...")
+                        # Auto-restart HLS generator to continue looping
+                        self._restart_hls_generator(pipeline_info)
+                    else:
+                        logging.warning(f"⚠️ {stage_type} for stream {stream_id} ended unexpectedly")
+
+                        # If both stages are dead, mark stream as DEAD
+                        if self._check_pipeline_dead(pipeline_info):
+                            logging.error(f"💀 All stages dead for stream {stream_id}")
+                            if self.status_reporter:
+                                self.status_reporter.publish_stream_status(
+                                    stream_id, 'DEAD',
+                                    'All pipeline stages have terminated'
+                                )
+
         except Exception as e:
             logging.error(f"❌ Error monitoring {stage_type} for stream {stream_id}: {e}")
             stage_info.state = StageState.ERROR
@@ -627,6 +690,40 @@ class HLSProcessManager:
 
         finally:
             logging.info(f"🔍 Monitoring ended for {stage_type} stream {stream_id}")
+
+    def _check_pipeline_dead(self, pipeline_info: HLSPipelineInfo) -> bool:
+        """Check if entire pipeline is dead (all stages stopped)"""
+        hls_dead = (not pipeline_info.hls_generator.process or
+                   pipeline_info.hls_generator.process.poll() is not None)
+        rtmp_dead = (not pipeline_info.rtmp_streamer.process or
+                    pipeline_info.rtmp_streamer.process.poll() is not None)
+
+        return hls_dead and rtmp_dead
+
+    def _restart_hls_generator(self, pipeline_info: HLSPipelineInfo):
+        """Restart HLS generator after normal completion (100 loops)"""
+        try:
+            stream_id = pipeline_info.stream_id
+            logging.info(f"🔄 Restarting HLS generator for stream {stream_id} (loop cycle completed)")
+
+            # Stop RTMP streamer temporarily
+            if pipeline_info.rtmp_streamer.process and pipeline_info.rtmp_streamer.process.poll() is None:
+                self._stop_stage(pipeline_info.rtmp_streamer, "HLS generator restart")
+
+            # Start new HLS generator
+            if self._start_hls_generator(pipeline_info):
+                # Wait for HLS playlist to be ready
+                if self._wait_for_hls_playlist(pipeline_info):
+                    # Restart RTMP streamer
+                    self._start_rtmp_streamer(pipeline_info)
+                    logging.info(f"✅ HLS pipeline restarted successfully for stream {stream_id}")
+                else:
+                    logging.error(f"❌ HLS playlist not ready after restart for stream {stream_id}")
+            else:
+                logging.error(f"❌ Failed to restart HLS generator for stream {stream_id}")
+
+        except Exception as e:
+            logging.error(f"❌ Error restarting HLS generator for stream {pipeline_info.stream_id}: {e}")
 
     def _handle_stage_failure(self, stage_info: StageInfo, pipeline_info: HLSPipelineInfo,
                             error_message: str):
@@ -638,8 +735,14 @@ class HLSProcessManager:
         if stage_info.restart_count >= 5:
             logging.error(f"💀 {stage_type.value} for stream {stream_id} exceeded restart limit")
 
-            # Request manual intervention
+            # Mark stream as DEAD and stop entire pipeline
             if self.status_reporter:
+                self.status_reporter.publish_stream_status(
+                    stream_id, 'DEAD',
+                    f'Stream failed permanently: {stage_type.value} exceeded restart limit'
+                )
+
+                # Also request manual intervention
                 self.status_reporter.publish_restart_request(
                     stream_id=stream_id,
                     reason=f"{stage_type.value} exceeded restart limit",
@@ -647,12 +750,55 @@ class HLSProcessManager:
                     last_error=error_message,
                     error_type="RESTART_LIMIT_EXCEEDED"
                 )
+
+            # Stop entire pipeline to prevent orphaned processes
+            logging.info(f"🛑 Stopping entire pipeline for stream {stream_id} due to restart limit")
+            self.stop_hls_pipeline(stream_id, "restart_limit_exceeded")
             return
 
         # Determine restart strategy based on error type
         if "FILE_NOT_FOUND" in error_message or "PERMISSION_ERROR" in error_message:
             # Fatal errors - don't auto-restart
             logging.error(f"💀 Fatal error in {stage_type.value} for stream {stream_id}: {error_message}")
+
+            # Mark stream as DEAD for fatal errors and stop entire pipeline
+            if self.status_reporter:
+                self.status_reporter.publish_stream_status(
+                    stream_id, 'DEAD',
+                    f'Stream failed permanently: {error_message}'
+                )
+
+            # Stop entire pipeline to prevent orphaned processes
+            logging.info(f"🛑 Stopping entire pipeline for stream {stream_id} due to fatal error")
+            self.stop_hls_pipeline(stream_id, "fatal_error")
+            return
+
+        # Handle H.264 SPS/PPS errors specifically
+        if ("non-existing SPS" in error_message or
+            "SPS unavailable" in error_message or
+            "non-existing PPS" in error_message or
+            "decode_slice_header error" in error_message):
+
+            logging.warning(f"🔧 H.264 header issue detected for stream {stream_id}: {error_message}")
+
+            # For SPS/PPS errors, try restart with enhanced parameters
+            # These are usually recoverable with proper FFmpeg settings
+            if stage_info.restart_count >= 3:
+                logging.error(f"💀 H.264 header issues persist after {stage_info.restart_count} attempts for stream {stream_id}")
+
+                # Mark as DEAD if SPS/PPS issues persist
+                if self.status_reporter:
+                    self.status_reporter.publish_stream_status(
+                        stream_id, 'DEAD',
+                        f'Stream failed permanently: Persistent H.264 header corruption (SPS/PPS)'
+                    )
+
+                self.stop_hls_pipeline(stream_id, "h264_header_corruption")
+                return
+
+        # Check if Laravel is already handling this stream
+        if self._is_laravel_restart_in_progress(stream_id):
+            logging.info(f"🔄 Laravel restart detected for stream {stream_id} - skipping agent auto-restart")
             return
 
         # Auto-restart for recoverable errors
@@ -672,6 +818,27 @@ class HLSProcessManager:
 
         restart_thread = threading.Thread(target=delayed_restart, daemon=True)
         restart_thread.start()
+
+    def _is_laravel_restart_in_progress(self, stream_id: int) -> bool:
+        """Check if Laravel is currently restarting this stream"""
+        try:
+            # Check if there's a recent START_STREAM command from Laravel
+            # This is a simple time-based check - could be enhanced with Redis tracking
+            with self.pipeline_lock:
+                if stream_id in self.pipelines:
+                    pipeline_info = self.pipelines[stream_id]
+
+                    # If stream was started very recently (< 30 seconds), likely Laravel restart
+                    time_since_start = time.time() - pipeline_info.start_time
+                    if time_since_start < 30:
+                        logging.debug(f"🔍 Stream {stream_id} started {time_since_start:.1f}s ago - possible Laravel restart")
+                        return True
+
+            return False
+
+        except Exception as e:
+            logging.error(f"❌ Error checking Laravel restart status for stream {stream_id}: {e}")
+            return False
 
     def _analyze_stage_error(self, stderr_output: str, return_code: int, stage_type: str) -> Optional[str]:
         """Analyze stage error and return user-friendly message"""

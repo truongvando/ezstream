@@ -97,7 +97,16 @@ class ProcessRestartRequestJob implements ShouldQueue
     private function shouldRestartStream(StreamConfiguration $stream): bool
     {
         // Business logic for restart decision
-        
+
+        // 0. Check if stream is already being restarted (prevent conflicts)
+        if ($stream->status === 'STARTING') {
+            $minutesSinceStart = $stream->last_started_at ? now()->diffInMinutes($stream->last_started_at) : 999;
+            if ($minutesSinceStart < 2) {
+                Log::info("🔄 [RestartDecision] Stream #{$this->streamId} already restarting (started {$minutesSinceStart}m ago) - avoiding conflict");
+                return false;
+            }
+        }
+
         // 1. Check if stream has schedule enabled
         if (!$stream->enable_schedule) {
             Log::info("🔄 [RestartDecision] Stream #{$this->streamId} has schedule disabled");

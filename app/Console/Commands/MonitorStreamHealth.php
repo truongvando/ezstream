@@ -179,13 +179,20 @@ class MonitorStreamHealth extends Command
                 // Check if VPS is still active
                 $vps = $stream->vpsServer;
                 if ($vps && $vps->status === 'ACTIVE' && $vps->last_heartbeat_at && $vps->last_heartbeat_at->diffInMinutes(now()) < 2) {
-                    $issues[] = [
-                        'type' => 'RECENT_ERROR',
-                        'description' => "Recent ERROR status but VPS is healthy - possible auto-restart candidate",
-                        'fix' => function() use ($stream) {
-                            return $this->attemptStreamRestart($stream);
-                        }
-                    ];
+
+                    // Avoid restart conflicts - check if recently attempted
+                    $minutesSinceLastStart = $stream->last_started_at ? now()->diffInMinutes($stream->last_started_at) : 999;
+                    if ($minutesSinceLastStart > 5) { // Only restart if no recent start attempts
+                        $issues[] = [
+                            'type' => 'RECENT_ERROR',
+                            'description' => "Recent ERROR status but VPS is healthy - possible auto-restart candidate",
+                            'fix' => function() use ($stream) {
+                                return $this->attemptStreamRestart($stream);
+                            }
+                        ];
+                    } else {
+                        $this->line("   ⏳ Skipping restart for stream #{$stream->id} - recent start attempt ({$minutesSinceLastStart}m ago)");
+                    }
                 }
             }
         }
