@@ -30,6 +30,12 @@ class ProcessHeartbeatJob implements ShouldQueue
     public function handle(): void
     {
         try {
+            // Skip ghost stream handling for local development environment
+            if (app()->environment('local') && $this->vpsId >= 60) {
+                Log::info("🔧 [ProcessHeartbeat] Skipping ghost stream handling for local development VPS #{$this->vpsId}");
+                return;
+            }
+
             $logPrefix = $this->isImmediateUpdate ? "⚡ [ProcessHeartbeat-Immediate]" :
                         ($this->isReAnnounce ? "🔄 [ProcessHeartbeat-ReAnnounce]" : "💓 [ProcessHeartbeat]");
 
@@ -115,6 +121,14 @@ class ProcessHeartbeatJob implements ShouldQueue
                 if ($stream->vps_server_id && $stream->vps_server_id != $this->vpsId) {
                     Log::warning("⚠️ [GhostStream] Stream #{$streamId} belongs to VPS #{$stream->vps_server_id}, not this VPS #{$this->vpsId}. Sending STOP command to prevent conflict.");
                     $this->sendStopCommand($streamId, "Stream belongs to different VPS (#{$stream->vps_server_id})");
+                    continue;
+                }
+
+                // VALIDATE VPS EXISTS before updating
+                $vps = VpsServer::find($this->vpsId);
+                if (!$vps) {
+                    Log::error("❌ [GhostStream] VPS #{$this->vpsId} does not exist! Cannot auto-recover stream #{$streamId}");
+                    $this->sendStopCommand($streamId, "VPS #{$this->vpsId} does not exist");
                     continue;
                 }
 
