@@ -111,6 +111,13 @@ class ProcessHeartbeatJob implements ShouldQueue
                     continue;
                 }
 
+                // CRITICAL: Only handle streams assigned to this VPS
+                if ($stream->vps_server_id && $stream->vps_server_id != $this->vpsId) {
+                    Log::warning("⚠️ [GhostStream] Stream #{$streamId} belongs to VPS #{$stream->vps_server_id}, not this VPS #{$this->vpsId}. Sending STOP command to prevent conflict.");
+                    $this->sendStopCommand($streamId, "Stream belongs to different VPS (#{$stream->vps_server_id})");
+                    continue;
+                }
+
                 // SIMPLE APPROACH: If agent reports stream active, trust it and auto-recover
                 Log::info("🔄 [GhostStream] Agent reports stream #{$streamId} active (status: {$stream->status}), auto-recovering to STREAMING");
 
