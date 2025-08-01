@@ -29,9 +29,10 @@ class ProcessScheduledDeletionsJob implements ShouldQueue
 
         try {
             // Find files scheduled for deletion that are past their deletion time
+            // CRITICAL: Only process files that have scheduled_deletion_at set
             $filesToDelete = UserFile::where('auto_delete_after_stream', true)
-                ->where('scheduled_deletion_at', '<=', now())
                 ->whereNotNull('scheduled_deletion_at')
+                ->where('scheduled_deletion_at', '<=', now())
                 ->get();
 
             if ($filesToDelete->isEmpty()) {
@@ -59,10 +60,12 @@ class ProcessScheduledDeletionsJob implements ShouldQueue
                         continue;
                     }
 
-                    // Check if any stream using this file is still active
+                    // Check if any stream using this file is still active OR recently updated
                     $activeStreams = $streams->whereIn('status', ['STREAMING', 'STARTING', 'STOPPING']);
-                    if ($activeStreams->isNotEmpty()) {
-                        Log::warning("⚠️ [ProcessScheduledDeletions] File {$file->id} still used by active streams, postponing deletion");
+                    $recentlyUpdatedStreams = $streams->where('updated_at', '>', now()->subMinutes(5));
+                    
+                    if ($activeStreams->isNotEmpty() || $recentlyUpdatedStreams->isNotEmpty()) {
+                        Log::warning("⚠️ [ProcessScheduledDeletions] File {$file->id} still used by active/recent streams, postponing deletion");
                         
                         // Postpone deletion by 1 hour
                         $file->update(['scheduled_deletion_at' => now()->addHour()]);

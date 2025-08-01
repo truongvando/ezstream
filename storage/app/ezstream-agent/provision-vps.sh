@@ -1,12 +1,14 @@
 #!/bin/bash
 # ==============================================================================
-# EZSTREAM BASE PROVISION SCRIPT v4.0 (for Enhanced HLS Agent)
+# EZSTREAM BASE PROVISION SCRIPT v5.0 (for Stream Manager + Process Manager)
 # ==============================================================================
 #
 # MÔ TẢ:
-# Script này chuẩn bị một VPS mới để chạy Enhanced HLS Pipeline. Nó cài đặt
-# FFmpeg và các công cụ hệ thống cần thiết. HLS Pipeline v4.0 không cần
-# Nginx RTMP module - stream trực tiếp từ FFmpeg đến YouTube.
+# Script này chuẩn bị một VPS mới để chạy EZStream Agent v5.0 với kiến trúc mới:
+# - Stream Manager: Quản lý streams và playlists
+# - Process Manager: Quản lý FFmpeg processes với auto reconnect
+# - File Manager: Download và validate files
+# - Direct FFmpeg to YouTube (không cần HLS pipeline)
 #
 # ==============================================================================
 
@@ -43,8 +45,8 @@ apt-get install -y \
     htop iotop supervisor \
     redis-tools # Cần thiết cho redis-cli (debug)
 
-# Cài đặt thư viện Python cần thiết cho Enhanced HLS Agent
-echo "Installing Python packages for Enhanced HLS Agent..."
+# Cài đặt thư viện Python cần thiết cho EZStream Agent v5.0
+echo "Installing Python packages for EZStream Agent v5.0..."
 pip3 install redis psutil requests --break-system-packages || {
     echo "pip3 direct install failed. Trying via apt..."
     apt-get install -y python3-redis python3-psutil python3-requests
@@ -55,9 +57,9 @@ timedatectl set-timezone Asia/Ho_Chi_Minh
 export TZ=Asia/Ho_Chi_Minh
 
 
-# 2. NGINX CONFIGURATION FOR HLS SERVING (Optional)
-echo "2. Configuring basic Nginx for HLS serving..."
-# Enhanced HLS Pipeline v4.0 không cần RTMP, chỉ cần serve HLS files
+# 2. NGINX CONFIGURATION (Optional - for health checks only)
+echo "2. Configuring basic Nginx for health checks..."
+# EZStream Agent v5.0 streams direct to YouTube, không cần HLS serving
 cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup
 cat > /etc/nginx/nginx.conf << 'EOF'
 user www-data;
@@ -70,7 +72,7 @@ events {
     multi_accept on;
 }
 
-# HTTP Configuration - No RTMP needed for Enhanced HLS Pipeline v4.0
+# HTTP Configuration - No RTMP/HLS needed for EZStream Agent v5.0
 http {
     sendfile on;
     tcp_nopush on;
@@ -93,31 +95,21 @@ http {
 
         # Health check endpoint
         location /health {
-            return 200 "Enhanced HLS Agent v4.0 Ready";
+            return 200 "EZStream Agent v5.0 Ready";
             add_header Content-Type text/plain;
         }
 
-        # Optional: Serve HLS files if needed for debugging
-        location /hls/ {
-            alias /opt/ezstream-hls/;
-            add_header Cache-Control no-cache;
-            add_header Access-Control-Allow-Origin *;
-
-            # HLS MIME types
-            location ~ \.m3u8$ {
-                add_header Content-Type application/vnd.apple.mpegurl;
-            }
-
-            location ~ \.ts$ {
-                add_header Content-Type video/mp2t;
-            }
+        # Agent status endpoint (for monitoring)
+        location /agent-status {
+            return 200 "EZStream Agent v5.0 - Stream Manager + Process Manager";
+            add_header Content-Type text/plain;
         }
     }
 }
 EOF
 
-# Tạo thư mục cho HLS files
-mkdir -p /opt/ezstream-hls
+# Tạo thư mục cho downloads (file_manager)
+mkdir -p /opt/ezstream-downloads
 
 # Test nginx config
 nginx -t
@@ -160,7 +152,7 @@ sysctl -p
 # 5. FIREWALL CONFIGURATION
 echo "5. Configuring firewall..."
 ufw allow 22/tcp    # SSH
-ufw allow 8080/tcp  # Health check & HLS serving
+ufw allow 8080/tcp  # Health check & agent status
 ufw --force enable
 
 
@@ -214,7 +206,7 @@ fi
 
 # Check health endpoint
 echo "Testing nginx health endpoint..."
-if ! curl -s http://localhost:8080/health | grep -q "Enhanced HLS Agent v4.0 Ready"; then
+if ! curl -s http://localhost:8080/health | grep -q "EZStream Agent v5.0 Ready"; then
     echo "WARNING: Nginx health check failed"
     echo "This might be normal if health endpoint is not fully configured"
     echo "Continuing anyway as HTTP port is working..."
@@ -224,5 +216,6 @@ echo "✅ All base services verified successfully"
 
 echo ""
 echo "=== VPS BASE PROVISION COMPLETE ==="
-echo "✅ Base system is ready for Enhanced HLS Agent v4.0 deployment from Laravel."
+echo "✅ Base system is ready for EZStream Agent v5.0 deployment from Laravel."
+echo "📋 Architecture: Stream Manager + Process Manager + File Manager"
 echo ""

@@ -10,7 +10,6 @@ from dataclasses import dataclass
 from typing import Optional
 import logging
 
-
 @dataclass
 class AgentConfig:
     """Main configuration class for EZStream Agent"""
@@ -49,29 +48,50 @@ class AgentConfig:
     ffmpeg_startup_timeout: int = 15     # Startup timeout
     ffmpeg_use_encoding: bool = True     # Use encoding mode to fix SPS issues (slower but stable)
 
-    # HLS settings for 24/7 stability
-    hls_segment_duration: int = 6        # Segment duration in seconds
-    hls_playlist_size: int = 10          # Number of segments to keep in playlist
-    hls_keep_segments: int = 0           # Keep all segments (0 = unlimited)
-    hls_temp_dir: str = '/tmp/hls'       # HLS temporary directory
-    hls_base_dir: str = '/tmp/ezstream-hls'  # HLS base directory
-    
-    # HLS video encoding settings
-    hls_video_codec: str = 'libx264'     # Video codec for HLS
-    hls_video_preset: str = 'fast'       # Video preset for HLS
-    hls_video_crf: int = 23              # Video CRF for HLS
-    hls_video_maxrate: str = '3000k'     # Video max bitrate for HLS
-    hls_video_bufsize: str = '6000k'     # Video buffer size for HLS
-    
-    # HLS audio encoding settings
-    hls_audio_codec: str = 'aac'         # Audio codec for HLS
-    hls_audio_bitrate: str = '128k'      # Audio bitrate for HLS
+    # Direct streaming settings for YouTube optimization
+    direct_streaming_enabled: bool = True           # Enable direct FFmpeg RTMP streaming
+    youtube_rtmp_url: str = 'rtmp://a.rtmp.youtube.com/live2/'  # YouTube RTMP endpoint
 
-    # Fast restart settings for DTS errors
-    enable_fast_restart: bool = True     # Enable fast restart on DTS errors
-    dts_error_threshold: int = 3         # Number of DTS errors before fast restart
-    max_fast_restarts: int = 5           # Max fast restarts before falling back to normal error handling
-    fast_restart_delay: int = 2          # Delay between fast restarts (seconds)
+    # YouTube FHD technical specifications
+    youtube_video_codec: str = 'libx264'            # H.264 for YouTube
+    youtube_video_profile: str = 'high'             # High Profile for FHD
+    youtube_video_level: str = '4.0'                # Level 4.0 for FHD
+    youtube_video_bitrate: str = '5000k'            # 5 Mbps for FHD
+    youtube_video_maxrate: str = '6000k'            # Max 6 Mbps
+    youtube_video_bufsize: str = '12000k'           # Buffer size
+    youtube_video_fps: int = 30                     # 30 FPS
+    youtube_video_gop: int = 60                     # GOP size (2s at 30fps)
+    youtube_video_preset: str = 'fast'              # Encoding preset
+    youtube_video_tune: str = 'zerolatency'         # Tune for streaming
+
+    # YouTube audio specifications
+    youtube_audio_codec: str = 'aac'                # AAC-LC for YouTube
+    youtube_audio_bitrate: str = '128k'             # 128 kbps
+    youtube_audio_samplerate: int = 44100           # 44.1 kHz
+    youtube_audio_channels: int = 2                 # Stereo
+
+    # RTMP streaming settings
+    rtmp_reconnect_enabled: bool = True             # Enable reconnect
+    rtmp_reconnect_at_eof: bool = True              # Reconnect at EOF
+    rtmp_reconnect_streamed: bool = True            # Reconnect for streamed content
+    rtmp_reconnect_delay_max: int = 5               # Max reconnect delay
+    rtmp_buffer_size: int = 1000                    # RTMP buffer (ms)
+    rtmp_global_timeout: int = 10000000             # Global timeout (microseconds)
+
+    # Reconnect logic settings - Unlimited reconnect for 24/7 streaming
+    reconnect_max_attempts: int = -1                # Unlimited reconnect attempts (-1 = infinite)
+    reconnect_base_delay: float = 2.0               # Base delay between attempts
+    reconnect_max_delay: float = 300.0              # Max delay between attempts (5 minutes)
+    reconnect_exponential_factor: float = 1.5       # Exponential backoff factor
+    reconnect_reset_after_success: float = 300.0    # Reset counter after success (seconds)
+
+    # Concurrent processing settings - No stream limit (Laravel manages VPS resources)
+    max_concurrent_streams: int = -1                # No limit (-1 = unlimited, Laravel decides)
+    stream_start_timeout: float = 60.0              # Longer timeout for downloads
+    concurrent_validation_workers: int = 10         # Workers for file validation
+    concurrent_download_workers: int = 5            # Workers for file downloads
+    process_monitor_interval: float = 2.0           # Process monitoring interval (seconds)
+    async_operations_enabled: bool = True           # Enable async operations
 
     def update_from_laravel_settings(self, settings: dict):
         """Update config from Laravel settings"""
@@ -85,43 +105,31 @@ class AgentConfig:
             if old_mode != new_mode:
                 updated_settings.append(f"ffmpeg_mode: {old_mode} → {new_mode}")
 
-        # HLS encoding settings
-        if 'hls_video_preset' in settings:
-            old_preset = self.hls_video_preset
-            self.hls_video_preset = settings['hls_video_preset']
-            if old_preset != self.hls_video_preset:
-                updated_settings.append(f"hls_video_preset: {old_preset} → {self.hls_video_preset}")
+        # YouTube streaming settings
+        if 'youtube_video_preset' in settings:
+            old_preset = self.youtube_video_preset
+            self.youtube_video_preset = settings['youtube_video_preset']
+            if old_preset != self.youtube_video_preset:
+                updated_settings.append(f"youtube_video_preset: {old_preset} → {self.youtube_video_preset}")
 
-        if 'hls_video_crf' in settings:
-            old_crf = self.hls_video_crf
-            self.hls_video_crf = int(settings['hls_video_crf'])
-            if old_crf != self.hls_video_crf:
-                updated_settings.append(f"hls_video_crf: {old_crf} → {self.hls_video_crf}")
+        if 'youtube_video_bitrate' in settings:
+            old_bitrate = self.youtube_video_bitrate
+            self.youtube_video_bitrate = settings['youtube_video_bitrate']
+            if old_bitrate != self.youtube_video_bitrate:
+                updated_settings.append(f"youtube_video_bitrate: {old_bitrate} → {self.youtube_video_bitrate}")
 
-        if 'hls_video_maxrate' in settings:
-            old_maxrate = self.hls_video_maxrate
-            self.hls_video_maxrate = settings['hls_video_maxrate']
-            if old_maxrate != self.hls_video_maxrate:
-                updated_settings.append(f"hls_video_maxrate: {old_maxrate} → {self.hls_video_maxrate}")
+        if 'youtube_video_maxrate' in settings:
+            old_maxrate = self.youtube_video_maxrate
+            self.youtube_video_maxrate = settings['youtube_video_maxrate']
+            if old_maxrate != self.youtube_video_maxrate:
+                updated_settings.append(f"youtube_video_maxrate: {old_maxrate} → {self.youtube_video_maxrate}")
 
-        if 'hls_audio_bitrate' in settings:
-            old_bitrate = self.hls_audio_bitrate
-            self.hls_audio_bitrate = settings['hls_audio_bitrate']
-            if old_bitrate != self.hls_audio_bitrate:
-                updated_settings.append(f"hls_audio_bitrate: {old_bitrate} → {self.hls_audio_bitrate}")
-
-        # HLS segment settings
-        if 'hls_segment_duration' in settings:
-            old_duration = self.hls_segment_duration
-            self.hls_segment_duration = int(settings['hls_segment_duration'])
-            if old_duration != self.hls_segment_duration:
-                updated_settings.append(f"hls_segment_duration: {old_duration} → {self.hls_segment_duration}")
-
-        if 'hls_playlist_size' in settings:
-            old_size = self.hls_playlist_size
-            self.hls_playlist_size = int(settings['hls_playlist_size'])
-            if old_size != self.hls_playlist_size:
-                updated_settings.append(f"hls_playlist_size: {old_size} → {self.hls_playlist_size}")
+        # Reconnect settings
+        if 'reconnect_max_attempts' in settings:
+            old_attempts = self.reconnect_max_attempts
+            self.reconnect_max_attempts = int(settings['reconnect_max_attempts'])
+            if old_attempts != self.reconnect_max_attempts:
+                updated_settings.append(f"reconnect_max_attempts: {old_attempts} → {self.reconnect_max_attempts}")
 
         # Performance settings
         if 'max_concurrent_streams' in settings:
@@ -181,16 +189,10 @@ class AgentConfig:
         except Exception as e:
             logging.warning(f"⚠️ Error fetching settings from Redis: {e}")
             return []
-    
-    # DEPRECATED: Nginx settings (removed in HLS Pipeline v4.0)
-    # nginx_rtmp_base_url: str = 'rtmp://127.0.0.1:1935'  # ← REMOVED
-    # nginx_config_dir: str = '/etc/nginx/rtmp-apps'       # ← REMOVED
 
     # Windows development override
     def __post_init__(self):
         if os.name == 'nt':  # Windows
-            # Ensure HLS base directory exists on Windows
-            os.makedirs(self.hls_base_dir, exist_ok=True)
             # Ensure download directory exists
             os.makedirs(self.download_base_dir, exist_ok=True)
     
@@ -240,30 +242,44 @@ class AgentConfig:
     def get_stream_download_dir(self, stream_id: int) -> str:
         """Get download directory for specific stream"""
         return os.path.join(self.download_base_dir, str(stream_id))
-    
-    # DEPRECATED: Nginx methods (removed in HLS Pipeline v4.0)
-    # def get_nginx_app_config_path(self, stream_id: int) -> str:  # ← REMOVED
-    # def get_rtmp_endpoint(self, stream_id: int) -> str:          # ← REMOVED
 
-    def get_hls_output_dir(self, stream_id: int) -> str:
-        """Get HLS output directory for stream"""
-        return os.path.join(self.hls_base_dir, f'stream_{stream_id}')
+    def get_youtube_rtmp_endpoint(self, stream_key: str) -> str:
+        """Get YouTube RTMP endpoint with stream key"""
+        if not stream_key:
+            raise ValueError("Stream key is required for YouTube RTMP")
 
-    def get_hls_playlist_path(self, stream_id: int) -> str:
-        """Get HLS playlist path for stream"""
-        return os.path.join(self.get_hls_output_dir(stream_id), 'playlist.m3u8')
+        # Ensure URL ends with /
+        rtmp_url = self.youtube_rtmp_url
+        if not rtmp_url.endswith('/'):
+            rtmp_url += '/'
 
+        return f"{rtmp_url}{stream_key}"
+
+    def get_direct_streaming_config(self) -> dict:
+        """Get direct streaming configuration"""
+        return {
+            'enabled': self.direct_streaming_enabled,
+            'youtube_rtmp_url': self.youtube_rtmp_url,
+            'video_codec': self.youtube_video_codec,
+            'video_profile': self.youtube_video_profile,
+            'video_bitrate': self.youtube_video_bitrate,
+            'video_maxrate': self.youtube_video_maxrate,
+            'video_fps': self.youtube_video_fps,
+            'audio_codec': self.youtube_audio_codec,
+            'audio_bitrate': self.youtube_audio_bitrate,
+            'reconnect_enabled': self.rtmp_reconnect_enabled,
+            'reconnect_max_attempts': self.reconnect_max_attempts,
+            'reconnect_base_delay': self.reconnect_base_delay
+        }
 
 # Global config instance
 config: Optional[AgentConfig] = None
-
 
 def init_config(vps_id: int, redis_host: str, redis_port: int, redis_password: Optional[str] = None):
     """Initialize global config"""
     global config
     config = AgentConfig.from_args(vps_id, redis_host, redis_port, redis_password)
     return config
-
 
 def get_config() -> AgentConfig:
     """Get global config instance"""

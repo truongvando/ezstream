@@ -24,19 +24,19 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
     public function __construct(int $vpsId)
     {
         $this->vpsId = $vpsId;
-        Log::info("✅ [VPS #{$this->vpsId}] Provisioning job created for new Redis Agent architecture");
+        Log::info("✅ [VPS #{$this->vpsId}] Provisioning job created for EZStream Agent v5.0 (Stream Manager + Process Manager)");
     }
 
     public function handle(SshService $sshService): void
     {
         $vps = VpsServer::findOrFail($this->vpsId);
 
-        Log::info("🚀 [VPS #{$vps->id}] Starting provision for Redis Agent");
+        Log::info("🚀 [VPS #{$vps->id}] Starting provision for EZStream Agent v5.0");
 
         try {
             $vps->update([
                 'status' => 'PROVISIONING',
-                'status_message' => 'Setting up base system and Redis Agent...'
+                'status_message' => 'Setting up base system and EZStream Agent v5.0...'
             ]);
 
             // Check if VPS operations are enabled for this environment
@@ -55,8 +55,8 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
             // 1. Upload and run the main provision script (installs nginx, ffmpeg, etc.)
             $this->uploadAndRunProvisionScript($sshService, $vps);
 
-            // 2. Upload and set up the new Redis Agent
-            $this->uploadAndSetupRedisAgent($sshService, $vps);
+            // 2. Upload and set up EZStream Agent v5.0
+            $this->uploadAndSetupStreamAgent($sshService, $vps);
 
             // 3. Verify services and dependencies
             $this->verifyBaseServices($sshService, $vps);
@@ -136,24 +136,24 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         Log::info("✅ [VPS #{$vps->id}] Base provision script completed successfully");
     }
 
-    private function uploadAndSetupRedisAgent(SshService $sshService, VpsServer $vps): void
+    private function uploadAndSetupStreamAgent(SshService $sshService, VpsServer $vps): void
     {
-        Log::info("📦 [VPS #{$vps->id}] Uploading and setting up Redis Agent");
+        Log::info("📦 [VPS #{$vps->id}] Uploading and setting up EZStream Agent v5.0");
 
         // 1. Create remote directory
         $remoteDir = '/opt/ezstream-agent';
         $sshService->execute("mkdir -p {$remoteDir}");
 
-        // 2. Upload all agent files (Enhanced HLS Pipeline v4.0)
+        // 2. Upload all agent files (EZStream Agent v5.0 - Stream Manager + Process Manager)
         $agentFiles = [
             'agent.py',                    // Main entry point
             'config.py',                   // Configuration management
-            'enhanced_stream_manager.py',  // Enhanced stream manager with HLS pipeline
-            'hls_process_manager.py',      // HLS 2-stage pipeline manager
-            'file_manager.py',             // File download/cleanup
-            'status_reporter.py',          // Status reporting
-            'command_handler.py',          // Command processing
-            'monitoring_dashboard.py',     // Premium monitoring dashboard
+            'stream_manager.py',           // Stream & Playlist Management
+            'process_manager.py',          // FFmpeg Process Management with auto reconnect
+            'file_manager.py',             // File download/validation/cleanup
+            'status_reporter.py',          // Status reporting to Laravel
+            'command_handler.py',          // Command processing from Laravel
+            'video_optimizer.py',          // Video optimization (optional)
             'utils.py'                     // Shared utilities
         ];
 
@@ -207,21 +207,21 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         $status = $sshService->execute("systemctl is-active {$serviceName}");
         if (trim($status) !== 'active') {
             $serviceLog = $sshService->execute("journalctl -u {$serviceName} --no-pager -n 50");
-            Log::error("❌ [VPS #{$vps->id}] Redis Agent service failed to start", [
+            Log::error("❌ [VPS #{$vps->id}] EZStream Agent service failed to start", [
                 'status' => $status,
                 'log' => $serviceLog
             ]);
-            throw new \Exception('Redis Agent service failed to start. Check journalctl logs on the VPS.');
+            throw new \Exception('EZStream Agent service failed to start. Check journalctl logs on the VPS.');
         }
-        
-        Log::info("✅ [VPS #{$vps->id}] Redis Agent service started successfully");
+
+        Log::info("✅ [VPS #{$vps->id}] EZStream Agent v5.0 service started successfully");
     }
     
     private function generateAgentSystemdService(string $agentPath, string $redisHost, int $redisPort, ?string $redisPassword, VpsServer $vps): string
     {
         $pythonCmd = "/usr/bin/python3";
 
-        // Build the command arguments dynamically (v4.0 uses named arguments).
+        // Build the command arguments dynamically (v5.0 uses named arguments).
         $commandArgs = "--vps-id {$vps->id} --redis-host {$redisHost} --redis-port {$redisPort}";
         if ($redisPassword) {
             $commandArgs .= " --redis-password '{$redisPassword}'"; // Append password only if it exists
@@ -230,7 +230,7 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         $command = "{$pythonCmd} {$agentPath} {$commandArgs}";
 
         return "[Unit]
-Description=EZStream Redis Agent v3.0
+Description=EZStream Agent v5.0 (Stream Manager + Process Manager)
 After=network.target
 Wants=nginx.service
 

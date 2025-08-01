@@ -18,7 +18,7 @@ import redis
 from config import get_config
 from utils import safe_json_loads, PerformanceTimer
 from status_reporter import get_status_reporter
-from enhanced_stream_manager import get_enhanced_stream_manager
+from stream_manager import get_stream_manager
 
 
 
@@ -49,7 +49,7 @@ class CommandHandler:
     def __init__(self):
         self.config = get_config()
         self.status_reporter = get_status_reporter()
-        self.stream_manager = get_enhanced_stream_manager()
+        self.stream_manager = get_stream_manager()
 
         # Redis connection for command listening
         self.redis_conn = None
@@ -329,7 +329,35 @@ class CommandHandler:
                 return False
 
             # Start the stream directly - Laravel already decided this is valid
-            result = self.stream_manager.start_stream(config)
+            # Convert config to new API format
+            video_files = []
+            for video_file in config.get('video_files', []):
+                if isinstance(video_file, dict):
+                    # Try different field names: download_url, url, path
+                    file_path = video_file.get('download_url') or video_file.get('url') or video_file.get('path', '')
+                    video_files.append(file_path)
+                else:
+                    video_files.append(str(video_file))
+
+            stream_config = {
+                'loop': config.get('loop', True),
+                'rtmp_url': config.get('rtmp_url', ''),
+                'stream_key': config.get('stream_key', '')
+            }
+
+            # Handle direct file output for testing
+            rtmp_endpoint = None
+            rtmp_url = config.get('rtmp_url', '')
+            if not rtmp_url.startswith('rtmp://'):
+                # Direct file output
+                rtmp_endpoint = rtmp_url
+
+            result = self.stream_manager.start_stream(
+                stream_id=stream_id,
+                video_files=video_files,
+                stream_config=stream_config,
+                rtmp_endpoint=rtmp_endpoint
+            )
 
             if result:
                 logging.info(f"✅ Stream {stream_id} started successfully")
@@ -412,8 +440,25 @@ class CommandHandler:
             if hls_settings:
                 self._update_global_hls_config(hls_settings)
 
-            # Call enhanced stream manager's update method
-            success = self.stream_manager.update_stream(stream_id, config)
+            # Call stream manager's update method with new API
+            video_files = []
+            if 'video_files' in config:
+                for video_file in config['video_files']:
+                    if isinstance(video_file, dict):
+                        # Try different field names: download_url, url, path
+                        file_path = video_file.get('download_url') or video_file.get('url') or video_file.get('path', '')
+                        video_files.append(file_path)
+                    else:
+                        video_files.append(str(video_file))
+
+            update_mode = config.get('update_mode', 'replace')  # replace, append, prepend
+
+            if video_files:
+                success = self.stream_manager.update_stream(stream_id, video_files, update_mode)
+            else:
+                # No video files to update, just restart with current files
+                success = self.stream_manager.restart_stream(stream_id)
+                logging.info(f"Stream {stream_id}: Restarted with current playlist (no new files)")
 
             if not success and hls_settings:
                 # Rollback global config on failure
@@ -507,7 +552,7 @@ class CommandHandler:
             
             # Send heartbeat immediately as response
             if self.status_reporter and self.stream_manager:
-                active_stream_ids = self.stream_manager.get_active_stream_ids()
+                active_stream_ids = self.stream_manager.get_active_streams()
                 
                 heartbeat_payload = {
                     'type': 'HEARTBEAT',

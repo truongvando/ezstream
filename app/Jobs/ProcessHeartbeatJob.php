@@ -111,58 +111,21 @@ class ProcessHeartbeatJob implements ShouldQueue
                     continue;
                 }
 
-                // Stream exists but has wrong status
-                if (!in_array($stream->status, ['STREAMING', 'STARTING'])) {
-                    Log::info("🔍 [GhostStream] Agent reports stream #{$streamId} but DB status is '{$stream->status}'. Checking recovery options...");
+                // SIMPLE APPROACH: If agent reports stream active, trust it and auto-recover
+                Log::info("🔄 [GhostStream] Agent reports stream #{$streamId} active (status: {$stream->status}), auto-recovering to STREAMING");
 
-                    // More lenient recovery - allow recovery from more states
-                    $recoverableStates = ['ERROR', 'INACTIVE', 'STOPPED', 'STOPPING'];
+                $stream->update([
+                    'status' => 'STREAMING',
+                    'vps_server_id' => $this->vpsId,
+                    'last_status_update' => now(),
+                    'error_message' => null
+                ]);
 
-                    if (in_array($stream->status, $recoverableStates)) {
-                        // Check how long ago the status was updated
-                        $lastUpdate = $stream->last_status_update ?: $stream->updated_at;
-                        $minutesSinceUpdate = $lastUpdate ? $lastUpdate->diffInMinutes(now()) : 999;
-
-                        // If status was updated recently (< 2 minutes), it might be a race condition
-                        if ($minutesSinceUpdate < 2) {
-                            Log::info("🔄 [GhostStream] Stream #{$streamId} status updated recently ({$minutesSinceUpdate}m ago), skipping ghost cleanup");
-                            continue;
-                        }
-
-                        // Recover stream that's actually running
-                        Log::info("🔄 [GhostStream] Recovering stream #{$streamId} from {$stream->status} to STREAMING");
-
-                        $stream->update([
-                            'status' => 'STREAMING',
-                            'vps_server_id' => $this->vpsId,
-                            'last_status_update' => now(),
-                            'error_message' => null,
-                            'last_started_at' => $stream->last_started_at ?: now()
-                        ]);
-
-                        \App\Services\StreamProgressService::createStageProgress(
-                            $streamId,
-                            'streaming',
-                            "🔄 Stream recovered: Agent confirmed still running"
-                        );
-                    } else {
-                        // Only stop if stream is in a definitive "should not run" state
-                        $shouldNotRunStates = ['CANCELLED', 'DISABLED'];
-                        if (in_array($stream->status, $shouldNotRunStates)) {
-                            $reason = "Ghost stream cleanup: DB status '{$stream->status}' indicates stream should not run";
-                            Log::warning("👻 [GhostStream] Stream #{$streamId} should not be running (status: {$stream->status}). Sending STOP command.");
-                            $this->sendStopCommand($streamId, $reason);
-                        } else {
-                            Log::info("🔍 [GhostStream] Stream #{$streamId} status '{$stream->status}' - allowing to continue");
-                        }
-                    }
-                }
-
-                // Stream exists and has correct status - ensure VPS assignment is correct
-                if (in_array($stream->status, ['STREAMING', 'STARTING']) && $stream->vps_server_id != $this->vpsId) {
-                    Log::info("🔄 [GhostStream] Correcting VPS assignment for stream #{$streamId}: {$stream->vps_server_id} → {$this->vpsId}");
-                    $stream->update(['vps_server_id' => $this->vpsId]);
-                }
+                \App\Services\StreamProgressService::createStageProgress(
+                    $streamId,
+                    'streaming',
+                    "🔄 Stream auto-recovered: Agent confirmed running"
+                );
             }
         } catch (\Exception $e) {
             Log::error("❌ [GhostStream] Failed to handle ghost streams: {$e->getMessage()}");

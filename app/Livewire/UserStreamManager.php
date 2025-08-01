@@ -460,7 +460,7 @@ class UserStreamManager extends BaseStreamManager
         $this->quickEnableSchedule = $stream->enable_schedule ?? false;
         $this->quickScheduledAt = $stream->scheduled_at ? $stream->scheduled_at->format('Y-m-d\TH:i') : '';
         $this->quickScheduledEnd = $stream->scheduled_end ? $stream->scheduled_end->format('Y-m-d\TH:i') : '';
-        $this->quickAutoDelete = $stream->auto_delete_from_cdn ?? true;
+        $this->quickAutoDelete = $stream->auto_delete_from_cdn ?? false;
 
         // Load selected files
         $this->quickSelectedFiles = collect($stream->video_source_path)->pluck('file_id')->toArray();
@@ -768,7 +768,7 @@ class UserStreamManager extends BaseStreamManager
         $this->quickEnableSchedule = false;
         $this->quickScheduledAt = '';
         $this->quickScheduledEnd = '';
-        $this->quickAutoDelete = true; // Default to auto-delete
+        $this->quickAutoDelete = false; // Default to keep files (prevent confusion)
         $this->quickSelectedFiles = [];
         $this->video_source_id = null;
     }
@@ -914,10 +914,11 @@ class UserStreamManager extends BaseStreamManager
             ]);
 
             // Mark files for auto-deletion (based on user choice)
+            // CRITICAL: Only set auto_delete_after_stream, NOT scheduled_deletion_at
             $userFiles->each(function ($file) {
                 $file->update([
                     'auto_delete_after_stream' => $this->quickAutoDelete,
-                    'scheduled_deletion_at' => $this->quickAutoDelete ? now()->addDays(1) : null
+                    'scheduled_deletion_at' => null // Never set this during editing
                 ]);
             });
 
@@ -945,6 +946,20 @@ class UserStreamManager extends BaseStreamManager
 
             session()->flash('error', 'Có lỗi xảy ra khi cập nhật Quick Stream: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Debug method to track when quickAutoDelete changes
+     */
+    public function updatedQuickAutoDelete($value)
+    {
+        Log::info('🔍 [QuickStream] quickAutoDelete changed', [
+            'new_value' => $value,
+            'editing_stream_id' => $this->editingStream->id ?? 'none',
+            'backtrace' => debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 5)
+        ]);
+        
+        // Don't do anything else - just log for debugging
     }
 
     public function render()

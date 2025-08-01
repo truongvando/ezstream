@@ -137,9 +137,10 @@ class UpdateStreamStatusJob implements ShouldQueue
 
         StreamProgressService::createStageProgress($stream->id, 'stopped', $message ?: 'Stream đã dừng');
 
-        // 🗑️ QUICK STREAM AUTO-DELETE: Trigger file deletion after stream stops
+        // 🗑️ QUICK STREAM AUTO-DELETE: Trigger VIDEO FILE deletion after stream stops
+        // ⚠️ IMPORTANT: This ONLY deletes video files, NOT the stream configuration
         if ($stream->is_quick_stream && $stream->auto_delete_from_cdn) {
-            Log::info("🗑️ [UpdateStreamStatus] Scheduling auto-deletion for Quick Stream #{$stream->id}");
+            Log::info("🗑️ [UpdateStreamStatus] Scheduling VIDEO FILE auto-deletion for Quick Stream #{$stream->id} (Stream configuration will be preserved)");
 
             // Delay deletion by 5 minutes to ensure stream is fully stopped
             \App\Jobs\AutoDeleteStreamFilesJob::dispatch($stream)->delay(now()->addMinutes(5));

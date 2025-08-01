@@ -28,7 +28,7 @@ class AutoDeleteStreamFilesJob implements ShouldQueue
 
     public function handle(BunnyStorageService $bunnyService): void
     {
-        Log::info("🗑️ [AutoDeleteStreamFiles] Starting auto-deletion for stream #{$this->stream->id}");
+        Log::info("🗑️ [AutoDeleteStreamFiles] Starting VIDEO FILE auto-deletion for stream #{$this->stream->id}");
 
         try {
             // Refresh stream from database to get latest status
@@ -36,15 +36,19 @@ class AutoDeleteStreamFilesJob implements ShouldQueue
 
             // CRITICAL: Do not delete files if stream is still active
             if (in_array($this->stream->status, ['STREAMING', 'STARTING', 'STOPPING'])) {
-                Log::warning("⚠️ [Stream #{$this->stream->id}] Stream still active ({$this->stream->status}), skipping auto-deletion");
+                Log::warning("⚠️ [Stream #{$this->stream->id}] Stream still active ({$this->stream->status}), skipping video file auto-deletion");
                 return;
             }
 
             // Only process if this is a quick stream with auto-delete enabled
             if (!$this->stream->is_quick_stream || !$this->stream->auto_delete_from_cdn) {
-                Log::info("🔄 [Stream #{$this->stream->id}] Not a quick stream or auto-delete disabled, skipping");
+                Log::info("🔄 [Stream #{$this->stream->id}] Not a quick stream or auto-delete disabled, skipping video file deletion");
                 return;
             }
+
+            // ⚠️ IMPORTANT: This job ONLY deletes VIDEO FILES, NOT the stream configuration
+            // The stream record will remain intact for history/analytics purposes
+            Log::info("📝 [Stream #{$this->stream->id}] This job will ONLY delete video files, stream configuration will be preserved");
 
             $deletedFiles = 0;
             $failedFiles = 0;
@@ -82,33 +86,58 @@ class AutoDeleteStreamFilesJob implements ShouldQueue
                         $this->deleteFileFromVpsAgent($userFile, $this->stream->vps_server_id);
                     }
 
-                    // 3. Delete database record
-                    $userFile->delete();
+                    // 3. Soft delete database record (mark as deleted but keep reference)
+                    $userFile->update([
+                        'status' => 'DELETED',
+                        'deleted_at' => now(),
+                        'auto_delete_after_stream' => false // Prevent re-deletion
+                    ]);
 
                     $deletedFiles++;
-                    Log::info("🗑️ [Stream #{$this->stream->id}] Deleted file completely: {$fileName} ({$fileSize} bytes)");
+                    Log::info("🗑️ [Stream #{$this->stream->id}] Deleted VIDEO FILE completely: {$fileName} ({$fileSize} bytes)");
 
                 } catch (\Exception $e) {
                     $failedFiles++;
-                    Log::error("❌ [Stream #{$this->stream->id}] Failed to delete file {$userFile->id}: {$e->getMessage()}");
+                    Log::error("❌ [Stream #{$this->stream->id}] Failed to delete video file {$userFile->id}: {$e->getMessage()}");
                 }
             }
 
-            // Update stream to mark auto-deletion as completed
+            // ✅ IMPORTANT: Only update the auto-delete flag, DO NOT delete the stream configuration
+            // The stream record remains intact for history and analytics
             $this->stream->update([
-                'auto_delete_from_cdn' => false, // Mark as processed
+                'auto_delete_from_cdn' => false, // Mark video files as processed
+                'status' => 'COMPLETED', // Mark stream as completed instead of ERROR
+                'error_message' => null // Clear any error messages
             ]);
 
-            Log::info("🎉 [Stream #{$this->stream->id}] Auto-deletion completed", [
+            // Set scheduled deletion for files that should be auto-deleted
+            foreach ($videoSourcePath as $fileInfo) {
+                $userFile = UserFile::find($fileInfo['file_id']);
+                if ($userFile && $userFile->auto_delete_after_stream) {
+                    $userFile->update([
+                        'scheduled_deletion_at' => now()->addMinutes(5) // Delete after 5 minutes
+                    ]);
+                }
+            }
+
+            // 🔒 SAFETY CHECK: Verify stream configuration still exists after operation
+            if (!$this->stream->exists) {
+                Log::error("🚨 CRITICAL ERROR: Stream configuration was accidentally deleted! This should NEVER happen!");
+                throw new \Exception("Stream configuration was accidentally deleted during auto-deletion process");
+            }
+
+            Log::info("🎉 [Stream #{$this->stream->id}] VIDEO FILE auto-deletion completed (Stream configuration preserved)", [
                 'deleted_files' => $deletedFiles,
                 'failed_files' => $failedFiles,
-                'stream_title' => $this->stream->title
+                'stream_title' => $this->stream->title,
+                'stream_preserved' => true
             ]);
 
         } catch (\Exception $e) {
-            Log::error("💥 [Stream #{$this->stream->id}] Auto-deletion job failed", [
+            Log::error("💥 [Stream #{$this->stream->id}] VIDEO FILE auto-deletion job failed (Stream configuration preserved)", [
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
+                'stream_preserved' => true
             ]);
 
             // Don't rethrow - we don't want this job to retry indefinitely
@@ -147,17 +176,23 @@ class AutoDeleteStreamFilesJob implements ShouldQueue
 
     public function failed(\Throwable $exception): void
     {
-        Log::error("💥 [Stream #{$this->stream->id}] Auto-deletion job failed permanently", [
+        Log::error("💥 [Stream #{$this->stream->id}] VIDEO FILE auto-deletion job failed permanently (Stream configuration preserved)", [
             'error' => $exception->getMessage(),
-            'stream_title' => $this->stream->title
+            'stream_title' => $this->stream->title,
+            'stream_preserved' => true
         ]);
 
-        // Mark the stream as processed even if deletion failed
+        // Mark the stream as processed even if video file deletion failed
         // This prevents the job from being retried indefinitely
+        // IMPORTANT: Stream configuration remains intact
         try {
-            $this->stream->update(['auto_delete_from_cdn' => false]);
+            $this->stream->update([
+                'auto_delete_from_cdn' => false,
+                'status' => 'COMPLETED', // Mark as completed instead of leaving in ERROR
+                'error_message' => null
+            ]);
         } catch (\Exception $e) {
-            Log::error("Failed to update stream after auto-deletion failure: {$e->getMessage()}");
+            Log::error("Failed to update stream after video file auto-deletion failure: {$e->getMessage()}");
         }
     }
 }

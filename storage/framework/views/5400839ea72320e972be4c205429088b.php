@@ -92,6 +92,7 @@
 
 <?php $__env->startPush('scripts'); ?>
 <script>
+// Force cache refresh - v5.0.1
     function quickUploader() {
         return {
             isUploading: false,
@@ -186,10 +187,21 @@
                     });
                     xhr.addEventListener('load', () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : reject(new Error(`Lỗi upload: ${xhr.statusText}`)));
                     xhr.addEventListener('error', () => reject(new Error('Lỗi mạng.')));
-                    xhr.open('PUT', uploadData.upload_url);
-                    xhr.setRequestHeader('AccessKey', uploadData.access_key);
-                    xhr.setRequestHeader('Content-Type', file.type);
-                    xhr.send(file);
+
+                    // Check storage mode and use appropriate method
+                    if (uploadData.storage_mode === 'server' || uploadData.storage_mode === 'hybrid') {
+                        // Server upload - use POST with FormData
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        xhr.open('POST', uploadData.upload_url);
+                        xhr.send(formData);
+                    } else {
+                        // CDN upload - use PUT with file directly
+                        xhr.open('PUT', uploadData.upload_url);
+                        xhr.setRequestHeader('AccessKey', uploadData.access_key);
+                        xhr.setRequestHeader('Content-Type', file.type);
+                        xhr.send(file);
+                    }
                 });
             },
             validateFile(file) {

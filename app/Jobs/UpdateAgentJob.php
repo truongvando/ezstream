@@ -32,17 +32,17 @@ class UpdateAgentJob implements ShouldQueue
     {
         $vps = VpsServer::findOrFail($this->vpsId);
 
-        Log::info("🔄 [VPS #{$vps->id}] Bắt đầu cập nhật Enhanced HLS Agent v4.0");
+        Log::info("🔄 [VPS #{$vps->id}] Bắt đầu cập nhật EZStream Agent v5.0");
 
         try {
             // Update VPS status
             $vps->update([
                 'status' => 'UPDATING',
-                'status_message' => 'Đang cập nhật Redis Agent...'
+                'status_message' => 'Đang cập nhật EZStream Agent v5.0...'
             ]);
 
             // Initialize progress tracking
-            $this->setUpdateProgress($vps->id, 'starting', 5, 'Bắt đầu cập nhật Enhanced HLS Agent v4.0');
+            $this->setUpdateProgress($vps->id, 'starting', 5, 'Bắt đầu cập nhật EZStream Agent v5.0');
 
             // Check if VPS operations are enabled for this environment
             if (!config('deployment.vps_operations_enabled')) {
@@ -91,7 +91,7 @@ class UpdateAgentJob implements ShouldQueue
             $this->updateSystemdService($sshService, $vps);
 
             // Step 5: Start new agent
-            $this->setUpdateProgress($vps->id, 'starting', 80, 'Khởi động Redis Agent v3.0');
+            $this->setUpdateProgress($vps->id, 'starting', 80, 'Khởi động EZStream Agent v5.0');
             $this->startNewAgent($sshService, $vps);
 
             // Step 6: Verify agent is running
@@ -99,22 +99,22 @@ class UpdateAgentJob implements ShouldQueue
             $this->verifyAgentRunning($sshService, $vps);
 
             // Step 7: Verify agent compatibility
-            $this->setUpdateProgress($vps->id, 'compatibility', 95, 'Kiểm tra tương thích v4.0');
+            $this->setUpdateProgress($vps->id, 'compatibility', 95, 'Kiểm tra tương thích v5.0');
             $this->verifyAgentCompatibility($sshService, $vps);
 
             // Update status to active
-            $this->setUpdateProgress($vps->id, 'completed', 100, 'Cập nhật Enhanced HLS Agent v4.0 hoàn tất');
+            $this->setUpdateProgress($vps->id, 'completed', 100, 'Cập nhật EZStream Agent v5.0 hoàn tất');
             $vps->update([
                 'status' => 'ACTIVE',
-                'status_message' => 'Enhanced HLS Agent v4.0 đã được cập nhật thành công'
+                'status_message' => 'EZStream Agent v5.0 đã được cập nhật thành công'
             ]);
 
-            Log::info("✅ [VPS #{$vps->id}] Cập nhật Enhanced HLS Agent v4.0 hoàn tất");
+            Log::info("✅ [VPS #{$vps->id}] Cập nhật EZStream Agent v5.0 hoàn tất");
 
         } catch (\Exception $e) {
             $this->setUpdateProgress($vps->id, 'error', 0, 'Lỗi: ' . $e->getMessage());
 
-            Log::error("❌ [VPS #{$vps->id}] Cập nhật Enhanced HLS Agent thất bại: {$e->getMessage()}", [
+            Log::error("❌ [VPS #{$vps->id}] Cập nhật EZStream Agent thất bại: {$e->getMessage()}", [
                 'trace' => $e->getTraceAsString(),
                 'vps_name' => $vps->name,
                 'error_type' => get_class($e)
@@ -170,7 +170,7 @@ class UpdateAgentJob implements ShouldQueue
 
     private function uploadNewAgentFiles(SshService $sshService, VpsServer $vps): void
     {
-        Log::info("📤 [VPS #{$vps->id}] Đang upload các file Redis Agent v3.0");
+        Log::info("📤 [VPS #{$vps->id}] Đang upload các file EZStream Agent v5.0");
 
         $remoteDir = '/opt/ezstream-agent';
         $sshService->execute("mkdir -p {$remoteDir}");
@@ -247,7 +247,7 @@ class UpdateAgentJob implements ShouldQueue
             $uploadedCount++;
         }
 
-        Log::info("✅ [VPS #{$vps->id}] Đã upload {$uploadedCount} file Redis Agent");
+        Log::info("✅ [VPS #{$vps->id}] Đã upload {$uploadedCount} file EZStream Agent v5.0");
     }
 
 
@@ -423,28 +423,28 @@ PYTHON;
         $serviceLog = $sshService->execute("journalctl -u ezstream-agent --no-pager -n 50");
         $systemdStatus = $sshService->execute("systemctl status ezstream-agent --no-pager");
 
-        Log::error("❌ [VPS #{$vps->id}] Redis Agent không hoạt động sau {$maxRetries} lần thử", [
+        Log::error("❌ [VPS #{$vps->id}] EZStream Agent không hoạt động sau {$maxRetries} lần thử", [
             'status' => trim($status),
             'systemd_status' => $systemdStatus,
             'service_log' => $serviceLog
         ]);
 
-        throw new \Exception('Redis Agent không khởi động được sau ' . ($maxRetries * $retryDelay) . ' giây. Kiểm tra log trên VPS.');
+        throw new \Exception('EZStream Agent không khởi động được sau ' . ($maxRetries * $retryDelay) . ' giây. Kiểm tra log trên VPS.');
     }
 
     private function verifyAgentCompatibility(SshService $sshService, VpsServer $vps): void
     {
-        Log::info("🔍 [VPS #{$vps->id}] Kiểm tra tương thích Redis Agent v3.0");
+        Log::info("🔍 [VPS #{$vps->id}] Kiểm tra tương thích EZStream Agent v5.0");
 
         try {
-            // Check if agent files exist
+            // Check if agent files exist (v5.0 architecture)
             $requiredFiles = [
                 'agent.py',
                 'command_handler.py',
                 'config.py',
                 'status_reporter.py',
-                'enhanced_stream_manager.py',
-                'hls_process_manager.py',
+                'stream_manager.py',        // ✅ New v5.0 file
+                'process_manager.py',       // ✅ New v5.0 file
                 'file_manager.py',
                 'utils.py'
             ];
@@ -461,8 +461,8 @@ PYTHON;
                 throw new \Exception('Thiếu các file agent: ' . implode(', ', $missingFiles));
             }
 
-            // Test agent version/compatibility by checking imports
-            $testImports = $sshService->execute("cd /opt/ezstream-agent && python3 -c 'import config, command_handler, status_reporter; print(\"OK\")'");
+            // Test agent version/compatibility by checking imports (v5.0 modules)
+            $testImports = $sshService->execute("cd /opt/ezstream-agent && python3 -c 'import config, command_handler, status_reporter, stream_manager, process_manager; print(\"OK\")'");
 
             if (strpos($testImports, 'OK') === false) {
                 throw new \Exception('Agent modules không import được: ' . $testImports);
@@ -477,7 +477,7 @@ PYTHON;
                 if ($agentState) {
                     $stateData = json_decode($agentState, true);
                     if (isset($stateData['last_heartbeat'])) {
-                        Log::info("✅ [VPS #{$vps->id}] Agent v3.0 đang báo cáo heartbeat bình thường");
+                        Log::info("✅ [VPS #{$vps->id}] EZStream Agent v5.0 đang báo cáo heartbeat bình thường");
                         return;
                     }
                 }
@@ -488,7 +488,7 @@ PYTHON;
 
         } catch (\Exception $e) {
             Log::error("❌ [VPS #{$vps->id}] Agent compatibility check failed: {$e->getMessage()}");
-            throw new \Exception('Agent v3.0 compatibility check failed: ' . $e->getMessage());
+            throw new \Exception('EZStream Agent v5.0 compatibility check failed: ' . $e->getMessage());
         }
     }
 
@@ -521,7 +521,7 @@ PYTHON;
     {
         $pythonCmd = "/usr/bin/python3";
 
-        // Build command arguments (v4.0 uses named arguments)
+        // Build command arguments (v5.0 uses named arguments)
         $commandArgs = "--vps-id {$vps->id} --redis-host {$redisHost} --redis-port {$redisPort}";
         if ($redisPassword) {
             $commandArgs .= " --redis-password '{$redisPassword}'";
@@ -530,7 +530,7 @@ PYTHON;
         $command = "{$pythonCmd} {$agentPath} {$commandArgs}";
 
         return "[Unit]
-Description=EZStream Redis Agent v3.0 - Modular Architecture
+Description=EZStream Agent v5.0 (Stream Manager + Process Manager)
 After=network.target nginx.service
 Requires=nginx.service
 

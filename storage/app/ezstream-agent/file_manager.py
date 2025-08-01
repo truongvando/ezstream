@@ -397,9 +397,9 @@ class FileManager:
             cleaned_count = 0
             
             # Get active streams to avoid deleting
-            from enhanced_stream_manager import get_enhanced_stream_manager
-            stream_manager = get_enhanced_stream_manager()
-            active_stream_ids = set(stream_manager.get_active_stream_ids()) if stream_manager else set()
+            from stream_manager import get_stream_manager
+            stream_manager = get_stream_manager()
+            active_stream_ids = set(stream_manager.get_active_streams()) if stream_manager else set()
             
             for item in os.listdir(downloads_dir):
                 item_path = os.path.join(downloads_dir, item)

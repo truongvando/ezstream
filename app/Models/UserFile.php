@@ -34,11 +34,13 @@ class UserFile extends Model
         'public_url',
         'is_locked',
         'upload_session_url',
+        'deleted_at',
     ];
 
     protected $casts = [
         'downloaded_at' => 'datetime',
         'scheduled_deletion_at' => 'datetime',
+        'deleted_at' => 'datetime',
         'auto_delete_after_stream' => 'boolean',
         'is_locked' => 'boolean',
         'storage_locations' => 'array',
