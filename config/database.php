@@ -158,8 +158,10 @@ return [
             'password' => env('REDIS_PASSWORD'),
             'port' => env('REDIS_PORT', '6379'),
             'database' => env('REDIS_DB', '0'),
-            'timeout' => 30.0, // Tăng connection timeout cho subscription
+            'timeout' => 60.0, // Tăng connection timeout cho Redis Cloud
             'read_write_timeout' => 0, // 0 = infinite cho subscription
+            'retry_interval' => 100, // 100ms retry interval
+            'tcp_keepalive' => 1, // Enable TCP keepalive
         ],
 
         'cache' => [

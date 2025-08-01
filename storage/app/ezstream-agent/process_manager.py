@@ -220,36 +220,61 @@ class ProcessManager:
         logging.info("✅ Process Manager stopped")
     
     def _kill_process(self, process_info: ProcessInfo) -> bool:
-        """Kill FFmpeg process gracefully"""
+        """Kill FFmpeg process gracefully with enhanced cleanup"""
         try:
             if not process_info.process:
                 return True
-            
+
             process = process_info.process
             stream_id = process_info.stream_id
-            
+
             logging.info(f"Stream {stream_id}: Terminating FFmpeg process (PID: {process.pid})")
-            
+
             # Try graceful termination first
             try:
                 process.terminate()
                 process.wait(timeout=5)
                 logging.info(f"Stream {stream_id}: FFmpeg terminated gracefully")
+
+                # ✅ Additional cleanup: Close file handles
+                try:
+                    if process.stdout:
+                        process.stdout.close()
+                    if process.stderr:
+                        process.stderr.close()
+                    if process.stdin:
+                        process.stdin.close()
+                except:
+                    pass
+
                 return True
+
             except subprocess.TimeoutExpired:
                 logging.warning(f"Stream {stream_id}: FFmpeg didn't terminate gracefully, force killing")
-                
+
                 # Force kill if graceful termination failed
                 kill_process_tree(process.pid)
-                
+
                 try:
                     process.wait(timeout=3)
                     logging.info(f"Stream {stream_id}: FFmpeg force killed")
+
+                    # ✅ Cleanup file handles after force kill
+                    try:
+                        if process.stdout:
+                            process.stdout.close()
+                        if process.stderr:
+                            process.stderr.close()
+                        if process.stdin:
+                            process.stdin.close()
+                    except:
+                        pass
+
                     return True
                 except subprocess.TimeoutExpired:
                     logging.error(f"Stream {stream_id}: Failed to kill FFmpeg process")
                     return False
-                    
+
         except Exception as e:
             logging.error(f"Stream {process_info.stream_id}: Error killing FFmpeg: {e}")
             return False
@@ -315,14 +340,39 @@ class ProcessManager:
             if not process_info.process:
                 return
 
+            # ✅ Enhanced process monitoring
+            process = process_info.process
+            stream_id = process_info.stream_id
+
             # Check if process is still running
-            poll_result = process_info.process.poll()
+            poll_result = process.poll()
 
             if poll_result is not None:
                 # Process has terminated
+                logging.info(f"🔍 Stream {stream_id}: Process terminated detected (exit code: {poll_result})")
                 self._handle_process_termination(process_info, poll_result)
             else:
-                # Process is running - update health metrics
+                # Process is running - additional health checks
+                try:
+                    # ✅ Check if process is actually responsive (not zombie)
+                    import psutil
+                    ps_process = psutil.Process(process.pid)
+
+                    if ps_process.status() == psutil.STATUS_ZOMBIE:
+                        logging.warning(f"⚠️ Stream {stream_id}: Process is zombie, treating as terminated")
+                        self._handle_process_termination(process_info, -1)
+                        return
+
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    # Process doesn't exist or no access - treat as terminated
+                    logging.warning(f"⚠️ Stream {stream_id}: Process not found in system, treating as terminated")
+                    self._handle_process_termination(process_info, -1)
+                    return
+                except Exception as ps_error:
+                    # psutil error - continue with basic monitoring
+                    logging.debug(f"Stream {stream_id}: psutil check failed: {ps_error}")
+
+                # Process is running normally - update health metrics
                 self._update_health_metrics(process_info)
 
         except Exception as e:
@@ -355,65 +405,39 @@ class ProcessManager:
 
         # Update process info with detailed error
         process_info.error_message = f"Process terminated with exit code {exit_code} - {error_type}"
-        process_info.state = ProcessState.ERROR
+        process_info.state = ProcessState.DEAD
 
-        # Attempt reconnect if enabled
-        if self.reconnect_config.enabled and not process_info.is_stopping:
-            self._attempt_reconnect(process_info)
-        else:
-            # Mark as dead if reconnect disabled
-            process_info.state = ProcessState.DEAD
-            if self.status_reporter:
-                self.status_reporter.publish_stream_status(
-                    stream_id, 'DEAD', 'Process terminated and reconnect disabled'
-                )
-
-    def _attempt_reconnect(self, process_info: ProcessInfo):
-        """Attempt to reconnect process with exponential backoff"""
-        stream_id = process_info.stream_id
-
-        # Check if we've exceeded max attempts (skip if unlimited)
-        if (self.reconnect_config.max_attempts > 0 and
-            process_info.restart_count >= self.reconnect_config.max_attempts):
-            logging.error(f"💀 Stream {stream_id}: Max reconnect attempts reached ({self.reconnect_config.max_attempts})")
-            process_info.state = ProcessState.DEAD
-            if self.status_reporter:
-                self.status_reporter.publish_stream_status(
-                    stream_id, 'DEAD', f'Max reconnect attempts reached ({self.reconnect_config.max_attempts})'
-                )
-            return
-
-        # Calculate delay with exponential backoff
-        delay = min(
-            self.reconnect_config.base_delay * (self.reconnect_config.exponential_factor ** process_info.restart_count),
-            self.reconnect_config.max_delay
-        )
-
-        logging.info(f"🔄 Stream {stream_id}: Attempting reconnect #{process_info.restart_count + 1} in {delay:.1f}s")
-
-        # Update state
-        process_info.state = ProcessState.RECONNECTING
+        # ✅ GỬI RESTART_REQUEST VỀ LARAVEL NGAY LẬP TỨC
         if self.status_reporter:
-            self.status_reporter.publish_stream_status(
-                stream_id, 'RECONNECTING', f'Reconnecting in {delay:.1f}s (attempt #{process_info.restart_count + 1})'
+            crash_count = process_info.restart_count + 1
+            reason = f"FFmpeg exit code {exit_code}"
+
+            logging.info(f"📤 Stream {stream_id}: Sending restart request to Laravel (crash #{crash_count})")
+
+            self.status_reporter.publish_restart_request(
+                stream_id=stream_id,
+                reason=reason,
+                crash_count=crash_count,
+                last_error=error_output[:500] if error_output else None,  # Limit error length
+                error_type=error_type
             )
 
-        # Wait before reconnect
-        time.sleep(delay)
+            # Update counters for tracking
+            process_info.restart_count = crash_count
+            process_info.total_reconnects += 1
+            process_info.last_restart_time = time.time()
 
-        # Check if process was stopped during wait
-        if process_info.is_stopping:
-            return
+        # Remove from tracking immediately (Laravel will decide restart)
+        with self.process_lock:
+            if stream_id in self.processes:
+                del self.processes[stream_id]
 
-        # Update counters
-        process_info.restart_count += 1
-        process_info.total_reconnects += 1
-        process_info.last_restart_time = time.time()
-
-        # Note: Actual restart will be handled by stream_manager
-        # This just marks the process as needing restart
-        process_info.state = ProcessState.ERROR
-        logging.info(f"🔄 Stream {stream_id}: Process marked for restart")
+    def _attempt_reconnect(self, process_info: ProcessInfo):
+        """Legacy reconnect method - now handled by Laravel"""
+        # ⚠️ DEPRECATED: Restart logic moved to Laravel via RESTART_REQUEST
+        # This method is kept for compatibility but should not be called
+        stream_id = process_info.stream_id
+        logging.warning(f"⚠️ Stream {stream_id}: Legacy _attempt_reconnect called - restart should be handled by Laravel")
 
     def _analyze_error_type(self, error_output: str) -> str:
         """Analyze FFmpeg error output to determine error type"""

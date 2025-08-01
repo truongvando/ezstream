@@ -12,7 +12,7 @@ class PackageAgentToRedis extends Command
      *
      * @var string
      */
-    protected $signature = 'agent:package-redis {--version= : Specific version to package} {--clean : Clean old packages}';
+    protected $signature = 'agent:package-redis {--agent-version= : Specific version to package} {--clean : Clean old packages}';
 
     /**
      * The console command description.
@@ -33,7 +33,7 @@ class PackageAgentToRedis extends Command
 
         $this->info('📦 Packaging EZStream Agent for Redis...');
 
-        $version = $this->option('version');
+        $version = $this->option('agent-version');
 
         if ($version) {
             $this->info("Using specified version: {$version}");

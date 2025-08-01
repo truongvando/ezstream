@@ -49,7 +49,11 @@ class ProcessRestartRequestJob implements ShouldQueue
 
             if ($shouldRestart) {
                 Log::info("🔄 [ProcessRestartRequest] Laravel decides to RESTART stream #{$this->streamId}");
-                
+
+                // ⏱️ Wait 3 seconds for process cleanup and resource release
+                Log::info("⏱️ [ProcessRestartRequest] Waiting 3s for process cleanup before restart...");
+                sleep(3);
+
                 // Update stream status and dispatch restart
                 $stream->update([
                     'status' => 'STARTING',
@@ -127,10 +131,10 @@ class ProcessRestartRequestJob implements ShouldQueue
             return false;
         }
 
-        // 4. Check recent restart frequency (prevent spam)
-        $recentRestarts = $stream->updated_at && $stream->updated_at->diffInMinutes(now()) < 5;
+        // 4. Check recent restart frequency (prevent spam) - Increased to 10 seconds for process cleanup
+        $recentRestarts = $stream->updated_at && $stream->updated_at->diffInSeconds(now()) < 10;
         if ($recentRestarts && $this->crashCount > 1) {
-            Log::warning("🔄 [RestartDecision] Stream #{$this->streamId} restarted too recently");
+            Log::warning("🔄 [RestartDecision] Stream #{$this->streamId} restarted too recently (< 10s ago)");
             return false;
         }
 

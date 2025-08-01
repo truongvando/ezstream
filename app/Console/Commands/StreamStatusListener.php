@@ -41,26 +41,76 @@ class StreamStatusListener extends Command
         $this->info("   Listening on channel: " . self::AGENT_REPORTS_CHANNEL);
         $this->info("--------------------------------------------------");
 
+        $retryCount = 0;
+        $maxRetries = 10;
+        $baseDelay = 5;
+
         // Vòng lặp vô hạn với cơ chế tự kết nối lại của Laravel Redis
         while (true) {
             try {
+                // Reset retry count on successful connection
+                $retryCount = 0;
+
+                // Test connection before subscribing
+                $this->testRedisConnection();
+                $this->info("✅ Redis connection verified, starting subscription...");
+
                 Redis::subscribe([self::AGENT_REPORTS_CHANNEL], function (string $message, string $channel) {
                     $this->line("📨 Received on [{$channel}]");
-                    
+
                     $data = json_decode($message, true);
                     if (json_last_error() !== JSON_ERROR_NONE) {
                         $this->warn("   ⚠️ Invalid JSON received. Payload: {$message}");
                         return;
                     }
-                    
+
                     $this->processReport($data);
                 });
             } catch (\Exception $e) {
-                $this->error("❌ Redis subscription error: " . $e->getMessage());
-                Log::critical('AgentReportListener::handle - Redis subscription failed', ['error' => $e->getMessage()]);
-                $this->warn("   Retrying connection in 5 seconds...");
-                sleep(5);
+                $retryCount++;
+
+                $this->error("❌ Redis subscription error (attempt {$retryCount}/{$maxRetries}): " . $e->getMessage());
+                Log::critical('AgentReportListener::handle - Redis subscription failed', [
+                    'error' => $e->getMessage(),
+                    'attempt' => $retryCount,
+                    'max_retries' => $maxRetries
+                ]);
+
+                if ($retryCount >= $maxRetries) {
+                    $this->error("💀 Max retries reached. Exiting...");
+                    return 1;
+                }
+
+                // Exponential backoff with jitter
+                $delay = min($baseDelay * pow(2, $retryCount - 1), 60) + rand(1, 5);
+                $this->warn("   Retrying connection in {$delay} seconds...");
+
+                // Clear Redis connection cache
+                try {
+                    Redis::purge('default');
+                } catch (\Exception $purgeException) {
+                    $this->warn("   Failed to purge Redis connection: " . $purgeException->getMessage());
+                }
+
+                sleep($delay);
             }
+        }
+    }
+
+    /**
+     * Test Redis connection
+     */
+    private function testRedisConnection(): void
+    {
+        $redis = Redis::connection('default');
+        $result = $redis->ping();
+
+        $isHealthy = $result === 'PONG' ||
+                    $result === true ||
+                    (is_object($result) && method_exists($result, '__toString') && (string)$result === 'PONG');
+
+        if (!$isHealthy) {
+            throw new \Exception("Redis ping failed: " . json_encode($result));
         }
     }
 

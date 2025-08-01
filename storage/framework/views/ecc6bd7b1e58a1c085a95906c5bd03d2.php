@@ -1,7 +1,7 @@
 <?php $attributes ??= new \Illuminate\View\ComponentAttributeBag;
 
 $__newAttributes = [];
-$__propNames = \Illuminate\View\ComponentAttributeBag::extractPropNames((['status']));
+$__propNames = \Illuminate\View\ComponentAttributeBag::extractPropNames((['disabled' => false, 'checked' => false]));
 
 foreach ($attributes->all() as $__key => $__value) {
     if (in_array($__key, $__propNames)) {
@@ -16,7 +16,7 @@ $attributes = new \Illuminate\View\ComponentAttributeBag($__newAttributes);
 unset($__propNames);
 unset($__newAttributes);
 
-foreach (array_filter((['status']), 'is_string', ARRAY_FILTER_USE_KEY) as $__key => $__value) {
+foreach (array_filter((['disabled' => false, 'checked' => false]), 'is_string', ARRAY_FILTER_USE_KEY) as $__key => $__value) {
     $$__key = $$__key ?? $__value;
 }
 
@@ -28,10 +28,4 @@ foreach ($attributes->all() as $__key => $__value) {
 
 unset($__defined_vars); ?>
 
-<?php if($status): ?>
-    <div <?php echo e($attributes->merge(['class' => 'font-medium text-sm text-green-600 dark:text-green-400'])); ?>>
-        <?php echo e($status); ?>
-
-    </div>
-<?php endif; ?>
-<?php /**PATH D:\laragon\www\ezstream\resources\views/components/auth-session-status.blade.php ENDPATH**/ ?>
+<input type="checkbox" <?php echo e($disabled ? 'disabled' : ''); ?> <?php echo e($checked ? 'checked' : ''); ?> <?php echo $attributes->merge(['class' => 'rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500']); ?>> <?php /**PATH D:\laragon\www\ezstream\resources\views/components/checkbox.blade.php ENDPATH**/ ?>

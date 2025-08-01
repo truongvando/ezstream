@@ -68,8 +68,8 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
             $vps->update([
                 'status' => 'ACTIVE',
                 'last_provisioned_at' => now(),
-                'status_message' => 'Provisioned with Redis Agent',
-                'capabilities' => json_encode(['multistream', 'nginx-rtmp', 'redis-agent']),
+                'status_message' => 'Provisioned with EZStream Agent v5.0 (Direct FFmpeg)',
+                'capabilities' => json_encode(['direct-ffmpeg', 'youtube-streaming', 'redis-agent', 'process-manager']),
                 'max_concurrent_streams' => $maxStreams,
                 'current_streams' => 0,
                 'webhook_configured' => false, // No longer using webhooks
@@ -258,7 +258,7 @@ WantedBy=multi-user.target";
 
     private function verifyBaseServices(SshService $sshService, VpsServer $vps): void
     {
-        Log::info("🔍 [VPS #{$vps->id}] Verifying base services (Nginx, RTMP)");
+        Log::info("🔍 [VPS #{$vps->id}] Verifying base services (Nginx health endpoint) - Agent v5.0");
 
         // Check nginx
         $nginxStatus = $sshService->execute('systemctl is-active nginx');
@@ -266,13 +266,21 @@ WantedBy=multi-user.target";
             throw new \Exception('Nginx service is not running');
         }
 
-        // Check RTMP port
-        $rtmpPort = $sshService->execute('ss -tulpn | grep :1935');
-        if (empty(trim($rtmpPort))) {
-            throw new \Exception('RTMP port 1935 is not listening');
+        // Check HTTP health endpoint port 8080 (Agent v5.0 không cần RTMP)
+        $httpPort = $sshService->execute('ss -tulpn | grep :8080');
+        if (empty(trim($httpPort))) {
+            throw new \Exception('HTTP health endpoint port 8080 is not listening');
         }
-        
-        Log::info("✅ [VPS #{$vps->id}] Base services verified");
+
+        // Test health endpoint
+        $healthCheck = $sshService->execute('curl -s http://localhost:8080/health || echo "HEALTH_CHECK_FAILED"');
+        if (strpos($healthCheck, 'HEALTH_CHECK_FAILED') !== false) {
+            Log::warning("⚠️ [VPS #{$vps->id}] Health endpoint not responding, but HTTP port is active - continuing");
+        } else {
+            Log::info("✅ [VPS #{$vps->id}] Health endpoint responding: " . trim($healthCheck));
+        }
+
+        Log::info("✅ [VPS #{$vps->id}] Base services verified (Agent v5.0 - Direct FFmpeg mode)");
     }
 
     private function verifyPythonDependencies(SshService $sshService, VpsServer $vps): void
@@ -387,8 +395,8 @@ WantedBy=multi-user.target";
         $vps->update([
             'status' => 'ACTIVE',
             'last_provisioned_at' => now(),
-            'status_message' => 'Mocked provision completed (development)',
-            'capabilities' => json_encode(['multistream', 'nginx-rtmp', 'redis-agent']),
+            'status_message' => 'Mocked provision completed (EZStream Agent v5.0 - Direct FFmpeg)',
+            'capabilities' => json_encode(['direct-ffmpeg', 'youtube-streaming', 'redis-agent', 'process-manager']),
             'max_concurrent_streams' => 5, // Mock value
             'current_streams' => 0,
             'webhook_configured' => false,
