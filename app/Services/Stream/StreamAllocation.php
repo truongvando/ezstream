@@ -30,36 +30,53 @@ class StreamAllocation
     {
         Log::info("🚦 [StreamAllocation] Assigning stream #{$stream->id} to VPS");
 
-        // Check if we can find available VPS
-        $vps = $this->findOptimalVps($stream);
+        // Use distributed lock to prevent concurrent allocation conflicts
+        return \App\Services\DistributedLock::execute(
+            "stream_allocation_{$stream->id}",
+            function() use ($stream) {
+                // Check if we can find available VPS
+                $vps = $this->findOptimalVps($stream);
 
-        if ($vps) {
-            // Assign immediately
-            Log::info("✅ [StreamAllocation] Assigned stream #{$stream->id} to VPS #{$vps->id}");
+                if ($vps) {
+                    // Double-check VPS capacity with lock
+                    $vps->refresh();
+                    if ($vps->current_streams >= $vps->max_streams) {
+                        Log::warning("⚠️ [StreamAllocation] VPS #{$vps->id} became full during allocation, retrying");
+                        $vps = $this->findOptimalVps($stream);
+                    }
 
-            $stream->update([
-                'vps_server_id' => $vps->id,
-                'status' => 'STARTING'
-            ]);
+                    if ($vps) {
+                        // Atomic assignment with capacity increment
+                        $vps->increment('current_streams');
 
-            return [
-                'success' => true,
-                'action' => 'assigned',
-                'vps_id' => $vps->id,
-                'message' => "Stream assigned to VPS #{$vps->id}"
-            ];
-        } else {
-            // All VPS overloaded - add to queue
-            Log::warning("⏳ [StreamAllocation] All VPS overloaded, queueing stream #{$stream->id}");
+                        $stream->update([
+                            'vps_server_id' => $vps->id,
+                            'status' => 'STARTING'
+                        ]);
 
-            $this->addToQueue($stream);
+                        Log::info("✅ [StreamAllocation] Assigned stream #{$stream->id} to VPS #{$vps->id} (capacity: {$vps->current_streams}/{$vps->max_streams})");
 
-            return [
-                'success' => true,
-                'action' => 'queued',
-                'message' => 'Stream added to queue - will start when VPS capacity available'
-            ];
-        }
+                        return [
+                            'success' => true,
+                            'action' => 'assigned',
+                            'vps_id' => $vps->id,
+                            'message' => "Stream assigned to VPS #{$vps->id}"
+                        ];
+                    }
+                }
+
+                // No VPS available - add to queue
+                Log::warning("⏳ [StreamAllocation] All VPS overloaded, queueing stream #{$stream->id}");
+
+                $this->addToQueue($stream);
+
+                return [
+                    'success' => true,
+                    'action' => 'queued',
+                    'message' => 'Stream added to queue - will start when VPS capacity available'
+                ];
+            }
+        );
     }
 
     public function findOptimalVps(StreamConfiguration $stream): ?VpsServer

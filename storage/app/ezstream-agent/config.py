@@ -93,6 +93,10 @@ class AgentConfig:
     process_monitor_interval: float = 2.0           # Process monitoring interval (seconds)
     async_operations_enabled: bool = True           # Enable async operations
 
+    # Stream restart settings
+    restart_threshold_failures: int = 3             # Number of failures before restart
+    fast_restart_delay: int = 5                     # Delay before fast restart (seconds)
+
     def update_from_laravel_settings(self, settings: dict):
         """Update config from Laravel settings"""
         updated_settings = []

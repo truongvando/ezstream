@@ -46,26 +46,40 @@ class ProcessHeartbeatJob implements ShouldQueue
                 'is_immediate_update' => $this->isImmediateUpdate
             ]);
 
-            // Lưu trạng thái thực tế của agent vào Redis với enhanced data, TTL 10 phút
+            // Lưu trạng thái thực tế của agent vào Redis với enhanced data, TTL 30 phút
             $agentStateKey = 'agent_state:' . $this->vpsId;
             $enhancedState = [
                 'active_streams' => $this->activeStreams,
                 'last_heartbeat' => now()->toISOString(),
                 'is_re_announce' => $this->isReAnnounce,
                 'is_immediate_update' => $this->isImmediateUpdate,
-                'heartbeat_count' => Redis::incr("heartbeat_count:{$this->vpsId}")
+                'heartbeat_count' => Redis::incr("heartbeat_count:{$this->vpsId}"),
+                'vps_id' => $this->vpsId,
+                'stream_count' => count($this->activeStreams)
             ];
 
-            Redis::setex($agentStateKey, 600, json_encode($enhancedState));
+            // Use longer TTL and ensure cleanup
+            Redis::setex($agentStateKey, 1800, json_encode($enhancedState));
 
-            // Cập nhật thời gian heartbeat cho VPS với enhanced tracking
-            $vpsUpdateData = [
-                'last_heartbeat_at' => now(),
-                'current_streams' => count($this->activeStreams),
-                'status' => 'ACTIVE'
-            ];
+            // Set TTL for heartbeat counter
+            Redis::expire("heartbeat_count:{$this->vpsId}", 3600);
 
-            VpsServer::where('id', $this->vpsId)->update($vpsUpdateData);
+            // Cập nhật thời gian heartbeat cho VPS với enhanced tracking và partition recovery
+            $vps = VpsServer::find($this->vpsId);
+            if ($vps) {
+                // Check if VPS was partitioned and is now recovering
+                if ($vps->status === 'PARTITIONED') {
+                    \App\Services\NetworkPartitionHandler::handleRecovery($this->vpsId, $this->activeStreams);
+                } else {
+                    $vpsUpdateData = [
+                        'last_heartbeat_at' => now(),
+                        'current_streams' => count($this->activeStreams),
+                        'status' => 'ACTIVE'
+                    ];
+
+                    $vps->update($vpsUpdateData);
+                }
+            }
 
             // Enhanced ghost stream detection with state machine awareness
             $this->handleGhostStreams();
@@ -132,8 +146,18 @@ class ProcessHeartbeatJob implements ShouldQueue
                     continue;
                 }
 
-                // SIMPLE APPROACH: If agent reports stream active, trust it and auto-recover
-                Log::info("🔄 [GhostStream] Agent reports stream #{$streamId} active (status: {$stream->status}), auto-recovering to STREAMING");
+                // ENHANCED RACE CONDITION PROTECTION
+                $lastUpdate = $stream->last_status_update ?: $stream->updated_at;
+                $lastStarted = $stream->last_started_at ?: $stream->created_at;
+                $minutesSinceUpdate = $lastUpdate ? $lastUpdate->diffInMinutes(now()) : 999;
+                $minutesSinceStart = $lastStarted ? $lastStarted->diffInMinutes(now()) : 999;
+
+                // Extended grace period for race conditions
+                if ($minutesSinceUpdate < 5 || $minutesSinceStart < 10) {
+                    Log::info("🔄 [GhostStream] Stream #{$streamId} has recent activity (update: {$minutesSinceUpdate}m, start: {$minutesSinceStart}m ago), auto-recovering");
+                } else {
+                    Log::info("🔄 [GhostStream] Stream #{$streamId} older activity, standard recovery (status: {$stream->status})");
+                }
 
                 $stream->update([
                     'status' => 'STREAMING',

@@ -415,6 +415,47 @@ class ProcessManager:
         process_info.state = ProcessState.ERROR
         logging.info(f"🔄 Stream {stream_id}: Process marked for restart")
 
+    def _analyze_error_type(self, error_output: str) -> str:
+        """Analyze FFmpeg error output to determine error type"""
+        if not error_output:
+            return "Unknown error"
+
+        error_output_lower = error_output.lower()
+
+        # Network/connection errors
+        if any(keyword in error_output_lower for keyword in [
+            'connection refused', 'network unreachable', 'timeout',
+            'connection reset', 'no route to host', 'connection timed out'
+        ]):
+            return "Network connection error"
+
+        # RTMP specific errors
+        if any(keyword in error_output_lower for keyword in [
+            'rtmp', 'handshake failed', 'server disconnected', 'publish failed'
+        ]):
+            return "RTMP streaming error"
+
+        # Input file errors
+        if any(keyword in error_output_lower for keyword in [
+            'no such file', 'input/output error', 'invalid data found',
+            'does not exist', 'permission denied'
+        ]):
+            return "Input file error"
+
+        # Codec/format errors
+        if any(keyword in error_output_lower for keyword in [
+            'codec', 'format', 'unsupported', 'invalid'
+        ]):
+            return "Codec/format error"
+
+        # Resource errors
+        if any(keyword in error_output_lower for keyword in [
+            'out of memory', 'resource temporarily unavailable', 'disk full'
+        ]):
+            return "System resource error"
+
+        return "FFmpeg process error"
+
     def _update_health_metrics(self, process_info: ProcessInfo):
         """Update process health metrics"""
         current_time = time.time()

@@ -28,6 +28,13 @@ class UpdateStreamStatusJob implements ShouldQueue
 
     public function handle(): void
     {
+        // Throttle concurrent status updates to prevent DB connection exhaustion
+        if (!\App\Services\DatabaseConnectionManager::throttleJob(self::class)) {
+            // Retry later if too many concurrent jobs
+            $this->release(30); // Retry in 30 seconds
+            return;
+        }
+
         $streamId = $this->data['stream_id'] ?? null;
         $status = $this->data['status'] ?? null;
         $message = $this->data['message'] ?? '';
