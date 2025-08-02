@@ -83,8 +83,27 @@
                         </button>
                     </div>
 
-                    <!-- Right side - Notifications -->
+                    <!-- Right side - Balance & Notifications -->
                     <div class="flex items-center space-x-4 ml-auto">
+                        @auth
+                            <!-- User Balance -->
+                            <div class="flex items-center space-x-2 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-600 px-4 py-2 rounded-lg border border-blue-200 dark:border-gray-600"
+                                 x-data="{ balance: {{ auth()->user()->balance ?? 0 }} }"
+                                 @balance-updated.window="balance = $event.detail.balance">
+                                <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"/>
+                                </svg>
+                                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Số dư:</span>
+                                <span class="text-lg font-bold text-blue-600 dark:text-blue-400" x-text="'$' + balance.toFixed(2)"></span>
+                                <a href="{{ route('deposit.index') }}" class="ml-2 bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1 rounded-full transition-colors duration-200 flex items-center">
+                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                                    </svg>
+                                    Nạp tiền
+                                </a>
+                            </div>
+                        @endauth
+
                         <!-- YouTube Alerts Notification -->
                         <div class="relative"
                              x-data="notificationBell()"

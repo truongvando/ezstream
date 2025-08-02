@@ -21,6 +21,8 @@ class Transaction extends Model
         'gateway_transaction_id',
         'status',
         'description',
+        'tool_order_id',
+        'view_order_id',
     ];
 
     public function user(): BelongsTo
@@ -43,5 +45,15 @@ class Transaction extends Model
             'subscription_id', // Local key on transactions table...
             'service_package_id' // Local key on subscriptions table...
         );
+    }
+
+    public function toolOrder(): BelongsTo
+    {
+        return $this->belongsTo(ToolOrder::class);
+    }
+
+    public function viewOrder(): BelongsTo
+    {
+        return $this->belongsTo(ViewOrder::class);
     }
 }

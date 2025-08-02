@@ -41,6 +41,18 @@ class AppServiceProvider extends ServiceProvider
                     \App\Services\RedisMemoryManager::cleanup();
                 })->hourly()->name('redis-cleanup');
 
+                // Cancel expired transactions every 10 minutes
+                $schedule->job(new \App\Jobs\CancelExpiredTransactionsJob)
+                    ->everyTenMinutes()
+                    ->name('cancel-expired-transactions')
+                    ->withoutOverlapping();
+
+                // Update exchange rate every hour
+                $schedule->job(new \App\Jobs\UpdateExchangeRateJob)
+                    ->hourly()
+                    ->name('update-exchange-rate')
+                    ->withoutOverlapping();
+
                 // Database connection monitoring every 15 minutes
                 $schedule->call(function () {
                     $stats = \App\Services\DatabaseConnectionManager::monitorConnectionPool();
@@ -72,5 +84,14 @@ class AppServiceProvider extends ServiceProvider
         if (app()->environment('local') && config('app.use_mock_ssh', false)) {
             $this->app->bind(\App\Services\SshService::class, \App\Services\MockSshService::class);
         }
+
+        // Register SVG helper for Blade
+        \Blade::directive('svg', function ($expression) {
+            return "<?php echo \App\Helpers\SvgHelper::icon($expression); ?>";
+        });
+
+        \Blade::directive('emoji', function ($expression) {
+            return "<?php echo \App\Helpers\SvgHelper::emoji($expression); ?>";
+        });
     }
 }

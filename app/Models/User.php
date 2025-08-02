@@ -286,4 +286,28 @@ class User extends Authenticatable
         $hash = md5(strtolower(trim($this->email)));
         return "https://www.gravatar.com/avatar/$hash?s=$size&d=mp";
     }
+
+    /**
+     * Get all view orders for this user
+     */
+    public function viewOrders()
+    {
+        return $this->hasMany(ViewOrder::class);
+    }
+
+    /**
+     * Get all tool orders for this user
+     */
+    public function toolOrders()
+    {
+        return $this->hasMany(ToolOrder::class);
+    }
+
+    /**
+     * Get all licenses for this user
+     */
+    public function licenses()
+    {
+        return $this->hasMany(License::class);
+    }
 }

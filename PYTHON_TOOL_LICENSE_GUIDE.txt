@@ -1,0 +1,474 @@
+================================================================================
+🔑 HƯỚNG DẪN TÍCH HỢP LICENSE CHO PYTHON TOOLS - EZSTREAM SYSTEM
+================================================================================
+
+📋 MỤC LỤC:
+1. Tổng quan hệ thống License
+2. Cách hoạt động của License
+3. Workflow từ Tool Store đến License
+4. Tích hợp vào Python Tool
+5. API Endpoints
+6. Error Handling
+7. Best Practices
+8. Troubleshooting
+
+================================================================================
+1. 📊 TỔNG QUAN HỆ THỐNG LICENSE
+================================================================================
+
+🎯 MỤC ĐÍCH:
+- Bảo vệ Python tools khỏi việc sử dụng trái phép
+- Ràng buộc license với thiết bị cụ thể (device binding)
+- Theo dõi và quản lý việc sử dụng tools
+- Cho phép chuyển license giữa các thiết bị
+
+🔧 THÀNH PHẦN:
+- License Server (Laravel API)
+- License Client (Python library)
+- Device Fingerprinting
+- Activation Logging
+
+📱 DEVICE BINDING:
+- 1 License = 1 Device duy nhất
+- Device ID được tạo từ hardware fingerprint
+- Có thể deactivate để chuyển sang device khác
+
+================================================================================
+2. ⚙️ CÁCH HOẠT ĐỘNG CỦA LICENSE
+================================================================================
+
+🔄 WORKFLOW:
+1. User mua tool → License được tạo tự động
+2. User nhận license key (format: XXXX-XXXX-XXXX-XXXX)
+3. Tool gọi API verify → Bind với device
+4. Mỗi lần chạy tool → Verify license
+5. Nếu invalid → Tool dừng hoạt động
+
+🔑 LICENSE STATES:
+- INACTIVE: Chưa được kích hoạt
+- ACTIVE: Đang hoạt động trên device
+- EXPIRED: Đã hết hạn
+- REVOKED: Bị thu hồi bởi admin
+
+📊 DEVICE FINGERPRINT:
+- Platform (Windows/Linux/Mac)
+- Machine type (x86_64/ARM)
+- Processor info
+- Hostname
+- MAC address (nếu có)
+
+================================================================================
+3. 🛒 WORKFLOW TỪ TOOL STORE ĐẾN LICENSE
+================================================================================
+
+🎯 QUY TRÌNH HOÀN CHỈNH:
+
+1. 👨‍💼 ADMIN THÊM TOOL:
+   ├── Vào /admin/tools
+   ├── Click "Thêm Tool Mới"
+   ├── Điền: name, slug, price, description, download_url
+   ├── Set is_active = true
+   └── Tool xuất hiện trong store
+
+2. 🛒 USER MUA TOOL:
+   ├── Vào /tools (cửa hàng)
+   ├── Browse tools, search, filter
+   ├── Click tool → Xem chi tiết
+   ├── Click "Mua ngay" → Payment modal
+   └── ToolOrder được tạo với status PENDING
+
+3. 💳 THANH TOÁN:
+   ├── Option 1: Balance payment
+   │   ├── Check user.balance >= tool.price
+   │   ├── Trừ balance ngay lập tức
+   │   └── ToolOrder status → COMPLETED
+   │
+   └── Option 2: Bank transfer
+       ├── Generate QR code với VietcomBank API
+       ├── User chuyển khoản
+       ├── CheckBankTransactionsJob detect payment
+       └── ToolOrder status → COMPLETED
+
+4. 🔑 LICENSE TỰ ĐỘNG TẠO:
+   ├── Khi ToolOrder status = COMPLETED
+   ├── LicenseService.createLicenseForOrder()
+   ├── Generate unique license_key (XXXX-XXXX-XXXX-XXXX)
+   ├── License record: user_id, tool_id, license_key
+   └── User nhận email với license_key
+
+5. 📥 USER DOWNLOAD & SỬ DỤNG:
+   ├── User download tool từ download_url
+   ├── Tool chứa license_client.py
+   ├── Tool gọi client.verify(license_key)
+   ├── Server verify: tool_id, user_id, device binding
+   └── Tool chạy nếu license hợp lệ
+
+🔗 DATABASE RELATIONSHIPS:
+```
+tools (1) ←→ (N) tool_orders ←→ (1) licenses
+  ↓                ↓                    ↓
+tool_id         tool_id            tool_id
+name            user_id            user_id
+price           amount             license_key
+download_url    status             device_id
+```
+
+💰 PRICING & LICENSE:
+- Mỗi tool có giá riêng (price, sale_price)
+- 1 tool order = 1 license duy nhất
+- License lifetime (expires_at = null)
+- 1 license = 1 device binding
+
+================================================================================
+4. 🐍 TÍCH HỢP VÀO PYTHON TOOL
+================================================================================
+
+📥 BƯỚC 1: DOWNLOAD LICENSE CLIENT
+Tải file license_client.py từ:
+https://ezstream.pro/downloads/license_client.py
+
+📦 BƯỚC 2: CÀI ĐẶT DEPENDENCIES
+pip install requests
+
+🌐 BƯỚC 3: CẤU HÌNH SERVER URL
+License client tự động detect server URL từ:
+1. Parameter truyền vào: LicenseClient(key, "http://localhost:8000")
+2. Environment: EZSTREAM_SERVER_URL=http://localhost:8000
+3. Config file: ezstream_config.json {"server_url": "http://localhost:8000"}
+4. Default: https://ezstream.pro
+
+🔧 BƯỚC 4: TÍCH HỢP VÀO TOOL
+
+--- Cách 1: Basic Integration ---
+```python
+from license_client import LicenseClient
+import sys
+
+def main():
+    # License key từ user
+    LICENSE_KEY = "ABCD-EFGH-IJKL-MNOP"
+    
+    # Initialize client
+    client = LicenseClient(LICENSE_KEY)
+    
+    # Verify license
+    if not client.verify():
+        print("❌ License không hợp lệ! Tool không thể chạy.")
+        sys.exit(1)
+    
+    print("✅ License hợp lệ! Bắt đầu chạy tool...")
+    
+    # Tool code ở đây
+    run_your_tool()
+
+def run_your_tool():
+    # Main functionality của tool
+    print("🚀 Tool đang chạy...")
+    # Your code here
+
+if __name__ == "__main__":
+    main()
+```
+
+--- Cách 2: Advanced Integration với Error Handling ---
+```python
+from license_client import LicenseClient
+import sys
+import os
+
+class ToolLicenseManager:
+    def __init__(self):
+        self.license_key = None
+        self.client = None
+        
+    def get_license_key(self):
+        """Lấy license key từ nhiều nguồn"""
+        # Thử từ environment variable
+        key = os.environ.get('EZSTREAM_LICENSE_KEY')
+        if key:
+            return key
+            
+        # Thử từ file config
+        try:
+            with open('license.txt', 'r') as f:
+                key = f.read().strip()
+                if key:
+                    return key
+        except:
+            pass
+            
+        # Yêu cầu user nhập
+        key = input("Nhập license key: ").strip()
+        return key if key else None
+    
+    def verify_license(self):
+        """Verify license với retry mechanism"""
+        self.license_key = self.get_license_key()
+        
+        if not self.license_key:
+            print("❌ Không tìm thấy license key!")
+            return False
+            
+        self.client = LicenseClient(self.license_key)
+        
+        # Thử verify với retry
+        if self.client.verify_with_retry(max_retries=3):
+            print("✅ License verification thành công!")
+            return True
+        else:
+            print("❌ License verification thất bại!")
+            return False
+    
+    def check_license_periodically(self):
+        """Check license status định kỳ (optional)"""
+        if self.client:
+            is_valid, data = self.client.check_status()
+            if not is_valid:
+                print("⚠️ License không còn hợp lệ!")
+                return False
+        return True
+
+def main():
+    license_manager = ToolLicenseManager()
+    
+    if not license_manager.verify_license():
+        sys.exit(1)
+    
+    # Tool code
+    run_your_tool()
+
+def run_your_tool():
+    print("🚀 Tool đang chạy...")
+    # Your main code here
+
+if __name__ == "__main__":
+    main()
+```
+
+--- Cách 3: GUI Integration (tkinter) ---
+```python
+import tkinter as tk
+from tkinter import messagebox
+from license_client import LicenseClient
+
+class LicenseDialog:
+    def __init__(self):
+        self.license_key = None
+        self.verified = False
+        
+    def show_license_dialog(self):
+        root = tk.Tk()
+        root.title("EzStream License Verification")
+        root.geometry("400x200")
+        
+        tk.Label(root, text="Nhập License Key:", font=("Arial", 12)).pack(pady=10)
+        
+        entry = tk.Entry(root, width=40, font=("Arial", 10))
+        entry.pack(pady=5)
+        
+        def verify_clicked():
+            key = entry.get().strip()
+            if not key:
+                messagebox.showerror("Lỗi", "Vui lòng nhập license key!")
+                return
+                
+            client = LicenseClient(key)
+            if client.verify():
+                self.license_key = key
+                self.verified = True
+                messagebox.showinfo("Thành công", "License hợp lệ!")
+                root.destroy()
+            else:
+                messagebox.showerror("Lỗi", "License không hợp lệ!")
+        
+        tk.Button(root, text="Verify License", command=verify_clicked, 
+                 bg="blue", fg="white", font=("Arial", 10)).pack(pady=10)
+        
+        root.mainloop()
+        return self.verified
+
+def main():
+    dialog = LicenseDialog()
+    
+    if not dialog.show_license_dialog():
+        print("❌ License verification thất bại!")
+        return
+    
+    print("✅ Bắt đầu chạy tool...")
+    run_your_tool()
+
+if __name__ == "__main__":
+    main()
+```
+
+================================================================================
+5. 🌐 API ENDPOINTS
+================================================================================
+
+🔗 BASE URL: Auto-detected từ APP_URL hoặc https://ezstream.pro/api
+
+📡 ENDPOINTS:
+
+1. GET /license/config
+   - Lấy cấu hình API cho Python client
+   - Response: {api_base_url, endpoints, timeout, retry_attempts}
+
+2. POST /license/verify
+   - Verify và activate license
+   - Body: {license_key, device_id, device_name, device_info}
+   - Response: {success, message, data}
+
+3. POST /license/check-status
+   - Check license status
+   - Body: {license_key, device_id}
+   - Response: {success, data: {tool, activated_at, expires_at}}
+
+4. POST /license/deactivate
+   - Deactivate license từ device
+   - Body: {license_key, device_id}
+   - Response: {success, message}
+
+📊 RESPONSE CODES:
+- 200: Success
+- 404: License not found
+- 403: License expired
+- 409: Already activated on another device
+- 500: Server error
+
+🔧 DEVELOPMENT vs PRODUCTION:
+- Development: http://localhost:8000/api hoặc http://ezstream.test/api
+- Production: https://ezstream.pro/api
+- Client tự động detect từ config endpoint
+
+================================================================================
+5. ⚠️ ERROR HANDLING
+================================================================================
+
+🚨 COMMON ERRORS:
+
+1. "License key not found"
+   → Kiểm tra lại license key
+   → Liên hệ support nếu key đúng
+
+2. "License already activated on another device"
+   → Sử dụng deactivate() trước
+   → Hoặc liên hệ admin để transfer
+
+3. "License has expired"
+   → Gia hạn license
+   → Mua license mới
+
+4. "Connection error"
+   → Kiểm tra internet
+   → Thử lại sau
+
+5. "Device fingerprint changed"
+   → Hardware thay đổi
+   → Deactivate và activate lại
+
+🔧 ERROR HANDLING CODE:
+```python
+def safe_license_verify(license_key):
+    try:
+        client = LicenseClient(license_key)
+        return client.verify()
+    except ConnectionError:
+        print("❌ Không thể kết nối server. Kiểm tra internet.")
+        return False
+    except TimeoutError:
+        print("❌ Timeout. Thử lại sau.")
+        return False
+    except Exception as e:
+        print(f"❌ Lỗi không xác định: {e}")
+        return False
+```
+
+================================================================================
+6. 💡 BEST PRACTICES
+================================================================================
+
+✅ DO:
+- Verify license ngay khi tool start
+- Cache license status trong session
+- Implement retry mechanism
+- Show clear error messages
+- Log license events
+- Handle offline scenarios gracefully
+
+❌ DON'T:
+- Hard-code license keys
+- Skip error handling
+- Verify quá thường xuyên (spam API)
+- Store sensitive data locally
+- Ignore connection errors
+
+🔒 SECURITY:
+- Không lưu license key trong code
+- Sử dụng environment variables
+- Encrypt license file nếu cần
+- Validate input từ user
+
+⚡ PERFORMANCE:
+- Cache verification result
+- Timeout cho API calls
+- Async verification nếu có thể
+- Minimize API calls
+
+================================================================================
+7. 🔧 TROUBLESHOOTING
+================================================================================
+
+❓ COMMON ISSUES:
+
+Q: Tool báo "License invalid" nhưng key đúng?
+A: - Kiểm tra internet connection
+   - Thử deactivate và activate lại
+   - Liên hệ support với device info
+
+Q: Không thể activate trên máy mới?
+A: - Deactivate từ máy cũ trước
+   - Hoặc liên hệ admin để transfer
+   - Check hardware fingerprint
+
+Q: License hoạt động rồi bỗng dưng không được?
+A: - Hardware có thể đã thay đổi
+   - License có thể bị revoke
+   - Check expiration date
+
+Q: API response chậm?
+A: - Implement timeout (30s)
+   - Sử dụng retry mechanism
+   - Cache result khi có thể
+
+🛠️ DEBUG COMMANDS:
+```bash
+# Test license từ command line
+python license_client.py "YOUR-LICENSE-KEY" verify
+
+# Check status
+python license_client.py "YOUR-LICENSE-KEY" status
+
+# Deactivate
+python license_client.py "YOUR-LICENSE-KEY" deactivate
+```
+
+📞 SUPPORT:
+- Email: support@ezstream.com
+- Discord: EzStream Community
+- Docs: https://docs.ezstream.com
+
+================================================================================
+🎯 KẾT LUẬN
+================================================================================
+
+License system giúp bảo vệ tools và quản lý users hiệu quả. 
+Tích hợp đúng cách sẽ đảm bảo:
+- Bảo mật cao
+- User experience tốt  
+- Dễ maintenance
+- Scalable
+
+Hãy follow best practices và test kỹ trước khi deploy!
+
+🚀 Happy Coding!
+================================================================================

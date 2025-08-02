@@ -3,6 +3,10 @@
 namespace App\Jobs;
 
 use App\Models\Transaction;
+use App\Models\ToolOrder;
+use App\Models\ViewOrder;
+use App\Services\LicenseService;
+use App\Jobs\ProcessViewOrderJob;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -39,11 +43,22 @@ class CheckBankTransactionsJob implements ShouldQueue
 
         // 2. Check API bank cho các giao dịch pending còn lại
         $pendingTransactions = Transaction::where('status', 'PENDING')
-            ->whereNotNull('subscription_id')
             ->get()
             ->mapWithKeys(function($transaction) {
-                // Generate payment code: EZS + subscription_id padded to 6 digits
-                $paymentCode = 'EZS' . str_pad($transaction->subscription_id, 6, '0', STR_PAD_LEFT);
+                // Generate payment code based on transaction type
+                if ($transaction->subscription_id) {
+                    // Subscription payment: EZS + subscription_id
+                    $paymentCode = 'EZS' . str_pad($transaction->subscription_id, 6, '0', STR_PAD_LEFT);
+                } elseif ($transaction->tool_order_id) {
+                    // Tool order payment: TOOL + tool_order_id
+                    $paymentCode = 'TOOL' . str_pad($transaction->tool_order_id, 6, '0', STR_PAD_LEFT);
+                } elseif ($transaction->view_order_id) {
+                    // View order payment: VIEW + view_order_id
+                    $paymentCode = 'VIEW' . str_pad($transaction->view_order_id, 6, '0', STR_PAD_LEFT);
+                } else {
+                    // Fallback to payment_code field
+                    $paymentCode = $transaction->payment_code;
+                }
                 return [$transaction->id => $paymentCode];
             });
 
@@ -132,38 +147,19 @@ class CheckBankTransactionsJob implements ShouldQueue
 
                         echo "✅ Transaction {$id} marked as COMPLETED\n";
 
-                        // Activate the subscription
-                        $subscription = $transaction->subscription;
-                        $subscription->load('servicePackage'); // Load relationship
-                        if ($subscription) {
-                            // 🔥 CRITICAL FIX: Deactivate old subscriptions before activating new one
-                            $user = $subscription->user;
-                            $oldSubscriptions = $user->subscriptions()
-                                ->where('status', 'ACTIVE')
-                                ->where('id', '!=', $subscription->id)
-                                ->with('servicePackage')
-                                ->get();
-
-                            foreach ($oldSubscriptions as $oldSub) {
-                                $oldSub->update(['status' => 'INACTIVE']);
-                                echo "🔄 Deactivated old subscription {$oldSub->id} (package: {$oldSub->servicePackage->name})\n";
-                            }
-
-                            // Now activate the new subscription
-                            $subscription->update([
-                                'status' => 'ACTIVE',
-                                'starts_at' => now(),
-                                'ends_at' => now()->addMonth(),
-                            ]);
-
-                            echo "✅ Subscription {$subscription->id} activated (package: {$subscription->servicePackage->name})\n";
-
-                            Log::info("Transaction completed and subscription activated", [
-                                'transaction_id' => $id,
-                                'subscription_id' => $subscription->id,
-                                'payment_code' => $normalizedCode,
-                                'old_subscriptions_deactivated' => $oldSubscriptions->count()
-                            ]);
+                        // Process based on transaction type
+                        if ($transaction->subscription_id) {
+                            // Handle subscription payment
+                            $this->processSubscriptionPayment($transaction);
+                        } elseif ($transaction->tool_order_id) {
+                            // Handle tool order payment
+                            $this->processToolOrderPayment($transaction);
+                        } elseif ($transaction->view_order_id) {
+                            // Handle view order payment
+                            $this->processViewOrderPayment($transaction);
+                        } else {
+                            // Handle deposit payment
+                            $this->processDepositPayment($transaction);
                         }
 
                         $matchedCount++;
@@ -180,6 +176,116 @@ class CheckBankTransactionsJob implements ShouldQueue
 
         } catch (\Exception $e) {
             Log::error('Error checking bank transactions: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Process subscription payment
+     */
+    private function processSubscriptionPayment(Transaction $transaction)
+    {
+        $subscription = $transaction->subscription;
+        $subscription->load('servicePackage');
+
+        if ($subscription) {
+            // Deactivate old subscriptions before activating new one
+            $user = $subscription->user;
+            $oldSubscriptions = $user->subscriptions()
+                ->where('status', 'ACTIVE')
+                ->where('id', '!=', $subscription->id)
+                ->with('servicePackage')
+                ->get();
+
+            foreach ($oldSubscriptions as $oldSub) {
+                $oldSub->update(['status' => 'INACTIVE']);
+                echo "🔄 Deactivated old subscription {$oldSub->id} (package: {$oldSub->servicePackage->name})\n";
+            }
+
+            // Activate the new subscription
+            $subscription->update([
+                'status' => 'ACTIVE',
+                'starts_at' => now(),
+                'ends_at' => now()->addMonth(),
+            ]);
+
+            echo "✅ Subscription {$subscription->id} activated (package: {$subscription->servicePackage->name})\n";
+
+            Log::info("Subscription payment processed", [
+                'transaction_id' => $transaction->id,
+                'subscription_id' => $subscription->id,
+                'old_subscriptions_deactivated' => $oldSubscriptions->count()
+            ]);
+        }
+    }
+
+    /**
+     * Process tool order payment
+     */
+    private function processToolOrderPayment(Transaction $transaction)
+    {
+        $toolOrder = $transaction->toolOrder;
+
+        if ($toolOrder) {
+            // Mark tool order as completed
+            $toolOrder->update(['status' => 'COMPLETED']);
+
+            // Create license for the tool
+            $licenseService = new LicenseService();
+            $license = $licenseService->createLicenseForOrder($toolOrder);
+
+            echo "✅ Tool order {$toolOrder->id} completed - License created: {$license->license_key}\n";
+
+            Log::info("Tool order payment processed", [
+                'transaction_id' => $transaction->id,
+                'tool_order_id' => $toolOrder->id,
+                'tool_name' => $toolOrder->tool->name,
+                'license_key' => $license->license_key
+            ]);
+        }
+    }
+
+    /**
+     * Process view order payment
+     */
+    private function processViewOrderPayment(Transaction $transaction)
+    {
+        $viewOrder = $transaction->viewOrder;
+
+        if ($viewOrder) {
+            // Dispatch job to process view order via API
+            ProcessViewOrderJob::dispatch($viewOrder);
+
+            echo "✅ View order {$viewOrder->id} payment completed - Processing via API\n";
+
+            Log::info("View order payment processed", [
+                'transaction_id' => $transaction->id,
+                'view_order_id' => $viewOrder->id,
+                'service_name' => $viewOrder->apiService->name,
+                'quantity' => $viewOrder->quantity
+            ]);
+        }
+    }
+
+    /**
+     * Process deposit payment
+     */
+    private function processDepositPayment(Transaction $transaction)
+    {
+        $user = $transaction->user;
+
+        if ($user) {
+            // Add money to user balance
+            $user->increment('balance', $transaction->amount);
+
+            echo "✅ Deposit {$transaction->id} completed - Added ${$transaction->amount} to user {$user->name} (ID: {$user->id})\n";
+            echo "💰 New balance: ${$user->fresh()->balance}\n";
+
+            Log::info("Deposit payment processed", [
+                'transaction_id' => $transaction->id,
+                'user_id' => $user->id,
+                'amount' => $transaction->amount,
+                'new_balance' => $user->fresh()->balance
+            ]);
         }
     }
 }

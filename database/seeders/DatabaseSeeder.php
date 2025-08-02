@@ -18,6 +18,8 @@ class DatabaseSeeder extends Seeder
             ServicePackageSeeder::class,
             VpsServerSeeder::class,
             PaymentSettingsSeeder::class,
+            ToolSeeder::class,
+            ApiServiceSeeder::class,
         ]);
         
         // Create some sample data for dashboard

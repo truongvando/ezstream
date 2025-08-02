@@ -674,9 +674,31 @@ Route::middleware(['auth', 'locale'])->group(function () {
     Route::get('/profile', [\App\Http\Controllers\ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [\App\Http\Controllers\ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [\App\Http\Controllers\ProfileController::class, 'destroy'])->name('profile.destroy');
-    
 
-    
+    // New Features Routes
+    // View Services Routes
+    Route::get('/view-services', \App\Livewire\ViewServiceManager::class)->name('view-services.index');
+
+    // Tool Store Routes
+    Route::get('/tools', \App\Livewire\ToolStore::class)->name('tools.index');
+    Route::get('/tools/{slug}', \App\Livewire\ToolDetail::class)->name('tools.show');
+
+    // License Manager Routes
+    Route::get('/licenses', \App\Livewire\LicenseManager::class)->name('licenses.index');
+
+    // File Manager Route (temporary redirect)
+    Route::get('/file-manager', function() {
+        return redirect()->route('user.files');
+    })->name('file.manager');
+
+    // Payment Routes for new features
+    Route::get('/payment/view-order/{order}', [\App\Http\Controllers\PaymentController::class, 'viewOrder'])->name('payment.view-order');
+    Route::get('/payment/tool-order/{order}', [\App\Http\Controllers\PaymentController::class, 'toolOrder'])->name('payment.tool-order');
+
+    // Deposit Routes
+    Route::get('/deposit', \App\Livewire\DepositManager::class)->name('deposit.index');
+
+
     Route::middleware('role:admin')->prefix('admin')->name('admin.')->group(function () {
         Route::get('/dashboard', AdminDashboard::class)->name('dashboard');
         Route::get('/streams', AdminStreamManager::class)->name('streams');
@@ -703,6 +725,18 @@ Route::middleware(['auth', 'locale'])->group(function () {
 
         // Test PostForm component directly
         Route::get('/blog/test-component', \App\Livewire\Admin\Blog\PostForm::class)->name('blog.test.component');
+
+        // Store Management Routes
+        Route::get('/tools', \App\Livewire\Admin\ToolManager::class)->name('tools.index');
+        Route::get('/tools/create', [\App\Http\Controllers\Admin\ToolController::class, 'create'])->name('tools.create');
+        Route::post('/tools', [\App\Http\Controllers\Admin\ToolController::class, 'store'])->name('tools.store');
+        Route::get('/tools/{tool}/edit', [\App\Http\Controllers\Admin\ToolController::class, 'edit'])->name('tools.edit');
+        Route::put('/tools/{tool}', [\App\Http\Controllers\Admin\ToolController::class, 'update'])->name('tools.update');
+        Route::delete('/tools/{tool}', [\App\Http\Controllers\Admin\ToolController::class, 'destroy'])->name('tools.destroy');
+
+        Route::get('/view-services', \App\Livewire\Admin\ViewServiceManager::class)->name('view-services.index');
+        Route::get('/licenses', \App\Livewire\Admin\LicenseManager::class)->name('licenses.index');
+        Route::get('/orders', \App\Livewire\Admin\OrderManager::class)->name('orders.index');
     });
 
     // Public blog routes

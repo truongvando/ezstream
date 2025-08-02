@@ -1,0 +1,20 @@
+{
+    "tool_id": 1,
+    "tool_name": "Video Optimizer Pro",
+    "tool_version": "1.2.0",
+    "server_url": "https://ezstream.pro",
+    "license_required": true,
+    "min_python_version": "3.8",
+    "author": "EzStream Team",
+    "description": "Professional video optimization tool with advanced compression algorithms",
+    "features": [
+        "H.264/H.265 encoding",
+        "Batch processing",
+        "Quality presets",
+        "Custom bitrate control",
+        "GPU acceleration support"
+    ],
+    "supported_formats": [
+        "mp4", "avi", "mov", "mkv", "webm"
+    ]
+}

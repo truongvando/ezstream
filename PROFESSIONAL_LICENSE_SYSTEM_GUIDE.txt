@@ -1,0 +1,299 @@
+================================================================================
+🔑 HỆ THỐNG LICENSE CHUYÊN NGHIỆP - EZSTREAM PLATFORM
+================================================================================
+
+📋 MỤC LỤC:
+1. Tổng quan hệ thống License
+2. Các loại License và Tool
+3. Workflow quản lý License
+4. Python Client Integration
+5. Admin Management
+6. Revenue & Commission System
+
+================================================================================
+1. 📊 TỔNG QUAN HỆ THỐNG LICENSE
+================================================================================
+
+🎯 THIẾT KẾ CHUYÊN NGHIỆP:
+- ✅ Hỗ trợ 6 loại license: FREE, DEMO, MONTHLY, YEARLY, LIFETIME, CONSIGNMENT
+- ✅ Device binding với max_devices configurable
+- ✅ Auto-renewal cho subscription
+- ✅ Commission system cho consignment tools
+- ✅ Demo period với auto-expiry
+- ✅ License transfer capability
+
+🔗 DATABASE STRUCTURE:
+```sql
+tools:
+├── license_type (FREE|DEMO|MONTHLY|YEARLY|LIFETIME|CONSIGNMENT)
+├── demo_days (số ngày demo)
+├── monthly_price, yearly_price (giá subscription)
+├── is_own_tool (tool của mình hay consignment)
+├── owner_name, owner_contact (thông tin chủ tool)
+├── commission_rate (% hoa hồng cho consignment)
+├── max_devices (số device tối đa)
+└── allow_transfer (cho phép chuyển license)
+
+licenses:
+├── license_type (loại license được mua)
+├── expires_at (ngày hết hạn)
+├── auto_renew (tự động gia hạn)
+├── last_used_at (lần cuối sử dụng)
+└── device_id (binding với device)
+```
+
+================================================================================
+2. 🛠️ CÁC LOẠI LICENSE VÀ TOOL
+================================================================================
+
+🆓 **1. FREE TOOLS**:
+- Không cần license key
+- Download trực tiếp
+- Không có device binding
+- Không tạo license record
+
+💡 **2. DEMO TOOLS**:
+- Demo X ngày (configurable)
+- Tự động hết hạn sau demo_days
+- 1 device binding
+- Auto-convert to paid nếu user mua
+
+📅 **3. MONTHLY SUBSCRIPTION**:
+- Thanh toán hàng tháng
+- Auto-renewal (nếu enable)
+- Hết hạn sau 30 ngày
+- Có thể upgrade to yearly/lifetime
+
+📆 **4. YEARLY SUBSCRIPTION**:
+- Thanh toán hàng năm
+- Giá ưu đãi hơn monthly
+- Auto-renewal (nếu enable)
+- Hết hạn sau 365 ngày
+
+♾️ **5. LIFETIME LICENSE**:
+- Mua 1 lần, dùng vĩnh viễn
+- expires_at = null
+- Không auto-renewal
+- Có thể transfer device
+
+🤝 **6. CONSIGNMENT TOOLS**:
+- Tool của bên thứ 3
+- EzStream nhận commission
+- Không tạo license (chỉ redirect)
+- Track revenue cho owner
+
+================================================================================
+3. 🔄 WORKFLOW QUẢN LÝ LICENSE
+================================================================================
+
+📝 **ADMIN THÊM TOOL**:
+```
+1. Vào /admin/tools → "Thêm Tool Mới"
+2. Chọn license_type:
+   ├── FREE: Không cần config gì thêm
+   ├── DEMO: Set demo_days (7, 14, 30...)
+   ├── MONTHLY: Set monthly_price
+   ├── YEARLY: Set yearly_price  
+   ├── LIFETIME: Set price (one-time)
+   └── CONSIGNMENT: Set owner_name, commission_rate
+3. Config max_devices (1, 3, 5...)
+4. Set allow_transfer (true/false)
+```
+
+🛒 **USER MUA TOOL**:
+```
+1. Browse /tools → Chọn tool
+2. Xem available license types:
+   ├── Demo 7 ngày - FREE
+   ├── Hàng tháng - $9.99
+   ├── Hàng năm - $99.99 (save 17%)
+   └── Vĩnh viễn - $199.99
+3. Chọn license type → Payment
+4. License được tạo với expires_at tương ứng
+```
+
+🔑 **LICENSE GENERATION**:
+```php
+// Demo license
+expires_at = now()->addDays($tool->demo_days)
+
+// Monthly license  
+expires_at = now()->addMonth()
+
+// Yearly license
+expires_at = now()->addYear()
+
+// Lifetime license
+expires_at = null
+```
+
+🐍 **PYTHON TOOL USAGE**:
+```python
+client = LicenseClient("XXXX-XXXX-XXXX-XXXX")
+
+# Tool check license mỗi lần chạy
+if client.verify():
+    # Update last_used_at
+    # Check expires_at
+    # Tool runs normally
+else:
+    # Show expiry message
+    # Offer renewal link
+    # Tool stops
+```
+
+================================================================================
+4. 🔧 PYTHON CLIENT INTEGRATION
+================================================================================
+
+🎯 **PHÂN BIỆT TOOL BẰNG TOOL_ID**:
+```python
+# Mỗi tool có unique tool_id trong database
+# License key bind với tool_id cụ thể
+
+# Server verify:
+license = License.where('license_key', key).first()
+if license.tool_id != expected_tool_id:
+    return "License không hợp lệ cho tool này"
+```
+
+🔄 **PERIODIC LICENSE CHECK**:
+```python
+class ToolLicenseManager:
+    def __init__(self, tool_id, license_key):
+        self.tool_id = tool_id
+        self.license_key = license_key
+        self.last_check = None
+        
+    def verify_license(self):
+        # Check every 24 hours
+        if self.should_check():
+            result = self.client.verify()
+            self.last_check = now()
+            return result
+        return True
+        
+    def should_check(self):
+        if not self.last_check:
+            return True
+        return (now() - self.last_check) > 24_hours
+```
+
+🎨 **TOOL INTEGRATION EXAMPLES**:
+
+**Video Optimizer Tool:**
+```python
+from license_client import LicenseClient
+
+TOOL_ID = 1  # Video Optimizer ID in database
+LICENSE_KEY = get_license_key()
+
+client = LicenseClient(LICENSE_KEY, tool_id=TOOL_ID)
+
+if not client.verify():
+    print("❌ License hết hạn! Vui lòng gia hạn:")
+    print("🔗 https://ezstream.pro/tools/video-optimizer")
+    exit(1)
+
+# Tool runs...
+```
+
+**Stream Manager Tool:**
+```python
+TOOL_ID = 2  # Stream Manager ID
+# Same pattern...
+```
+
+================================================================================
+5. 👨‍💼 ADMIN MANAGEMENT
+================================================================================
+
+📊 **LICENSE DASHBOARD**:
+```
+/admin/licenses:
+├── Active licenses: 1,234
+├── Expiring soon (7 days): 45
+├── Expired licenses: 123
+├── Demo licenses: 67
+└── Revenue this month: $12,345
+```
+
+🔧 **ADMIN ACTIONS**:
+```
+1. View all licenses by tool
+2. Extend license expiry
+3. Transfer license to new device
+4. Revoke license (emergency)
+5. Convert demo to paid
+6. Set auto-renewal
+7. Bulk operations
+```
+
+⚙️ **AUTOMATED JOBS**:
+```php
+// Daily jobs
+- CheckExpiringLicensesJob (notify users)
+- ProcessAutoRenewalsJob (charge & extend)
+- CleanupExpiredDemosJob (remove old demos)
+- GenerateRevenueReportJob (daily stats)
+
+// Weekly jobs  
+- LicenseUsageAnalyticsJob (usage patterns)
+- InactiveLicenseCleanupJob (unused licenses)
+```
+
+================================================================================
+6. 💰 REVENUE & COMMISSION SYSTEM
+================================================================================
+
+💵 **REVENUE TRACKING**:
+```sql
+tool_orders:
+├── tool_id (which tool)
+├── license_type (what type purchased)
+├── amount (price paid)
+├── commission_amount (for consignment)
+├── net_revenue (after commission)
+└── payment_status
+```
+
+🤝 **COMMISSION CALCULATION**:
+```php
+// For consignment tools
+if ($tool->is_consignment) {
+    $commission = $amount * ($tool->commission_rate / 100);
+    $net_revenue = $amount - $commission;
+    
+    // Pay owner their share
+    $this->payOwnerCommission($tool->owner_contact, $commission);
+}
+```
+
+📈 **ANALYTICS & REPORTS**:
+```
+1. Revenue by tool
+2. License type popularity  
+3. Renewal rates
+4. Demo conversion rates
+5. Commission payouts
+6. Device usage patterns
+7. Geographic distribution
+```
+
+================================================================================
+🎯 KẾT LUẬN
+================================================================================
+
+HỆ THỐNG LICENSE CHUYÊN NGHIỆP này cung cấp:
+
+✅ **Flexibility**: 6 loại license phù hợp mọi business model
+✅ **Security**: Device binding + periodic verification
+✅ **Automation**: Auto-renewal, expiry notifications
+✅ **Revenue**: Commission system cho consignment
+✅ **Analytics**: Detailed tracking & reporting
+✅ **User Experience**: Demo trials, easy upgrades
+✅ **Admin Control**: Full management capabilities
+
+**Hệ thống ready for production với scale lớn!** 🚀
+
+================================================================================

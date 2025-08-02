@@ -6,6 +6,7 @@ use App\Models\ServicePackage;
 use App\Models\Subscription;
 use App\Models\Transaction;
 use App\Services\ProrationService;
+use App\Services\PaymentService;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -21,6 +22,8 @@ class ServiceManager extends Component
     public $paymentTransaction = null;
     public $qrCodeUrl = '';
     public $activeTab = 'packages'; // packages, payment, history
+    public $paymentOptions = [];
+    public $selectedPaymentMethod = null;
 
     public function mount()
     {
@@ -82,16 +85,14 @@ class ServiceManager extends Component
         try {
             $user = Auth::user();
             $package = ServicePackage::findOrFail($packageId);
-            
+
             $pendingTransaction = $user->transactions()->where('status', 'PENDING')->first();
             if ($pendingTransaction) {
                 session()->flash('error', 'Bạn đã có một giao dịch đang chờ xử lý. Vui lòng hoàn tất hoặc hủy giao dịch đó trước khi tạo mới.');
-                // Redirect to the existing payment page
-                return $this->redirectRoute('payment.show', ['subscription' => $pendingTransaction->subscription_id]);
+                return;
             }
 
             $amountToPay = $package->price;
-            $description = "Thanh toán cho gói {$package->name}";
 
             if ($this->activeSubscription) {
                 if ($package->price <= $this->activeSubscription->servicePackage->price) {
@@ -100,36 +101,67 @@ class ServiceManager extends Component
                 }
                 $proration = (new ProrationService())->calculate($this->activeSubscription, $package);
                 $amountToPay = $proration['final_amount'];
-                $creditFormatted = number_format($proration['credit'], 0, ',', '.');
-                $newPriceFormatted = number_format($proration['new_price'], 0, ',', '.');
-                $description = "Nâng cấp lên gói {$package->name}. Chi phí: {$newPriceFormatted}đ (đã trừ {$creditFormatted}đ từ gói cũ)";
             }
 
-            $subscription = $user->subscriptions()->create([
-                'service_package_id' => $package->id,
-                'status' => 'PENDING_PAYMENT',
-            ]);
-            
-            $paymentCode = 'EZS' . str_pad($subscription->id, 6, '0', STR_PAD_LEFT);
-            
-            $subscription->transactions()->create([
-                'user_id' => $user->id,
-                'payment_code' => $paymentCode,
-                'amount' => $amountToPay,
-                'currency' => 'VND',
-                'payment_gateway' => 'VIETQR_VCB',
-                'status' => 'PENDING',
-                'description' => $description,
-            ]);
+            // Show payment options modal
+            $this->selectedPackage = $package;
+            $paymentService = new PaymentService();
+            $this->paymentOptions = $paymentService->getPaymentOptions($user, $amountToPay);
+            $this->showPaymentModal = true;
 
-            session()->flash('success', 'Đã tạo đơn hàng thành công! Đang chuyển đến trang thanh toán...');
-
-            // Redirect to the dedicated payment page
-            return $this->redirectRoute('payment.show', ['subscription' => $subscription->id]);
-            
         } catch (\Exception $e) {
             \Log::error('Error selecting package: ' . $e->getMessage());
             session()->flash('error', 'Có lỗi xảy ra khi xử lý yêu cầu của bạn.');
+        }
+    }
+
+    public function processPayment($paymentMethod)
+    {
+        try {
+            $user = Auth::user();
+            $paymentService = new PaymentService();
+
+            $result = $paymentService->processSubscriptionPayment($user, $this->selectedPackage, $paymentMethod);
+
+            if ($paymentMethod === 'balance') {
+                // Payment completed immediately
+                session()->flash('success', '🎉 Thanh toán thành công! Gói "' . $this->selectedPackage->name . '" đã được kích hoạt.');
+                $this->closePaymentModal();
+                $this->refreshComponentData();
+
+                // Dispatch event to update balance in header
+                $this->dispatch('balance-updated', balance: $user->fresh()->balance);
+            } else {
+                // Bank transfer - show QR code
+                $this->paymentTransaction = $result['transaction'];
+                $this->generateQrCodeUrl();
+                $this->selectedPaymentMethod = $paymentMethod;
+            }
+
+        } catch (\Exception $e) {
+            \Log::error('Error processing payment: ' . $e->getMessage());
+            session()->flash('error', $e->getMessage());
+        }
+    }
+
+    public function closePaymentModal()
+    {
+        $this->showPaymentModal = false;
+        $this->selectedPackage = null;
+        $this->paymentOptions = [];
+        $this->selectedPaymentMethod = null;
+        $this->paymentTransaction = null;
+        $this->qrCodeUrl = '';
+    }
+
+    private function generateQrCodeUrl()
+    {
+        if ($this->paymentTransaction) {
+            $paymentService = new PaymentService();
+            $this->qrCodeUrl = $paymentService->generateVietQR(
+                $this->paymentTransaction->amount,
+                $this->paymentTransaction->payment_code
+            );
         }
     }
 
@@ -245,25 +277,6 @@ class ServiceManager extends Component
         $this->qrCodeUrl = '';
         
         \Log::info("Component data refreshed after payment completion");
-    }
-
-    protected function generateQrCodeUrl()
-    {
-        if (!$this->paymentTransaction) return;
-
-        $bankId = '970436'; // Vietcombank
-        $accountNo = '0971000032314';
-        $accountName = 'TRUONG VAN DO';
-
-        $baseUrl = "https://img.vietqr.io/image/{$bankId}-{$accountNo}-compact2.png";
-        
-        $params = http_build_query([
-            'amount' => $this->paymentTransaction->amount,
-            'addInfo' => $this->paymentTransaction->payment_code,
-            'accountName' => $accountName,
-        ]);
-        
-        $this->qrCodeUrl = $baseUrl . '?' . $params;
     }
 
     public function render()

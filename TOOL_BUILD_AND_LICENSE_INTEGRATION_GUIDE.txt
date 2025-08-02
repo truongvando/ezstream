@@ -1,0 +1,670 @@
+================================================================================
+🔧 HƯỚNG DẪN BUILD TOOL VÀ GẮN LICENSE CHO TỪNG TOOL CỤ THỂ
+================================================================================
+
+📋 MỤC LỤC:
+1. Cấu trúc Tool Project
+2. Tích hợp License Client
+3. Build và Package Tool
+4. Distribution và Download
+5. Tool-specific Examples
+6. Testing và Deployment
+
+================================================================================
+1. 📁 CẤU TRÚC TOOL PROJECT
+================================================================================
+
+🎯 **STANDARD TOOL STRUCTURE**:
+```
+my_video_tool/
+├── src/
+│   ├── main.py              # Main tool logic
+│   ├── license_manager.py   # License handling
+│   ├── config.py           # Tool configuration
+│   └── utils/              # Helper modules
+├── assets/
+│   ├── license_client.py   # EzStream license client
+│   └── tool_config.json    # Tool metadata
+├── requirements.txt        # Dependencies
+├── setup.py               # Build configuration
+├── README.md              # User documentation
+└── build.py               # Build script
+
+TOOL_ID = 1  # Unique ID trong EzStream database
+TOOL_NAME = "Video Optimizer Pro"
+TOOL_VERSION = "1.2.0"
+```
+
+================================================================================
+2. 🔑 TÍCH HỢP LICENSE CLIENT
+================================================================================
+
+📄 **FILE: assets/tool_config.json**
+```json
+{
+    "tool_id": 1,
+    "tool_name": "Video Optimizer Pro",
+    "tool_version": "1.2.0",
+    "server_url": "https://ezstream.pro",
+    "license_required": true,
+    "min_python_version": "3.8",
+    "author": "EzStream Team",
+    "description": "Professional video optimization tool"
+}
+```
+
+📄 **FILE: src/license_manager.py**
+```python
+import os
+import sys
+import json
+from pathlib import Path
+
+# Add assets directory to path
+assets_dir = Path(__file__).parent.parent / "assets"
+sys.path.insert(0, str(assets_dir))
+
+from license_client import LicenseClient
+
+class ToolLicenseManager:
+    def __init__(self):
+        self.config = self.load_tool_config()
+        self.tool_id = self.config['tool_id']
+        self.tool_name = self.config['tool_name']
+        self.server_url = self.config.get('server_url', 'https://ezstream.pro')
+        self.license_client = None
+        self.license_key = None
+        
+    def load_tool_config(self):
+        """Load tool configuration"""
+        config_path = Path(__file__).parent.parent / "assets" / "tool_config.json"
+        with open(config_path, 'r') as f:
+            return json.load(f)
+    
+    def get_license_key(self):
+        """Get license key from multiple sources"""
+        # 1. Environment variable
+        key = os.environ.get('EZSTREAM_LICENSE_KEY')
+        if key:
+            return key.strip()
+        
+        # 2. License file
+        license_file = Path.home() / '.ezstream' / f'tool_{self.tool_id}_license.txt'
+        if license_file.exists():
+            try:
+                with open(license_file, 'r') as f:
+                    key = f.read().strip()
+                    if key:
+                        return key
+            except:
+                pass
+        
+        # 3. User input
+        print(f"🔑 {self.tool_name} - License Activation")
+        print("=" * 50)
+        key = input("Enter your license key: ").strip()
+        
+        if key:
+            # Save for future use
+            self.save_license_key(key)
+            return key
+        
+        return None
+    
+    def save_license_key(self, license_key):
+        """Save license key to file"""
+        try:
+            license_dir = Path.home() / '.ezstream'
+            license_dir.mkdir(exist_ok=True)
+            
+            license_file = license_dir / f'tool_{self.tool_id}_license.txt'
+            with open(license_file, 'w') as f:
+                f.write(license_key)
+            
+            print(f"💾 License key saved to {license_file}")
+        except Exception as e:
+            print(f"⚠️ Could not save license key: {e}")
+    
+    def verify_license(self):
+        """Verify license with server"""
+        self.license_key = self.get_license_key()
+        
+        if not self.license_key:
+            print("❌ No license key provided!")
+            return False
+        
+        # Initialize license client with tool-specific server URL
+        self.license_client = LicenseClient(
+            license_key=self.license_key,
+            server_url=self.server_url
+        )
+        
+        print(f"🔐 Verifying license for {self.tool_name}...")
+        print(f"📱 Tool ID: {self.tool_id}")
+        
+        # Verify with retry
+        if self.license_client.verify_with_retry(max_retries=3):
+            print("✅ License verified successfully!")
+            
+            # Get license info
+            is_valid, license_data = self.license_client.check_status()
+            if is_valid and license_data:
+                self.display_license_info(license_data)
+            
+            return True
+        else:
+            print("❌ License verification failed!")
+            self.show_license_help()
+            return False
+    
+    def display_license_info(self, license_data):
+        """Display license information"""
+        print("\n📋 License Information:")
+        print("-" * 30)
+        
+        if 'tool' in license_data:
+            tool = license_data['tool']
+            print(f"🛠️ Tool: {tool.get('name', 'Unknown')}")
+        
+        if 'activated_at' in license_data:
+            print(f"📅 Activated: {license_data['activated_at']}")
+        
+        if 'expires_at' in license_data:
+            if license_data['expires_at']:
+                print(f"⏰ Expires: {license_data['expires_at']}")
+            else:
+                print("⏰ Expires: Never (Lifetime)")
+        
+        print()
+    
+    def show_license_help(self):
+        """Show help for license issues"""
+        print("\n💡 License Help:")
+        print("-" * 20)
+        print("1. Check your license key format: XXXX-XXXX-XXXX-XXXX")
+        print("2. Ensure internet connection is working")
+        print("3. Contact support: support@ezstream.pro")
+        print(f"4. Purchase license: https://ezstream.pro/tools/{self.tool_id}")
+        print()
+    
+    def check_periodic(self):
+        """Periodic license check (call this during tool usage)"""
+        if not self.license_client:
+            return False
+        
+        try:
+            is_valid, _ = self.license_client.check_status()
+            return is_valid
+        except:
+            # If check fails (network issue), allow tool to continue
+            return True
+```
+
+📄 **FILE: src/main.py**
+```python
+#!/usr/bin/env python3
+"""
+Video Optimizer Pro - Main Entry Point
+Licensed tool for EzStream platform
+"""
+
+import sys
+import os
+from pathlib import Path
+
+# Add src directory to path
+src_dir = Path(__file__).parent
+sys.path.insert(0, str(src_dir))
+
+from license_manager import ToolLicenseManager
+from config import ToolConfig
+import video_processor  # Your actual tool logic
+
+def main():
+    """Main entry point"""
+    print("🚀 Video Optimizer Pro v1.2.0")
+    print("=" * 40)
+    
+    # Initialize license manager
+    license_manager = ToolLicenseManager()
+    
+    # Verify license before running tool
+    if not license_manager.verify_license():
+        print("\n🚫 Cannot start tool without valid license!")
+        sys.exit(1)
+    
+    print("\n🎯 Starting Video Optimization...")
+    print("=" * 40)
+    
+    try:
+        # Your actual tool logic here
+        config = ToolConfig()
+        processor = video_processor.VideoProcessor(config)
+        
+        # Example: Process video files
+        input_files = get_input_files()
+        
+        for file_path in input_files:
+            print(f"📹 Processing: {file_path}")
+            
+            # Periodic license check during processing
+            if not license_manager.check_periodic():
+                print("⚠️ License check failed during processing!")
+                break
+            
+            # Process the file
+            result = processor.optimize_video(file_path)
+            print(f"✅ Completed: {result}")
+        
+        print("\n🎉 All videos processed successfully!")
+        
+    except KeyboardInterrupt:
+        print("\n⚠️ Process interrupted by user")
+        sys.exit(130)
+    except Exception as e:
+        print(f"\n❌ Error during processing: {e}")
+        sys.exit(1)
+
+def get_input_files():
+    """Get input files from command line or user input"""
+    if len(sys.argv) > 1:
+        return sys.argv[1:]
+    else:
+        # Interactive mode
+        files = []
+        print("\n📁 Enter video files to process (empty line to finish):")
+        while True:
+            file_path = input("File path: ").strip()
+            if not file_path:
+                break
+            if os.path.exists(file_path):
+                files.append(file_path)
+            else:
+                print(f"❌ File not found: {file_path}")
+        return files
+
+if __name__ == "__main__":
+    main()
+```
+
+================================================================================
+3. 📦 BUILD VÀ PACKAGE TOOL
+================================================================================
+
+📄 **FILE: setup.py**
+```python
+from setuptools import setup, find_packages
+import json
+from pathlib import Path
+
+# Load tool config
+with open('assets/tool_config.json', 'r') as f:
+    config = json.load(f)
+
+setup(
+    name=config['tool_name'].lower().replace(' ', '-'),
+    version=config['tool_version'],
+    description=config['description'],
+    author=config['author'],
+    packages=find_packages(),
+    include_package_data=True,
+    package_data={
+        '': ['assets/*', 'assets/**/*'],
+    },
+    install_requires=[
+        'requests>=2.25.0',
+        'opencv-python>=4.5.0',
+        'numpy>=1.20.0',
+        # Add your tool-specific dependencies
+    ],
+    entry_points={
+        'console_scripts': [
+            'video-optimizer=src.main:main',
+        ],
+    },
+    python_requires='>=3.8',
+    classifiers=[
+        'Development Status :: 4 - Beta',
+        'Intended Audience :: End Users/Desktop',
+        'License :: Other/Proprietary License',
+        'Programming Language :: Python :: 3.8+',
+    ],
+)
+```
+
+📄 **FILE: build.py**
+```python
+#!/usr/bin/env python3
+"""
+Build script for Video Optimizer Pro
+Creates distributable package with license integration
+"""
+
+import os
+import sys
+import shutil
+import subprocess
+import json
+from pathlib import Path
+
+def build_tool():
+    """Build the tool package"""
+    print("🔨 Building Video Optimizer Pro...")
+    
+    # Clean previous builds
+    build_dirs = ['build', 'dist', '*.egg-info']
+    for pattern in build_dirs:
+        for path in Path('.').glob(pattern):
+            if path.is_dir():
+                shutil.rmtree(path)
+                print(f"🧹 Cleaned: {path}")
+    
+    # Copy license client
+    license_client_source = Path('../python_client/license_client.py')
+    license_client_dest = Path('assets/license_client.py')
+    
+    if license_client_source.exists():
+        shutil.copy2(license_client_source, license_client_dest)
+        print("📄 Copied license_client.py")
+    else:
+        print("❌ license_client.py not found!")
+        return False
+    
+    # Build wheel package
+    try:
+        subprocess.run([sys.executable, 'setup.py', 'bdist_wheel'], check=True)
+        print("✅ Wheel package created")
+    except subprocess.CalledProcessError:
+        print("❌ Failed to build wheel package")
+        return False
+    
+    # Build standalone executable (optional)
+    try:
+        subprocess.run([
+            'pyinstaller', 
+            '--onefile',
+            '--add-data', 'assets;assets',
+            '--name', 'video-optimizer-pro',
+            'src/main.py'
+        ], check=True)
+        print("✅ Standalone executable created")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("⚠️ PyInstaller not available, skipping executable build")
+    
+    # Create distribution package
+    create_distribution_package()
+    
+    return True
+
+def create_distribution_package():
+    """Create final distribution package"""
+    print("📦 Creating distribution package...")
+    
+    dist_dir = Path('distribution')
+    dist_dir.mkdir(exist_ok=True)
+    
+    # Copy wheel file
+    wheel_files = list(Path('dist').glob('*.whl'))
+    if wheel_files:
+        shutil.copy2(wheel_files[0], dist_dir)
+        print(f"📄 Copied: {wheel_files[0].name}")
+    
+    # Copy executable if exists
+    exe_files = list(Path('dist').glob('*.exe'))
+    if exe_files:
+        shutil.copy2(exe_files[0], dist_dir)
+        print(f"📄 Copied: {exe_files[0].name}")
+    
+    # Create installation script
+    create_install_script(dist_dir)
+    
+    # Create README for users
+    create_user_readme(dist_dir)
+    
+    print(f"✅ Distribution package ready in: {dist_dir}")
+
+def create_install_script(dist_dir):
+    """Create installation script for users"""
+    install_script = dist_dir / 'install.py'
+    
+    script_content = '''#!/usr/bin/env python3
+"""
+Installation script for Video Optimizer Pro
+"""
+
+import subprocess
+import sys
+import os
+from pathlib import Path
+
+def install():
+    print("🚀 Installing Video Optimizer Pro...")
+    
+    # Find wheel file
+    wheel_files = list(Path('.').glob('*.whl'))
+    if not wheel_files:
+        print("❌ No wheel file found!")
+        return False
+    
+    wheel_file = wheel_files[0]
+    
+    try:
+        # Install the package
+        subprocess.run([sys.executable, '-m', 'pip', 'install', str(wheel_file)], check=True)
+        print("✅ Installation completed!")
+        
+        print("\\n📋 Next steps:")
+        print("1. Run: video-optimizer")
+        print("2. Enter your license key when prompted")
+        print("3. Start optimizing videos!")
+        
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Installation failed: {e}")
+        return False
+
+if __name__ == "__main__":
+    install()
+'''
+    
+    with open(install_script, 'w') as f:
+        f.write(script_content)
+    
+    print("📄 Created install.py")
+
+def create_user_readme(dist_dir):
+    """Create README for end users"""
+    readme_file = dist_dir / 'README.txt'
+    
+    readme_content = '''
+🚀 Video Optimizer Pro - Installation Guide
+==========================================
+
+📦 INSTALLATION:
+1. Run: python install.py
+   OR
+2. Manual: pip install video-optimizer-pro-*.whl
+
+🔑 LICENSE ACTIVATION:
+1. Purchase license from: https://ezstream.pro/tools/video-optimizer
+2. Run the tool: video-optimizer
+3. Enter your license key when prompted
+4. License will be saved for future use
+
+💻 USAGE:
+- Command line: video-optimizer video1.mp4 video2.mp4
+- Interactive mode: video-optimizer (then enter file paths)
+
+📞 SUPPORT:
+- Email: support@ezstream.pro
+- Website: https://ezstream.pro
+- Documentation: https://docs.ezstream.pro
+
+🔧 REQUIREMENTS:
+- Python 3.8 or higher
+- Internet connection for license verification
+- Valid EzStream license key
+
+==========================================
+© 2025 EzStream Platform. All rights reserved.
+'''
+    
+    with open(readme_file, 'w') as f:
+        f.write(readme_content)
+    
+    print("📄 Created README.txt")
+
+if __name__ == "__main__":
+    if build_tool():
+        print("\\n🎉 Build completed successfully!")
+        print("📁 Check the 'distribution' folder for final package")
+    else:
+        print("\\n❌ Build failed!")
+        sys.exit(1)
+```
+
+================================================================================
+4. 🌐 DISTRIBUTION VÀ DOWNLOAD
+================================================================================
+
+🔗 **UPLOAD TO EZSTREAM SERVER**:
+```bash
+# 1. Build tool package
+python build.py
+
+# 2. Upload to server
+scp distribution/* user@ezstream.pro:/var/www/downloads/tools/video-optimizer/
+
+# 3. Update database download_url
+UPDATE tools SET 
+    download_url = 'https://ezstream.pro/downloads/tools/video-optimizer/video-optimizer-pro-1.2.0.zip',
+    version = '1.2.0',
+    last_updated = NOW()
+WHERE id = 1;
+```
+
+📥 **USER DOWNLOAD WORKFLOW**:
+```
+1. User mua tool → Nhận license key
+2. User download từ download_url
+3. User extract và chạy install.py
+4. Tool yêu cầu license key
+5. License verified → Tool ready to use
+```
+
+================================================================================
+5. 🛠️ TOOL-SPECIFIC EXAMPLES
+================================================================================
+
+🎬 **VIDEO OPTIMIZER TOOL (ID: 1)**:
+```python
+# tool_config.json
+{
+    "tool_id": 1,
+    "tool_name": "Video Optimizer Pro",
+    "tool_version": "1.2.0"
+}
+
+# Main functionality
+class VideoOptimizer:
+    def optimize(self, input_file, output_file):
+        # Your video optimization logic
+        pass
+```
+
+📺 **STREAM MANAGER TOOL (ID: 2)**:
+```python
+# tool_config.json  
+{
+    "tool_id": 2,
+    "tool_name": "Stream Manager Pro",
+    "tool_version": "2.1.0"
+}
+
+# Main functionality
+class StreamManager:
+    def manage_streams(self):
+        # Your stream management logic
+        pass
+```
+
+🎨 **CONTENT CREATOR SUITE (ID: 3)**:
+```python
+# tool_config.json
+{
+    "tool_id": 3,
+    "tool_name": "Content Creator Suite",
+    "tool_version": "1.0.0"
+}
+
+# Main functionality
+class ContentCreator:
+    def create_content(self):
+        # Your content creation logic
+        pass
+```
+
+================================================================================
+6. 🧪 TESTING VÀ DEPLOYMENT
+================================================================================
+
+🔬 **LOCAL TESTING**:
+```bash
+# 1. Set development server
+export EZSTREAM_SERVER_URL=http://localhost:8000
+
+# 2. Test license verification
+python src/main.py
+
+# 3. Test with different license types
+# - Valid license
+# - Expired license  
+# - Invalid license
+# - Network issues
+```
+
+🚀 **PRODUCTION DEPLOYMENT**:
+```bash
+# 1. Build production package
+python build.py
+
+# 2. Test package installation
+pip install dist/*.whl
+
+# 3. Test with production server
+video-optimizer
+
+# 4. Upload to download server
+# 5. Update database download_url
+# 6. Test end-to-end user flow
+```
+
+📊 **MONITORING**:
+```sql
+-- Track tool usage
+SELECT 
+    t.name,
+    COUNT(l.id) as active_licenses,
+    COUNT(CASE WHEN l.last_used_at > NOW() - INTERVAL 7 DAY THEN 1 END) as weekly_active
+FROM tools t
+LEFT JOIN licenses l ON t.id = l.tool_id
+WHERE t.is_active = 1
+GROUP BY t.id;
+```
+
+================================================================================
+🎯 KẾT LUẬN
+================================================================================
+
+HỆ THỐNG BUILD VÀ DISTRIBUTION này cung cấp:
+
+✅ **Standardized Structure**: Cấu trúc chuẩn cho mọi tool
+✅ **License Integration**: Tích hợp license seamless  
+✅ **Easy Distribution**: Build script tự động
+✅ **User-Friendly**: Installation đơn giản
+✅ **Tool Identification**: Unique tool_id cho mỗi tool
+✅ **Production Ready**: Monitoring và analytics
+
+**Developers có thể build và distribute tools professional!** 🚀
+
+================================================================================

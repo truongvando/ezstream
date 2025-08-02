@@ -134,3 +134,11 @@ Route::get('/agent/settings', function () {
     }
 })->middleware('agent.token')->name('agent.settings');
 
+// License API endpoints (for Python tools integration)
+Route::prefix('license')->middleware('throttle:60,1')->group(function () {
+    Route::get('/config', [\App\Http\Controllers\Api\LicenseController::class, 'config']); // Public config
+    Route::post('/verify', [\App\Http\Controllers\Api\LicenseController::class, 'verify']);
+    Route::post('/check-status', [\App\Http\Controllers\Api\LicenseController::class, 'checkStatus']);
+    Route::post('/deactivate', [\App\Http\Controllers\Api\LicenseController::class, 'deactivate']);
+});
+

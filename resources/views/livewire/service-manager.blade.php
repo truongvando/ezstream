@@ -124,4 +124,83 @@
             </div>
         </div>
     </div>
+
+    <!-- Payment Options Modal -->
+    @if($showPaymentModal && $selectedPackage)
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" wire:click="closePaymentModal">
+            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4" wire:click.stop>
+                <div class="p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-xl font-bold text-gray-900 dark:text-white">
+                            @emoji('money') Chọn phương thức thanh toán
+                        </h2>
+                        <button wire:click="closePaymentModal" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                            @svg('close', 'w-6 h-6')
+                        </button>
+                    </div>
+
+                    <!-- Package Info -->
+                    <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-6">
+                        <h3 class="font-semibold text-gray-900 dark:text-white">{{ $selectedPackage->name }}</h3>
+                        <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">${{ number_format($selectedPackage->price, 2) }}</p>
+                    </div>
+
+                    <!-- Payment Options -->
+                    <div class="space-y-3">
+                        @foreach($paymentOptions as $option)
+                            <button
+                                wire:click="processPayment('{{ $option['method'] }}')"
+                                @if(!$option['available']) disabled @endif
+                                class="w-full p-4 border rounded-lg text-left transition-colors duration-200
+                                       {{ $option['available']
+                                          ? 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer'
+                                          : 'border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 cursor-not-allowed opacity-60' }}">
+                                <div class="flex items-center">
+                                    <span class="text-2xl mr-3">{{ $option['icon'] }}</span>
+                                    <div class="flex-1">
+                                        <div class="font-medium text-gray-900 dark:text-white">{{ $option['name'] }}</div>
+                                        <div class="text-sm text-gray-500 dark:text-gray-400">{{ $option['description'] }}</div>
+                                    </div>
+                                    @if($option['available'])
+                                        @svg('check', 'w-5 h-5 text-green-500')
+                                    @endif
+                                </div>
+                            </button>
+                        @endforeach
+                    </div>
+
+                    @if($selectedPaymentMethod === 'bank_transfer' && $paymentTransaction)
+                        <!-- Bank Transfer Details -->
+                        <div class="mt-6 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg">
+                            <h4 class="font-semibold text-blue-900 dark:text-blue-100 mb-3">Thông tin chuyển khoản</h4>
+
+                            <div class="text-center mb-4">
+                                <img src="{{ $qrCodeUrl }}" alt="QR Code" class="w-48 h-48 mx-auto object-contain bg-white rounded">
+                                <p class="text-sm text-blue-700 dark:text-blue-300 mt-2">Quét mã QR để thanh toán</p>
+                            </div>
+
+                            <div class="space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-blue-700 dark:text-blue-300">Ngân hàng:</span>
+                                    <span class="font-medium text-blue-900 dark:text-blue-100">Vietcombank</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-blue-700 dark:text-blue-300">Số TK:</span>
+                                    <span class="font-medium text-blue-900 dark:text-blue-100">0971000032314</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-blue-700 dark:text-blue-300">Chủ TK:</span>
+                                    <span class="font-medium text-blue-900 dark:text-blue-100">TRUONG VAN DO</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-blue-700 dark:text-blue-300">Nội dung:</span>
+                                    <span class="font-medium text-blue-900 dark:text-blue-100">{{ $paymentTransaction->payment_code }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+    @endif
 </div>
