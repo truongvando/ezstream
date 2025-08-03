@@ -4,15 +4,31 @@
         <p class="text-gray-600 dark:text-gray-400">Nạp tiền để sử dụng các dịch vụ trên EzStream</p>
     </div>
 
-    <!-- Current Balance -->
-    <div class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-lg p-6 mb-6 text-white">
-        <div class="flex items-center justify-between">
-            <div>
-                <h2 class="text-lg font-medium opacity-90">Số dư hiện tại</h2>
-                <p class="text-3xl font-bold">$<?php echo e(number_format(auth()->user()->balance, 2)); ?></p>
+    <!-- Balance & Total Deposits -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <!-- Current Balance -->
+        <div class="bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg shadow-lg p-6 text-white">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-medium opacity-90">Số dư hiện tại</h2>
+                    <p class="text-3xl font-bold">$<?php echo e(number_format(auth()->user()->balance, 2)); ?></p>
+                </div>
+                <div class="text-6xl opacity-20">
+                    💳
+                </div>
             </div>
-            <div class="text-6xl opacity-20">
-                💳
+        </div>
+
+        <!-- Total Deposits -->
+        <div class="bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg shadow-lg p-6 text-white">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 class="text-lg font-medium opacity-90">Tổng đã nạp</h2>
+                    <p class="text-3xl font-bold">$<?php echo e(number_format($totalDeposits, 2)); ?></p>
+                </div>
+                <div class="text-6xl opacity-20">
+                    📈
+                </div>
             </div>
         </div>
     </div>

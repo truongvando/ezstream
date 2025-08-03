@@ -698,6 +698,10 @@ Route::middleware(['auth', 'locale'])->group(function () {
     // Deposit Routes
     Route::get('/deposit', \App\Livewire\DepositManager::class)->name('deposit.index');
 
+    // MMO Services Routes
+    Route::get('/mmo-services', \App\Livewire\User\MmoServices::class)->name('mmo-services.index');
+    Route::get('/mmo-orders', \App\Livewire\User\MmoOrders::class)->name('mmo-orders.index');
+
 
     Route::middleware('role:admin')->prefix('admin')->name('admin.')->group(function () {
         Route::get('/dashboard', AdminDashboard::class)->name('dashboard');
@@ -738,6 +742,8 @@ Route::middleware(['auth', 'locale'])->group(function () {
         Route::get('/pending-orders', \App\Livewire\Admin\PendingOrdersManager::class)->name('admin.pending-orders');
         Route::get('/balance-manager', \App\Livewire\Admin\BalanceManager::class)->name('admin.balance-manager');
         Route::get('/payment-manager', \App\Livewire\Admin\PaymentManager::class)->name('admin.payment-manager');
+        Route::get('/mmo-services', \App\Livewire\Admin\MmoServiceManager::class)->name('admin.mmo-services');
+        Route::get('/mmo-orders', \App\Livewire\Admin\MmoOrderManager::class)->name('admin.mmo-orders');
         Route::get('/licenses', \App\Livewire\Admin\LicenseManager::class)->name('licenses.index');
         Route::get('/orders', \App\Livewire\Admin\OrderManager::class)->name('orders.index');
     });

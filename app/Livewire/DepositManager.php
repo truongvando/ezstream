@@ -134,8 +134,18 @@ class DepositManager extends Component
                                    ->limit(10)
                                    ->get();
 
+        // Calculate total deposits
+        $totalDeposits = Transaction::where('user_id', $user->id)
+                                  ->where('status', 'COMPLETED')
+                                  ->whereNull('subscription_id')
+                                  ->whereNull('tool_order_id')
+                                  ->whereNull('view_order_id')
+                                  ->where('description', 'LIKE', 'Nạp tiền%')
+                                  ->sum('amount');
+
         return view('livewire.deposit-manager', [
-            'recentDeposits' => $recentDeposits
+            'recentDeposits' => $recentDeposits,
+            'totalDeposits' => $totalDeposits
         ]);
     }
 }
