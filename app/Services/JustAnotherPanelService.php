@@ -13,7 +13,7 @@ class JustAnotherPanelService
 
     public function __construct()
     {
-        $this->apiKey = setting('jap_api_key');
+        $this->apiKey = env('JAP_API_KEY') ?? setting('jap_api_key');
     }
 
     /**
@@ -53,6 +53,77 @@ class JustAnotherPanelService
         } catch (Exception $e) {
             Log::error('JAP API Exception: ' . $e->getMessage());
             return ['success' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Sync services from API to database
+     */
+    public function syncServices()
+    {
+        try {
+            $result = $this->getServices();
+
+            if (!$result['success']) {
+                return ['success' => false, 'message' => $result['message']];
+            }
+
+            $services = $result['data'];
+            $synced = 0;
+            $created = 0;
+            $updated = 0;
+
+            foreach ($services as $serviceData) {
+                // Convert array to object if needed
+                if (is_array($serviceData)) {
+                    $serviceData = (object) $serviceData;
+                }
+
+                // Find or create service (using ApiService model)
+                $service = \App\Models\ApiService::updateOrCreate(
+                    ['service_id' => $serviceData->service],
+                    [
+                        'name' => $serviceData->name,
+                        'type' => $serviceData->type ?? 'Default',
+                        'category' => $serviceData->category,
+                        'rate' => (float) $serviceData->rate,
+                        'min_quantity' => (int) $serviceData->min,
+                        'max_quantity' => (int) $serviceData->max,
+                        'refill' => $serviceData->refill ?? false,
+                        'cancel' => $serviceData->cancel ?? false,
+                        'is_active' => true,
+                        'markup_percentage' => 20, // Default markup
+                    ]
+                );
+
+                if ($service->wasRecentlyCreated) {
+                    $created++;
+                } else {
+                    $updated++;
+                }
+                $synced++;
+            }
+
+            Log::info('JAP Services Sync Completed', [
+                'synced' => $synced,
+                'created' => $created,
+                'updated' => $updated
+            ]);
+
+            return [
+                'success' => true,
+                'synced' => $synced,
+                'created' => $created,
+                'updated' => $updated
+            ];
+
+        } catch (Exception $e) {
+            Log::error('JAP Sync Error: Exception occurred', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return ['success' => false, 'message' => 'Sync failed: ' . $e->getMessage()];
         }
     }
 

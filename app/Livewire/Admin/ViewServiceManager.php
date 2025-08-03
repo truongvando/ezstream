@@ -69,9 +69,13 @@ class ViewServiceManager extends Component
         try {
             $japService = new JustAnotherPanelService();
             $result = $japService->syncServices();
-            
-            session()->flash('success', "Synced {$result['synced']} services from API. {$result['updated']} updated, {$result['created']} created.");
-            
+
+            if ($result['success']) {
+                session()->flash('success', "Synced {$result['synced']} services from API. {$result['updated']} updated, {$result['created']} created.");
+            } else {
+                session()->flash('error', 'Error syncing services: ' . $result['message']);
+            }
+
         } catch (\Exception $e) {
             Log::error('Error syncing services from API: ' . $e->getMessage());
             session()->flash('error', 'Error syncing services from API.');
@@ -249,10 +253,17 @@ class ViewServiceManager extends Component
             $query->where('category', $this->categoryFilter);
         }
 
-        $services = $query->withCount('viewOrders')
-                         ->orderBy('category')
-                         ->orderBy('name')
-                         ->paginate(15);
+        $paginatedServices = $query->withCount('viewOrders')
+                                   ->orderBy('category')
+                                   ->orderBy('name')
+                                   ->paginate(15);
+
+        // Group services by category for dropdown
+        $allServices = ApiService::where('is_active', true)
+                                ->orderBy('category')
+                                ->orderBy('name')
+                                ->get()
+                                ->groupBy('category');
 
         // Get statistics
         $stats = [
@@ -264,7 +275,8 @@ class ViewServiceManager extends Component
         ];
 
         return view('livewire.admin.view-service-manager', [
-            'services' => $services,
+            'paginatedServices' => $paginatedServices,
+            'services' => $allServices, // For dropdown
             'stats' => $stats
         ]);
     }

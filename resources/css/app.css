@@ -43,6 +43,37 @@
     background: rgba(255, 255, 255, 0.5);
 }
 
+/* Dropdown Z-Index Fix */
+.dropdown-menu,
+[x-show="open"],
+.absolute[class*="z-"],
+.fixed[class*="z-"] {
+    z-index: 9999 !important;
+}
+
+/* Notification Dropdown Fix */
+.notification-dropdown,
+.user-dropdown,
+.bell-dropdown {
+    z-index: 9999 !important;
+    position: absolute !important;
+}
+
+/* Fix all Alpine.js dropdowns */
+[x-data] [x-show="open"] {
+    z-index: 9999 !important;
+}
+
+/* Fix all absolute positioned elements */
+.absolute {
+    z-index: 9999 !important;
+}
+
+/* Override Tailwind z-index classes */
+.z-50 {
+    z-index: 9999 !important;
+}
+
 /* Quick Stream Modal Styles */
 .quick-stream-checkbox {
     position: relative;

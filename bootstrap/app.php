@@ -94,6 +94,21 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->job(new \App\Jobs\ProcessScheduledDeletionsJob())
                  ->hourly()
                  ->withoutOverlapping();
+
+        // 📋 Process scheduled orders (hẹn giờ đặt hàng)
+        $schedule->job(new \App\Jobs\ProcessScheduledOrdersJob())
+                 ->everyMinute()
+                 ->withoutOverlapping();
+
+        // 🔍 Check view order status (sync với JAP)
+        $schedule->command('orders:check-status')
+                 ->everyFiveMinutes()
+                 ->withoutOverlapping();
+
+        // 💰 Process pending deposits (check bank transactions)
+        $schedule->command('deposits:process-pending')
+                 ->everyMinute()
+                 ->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->use([

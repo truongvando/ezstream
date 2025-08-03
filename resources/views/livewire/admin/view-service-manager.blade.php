@@ -1,6 +1,6 @@
 <div class="p-6">
     <div class="mb-6">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">👁️ Quản lý View Services</h1>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Quản lý View Services</h1>
         <p class="text-gray-600 dark:text-gray-400">Quản lý dịch vụ view từ Just Another Panel API</p>
     </div>
 
@@ -123,7 +123,7 @@
                     </tr>
                 </thead>
                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    @forelse($services as $service)
+                    @forelse($paginatedServices as $service)
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div>
@@ -189,7 +189,7 @@
 
         <!-- Pagination -->
         <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-            {{ $services->links() }}
+            {{ $paginatedServices->links() }}
         </div>
     </div>
 

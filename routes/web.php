@@ -735,6 +735,9 @@ Route::middleware(['auth', 'locale'])->group(function () {
         Route::delete('/tools/{tool}', [\App\Http\Controllers\Admin\ToolController::class, 'destroy'])->name('tools.destroy');
 
         Route::get('/view-services', \App\Livewire\Admin\ViewServiceManager::class)->name('view-services.index');
+        Route::get('/pending-orders', \App\Livewire\Admin\PendingOrdersManager::class)->name('admin.pending-orders');
+        Route::get('/balance-manager', \App\Livewire\Admin\BalanceManager::class)->name('admin.balance-manager');
+        Route::get('/payment-manager', \App\Livewire\Admin\PaymentManager::class)->name('admin.payment-manager');
         Route::get('/licenses', \App\Livewire\Admin\LicenseManager::class)->name('licenses.index');
         Route::get('/orders', \App\Livewire\Admin\OrderManager::class)->name('orders.index');
     });
