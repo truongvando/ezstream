@@ -39,6 +39,40 @@ Route::post('/vps/webhook/{token}', [WebhookController::class, 'handleVpsWebhook
 Route::middleware(['web', 'auth'])->group(function () {
     Route::post('/generate-upload-url', [FileUploadController::class, 'generateUploadUrl']);
     Route::post('/confirm-upload', [FileUploadController::class, 'confirmUpload']);
+
+    // Settings API
+    Route::get('/settings/streaming-method', function() {
+        $streamingMethod = \App\Models\Setting::where('key', 'streaming_method')->value('value') ?? 'ffmpeg_copy';
+        return response()->json(['streaming_method' => $streamingMethod]);
+    });
+
+    Route::get('/settings/storage-mode', function() {
+        $storageMode = \App\Models\Setting::where('key', 'storage_mode')->value('value') ?? 'server';
+        return response()->json(['storage_mode' => $storageMode]);
+    });
+
+    // Stream Library routes (for SRS streaming)
+    Route::prefix('stream-library')->group(function () {
+        Route::post('/generate-upload-url', [\App\Http\Controllers\StreamLibraryController::class, 'generateUploadUrl']);
+        Route::post('/upload', [\App\Http\Controllers\StreamLibraryController::class, 'uploadFile']);
+        Route::post('/check-status', [\App\Http\Controllers\StreamLibraryController::class, 'checkStatus']);
+        Route::post('/migrate-file', [\App\Http\Controllers\StreamLibraryController::class, 'migrateFile']);
+        Route::get('/test-connection', [\App\Http\Controllers\StreamLibraryController::class, 'testConnection']);
+        Route::get('/stats', [\App\Http\Controllers\StreamLibraryController::class, 'getStats']);
+    });
+
+    // Playlist management routes
+    Route::prefix('playlist')->group(function () {
+        Route::post('/validate-files', [\App\Http\Controllers\Api\PlaylistController::class, 'validateFiles']);
+        Route::post('/update/{stream}', [\App\Http\Controllers\Api\PlaylistController::class, 'updatePlaylist']);
+        Route::get('/status/{stream}', [\App\Http\Controllers\Api\PlaylistController::class, 'getStatus']);
+    });
+});
+
+// BunnyCDN Webhook (no auth required)
+Route::prefix('bunny')->group(function () {
+    Route::post('/webhook/stream', [\App\Http\Controllers\Api\BunnyWebhookController::class, 'handleStreamWebhook']);
+    Route::post('/webhook/test', [\App\Http\Controllers\Api\BunnyWebhookController::class, 'testWebhook']);
 });
 
 // Server upload endpoint - separate from auth middleware to avoid session issues

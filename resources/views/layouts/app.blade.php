@@ -458,6 +458,9 @@
         <!-- Livewire Scripts -->
         @livewireScripts
 
+        <!-- TUS Resumable Upload Library -->
+        <script src="https://cdn.jsdelivr.net/npm/tus-js-client@3.1.1/dist/tus.min.js"></script>
+
         <!-- Global file upload script -->
         <script src="{{ asset('js/file-upload.js') }}"></script>
 

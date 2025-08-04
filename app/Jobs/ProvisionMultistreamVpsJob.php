@@ -58,18 +58,31 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
             // 2. Upload and set up EZStream Agent v5.0
             $this->uploadAndSetupStreamAgent($sshService, $vps);
 
-            // 3. Verify services and dependencies
+            // 3. Setup SRS Server (if enabled)
+            $this->setupSrsServer($sshService, $vps);
+
+            // 4. Verify services and dependencies
             $this->verifyBaseServices($sshService, $vps);
             $this->verifyPythonDependencies($sshService, $vps);
 
-            // 4. Update VPS status
+            // 5. Update VPS status
             $maxStreams = $this->calculateMaxStreams($sshService, $vps);
-            
+
+            // Check if SRS is installed
+            $srsInstalled = $this->isSrsInstalled($sshService);
+            $capabilities = ['direct-ffmpeg', 'youtube-streaming', 'redis-agent', 'process-manager'];
+            $statusMessage = 'Provisioned with EZStream Agent v5.0 (Direct FFmpeg)';
+
+            if ($srsInstalled) {
+                $capabilities[] = 'srs-streaming';
+                $statusMessage = 'Provisioned with EZStream Agent v5.0 + SRS Server';
+            }
+
             $vps->update([
                 'status' => 'ACTIVE',
                 'last_provisioned_at' => now(),
-                'status_message' => 'Provisioned with EZStream Agent v5.0 (Direct FFmpeg)',
-                'capabilities' => json_encode(['direct-ffmpeg', 'youtube-streaming', 'redis-agent', 'process-manager']),
+                'status_message' => $statusMessage,
+                'capabilities' => json_encode($capabilities),
                 'max_concurrent_streams' => $maxStreams,
                 'current_streams' => 0,
                 'webhook_configured' => false, // No longer using webhooks
@@ -383,6 +396,93 @@ WantedBy=multi-user.target";
             'status_message' => 'Provision failed: ' . Str::limit($exception->getMessage(), 250),
             'error_message' => $exception->getMessage(),
         ]);
+    }
+
+    /**
+     * Setup SRS Server for streaming
+     */
+    private function setupSrsServer(SshService $sshService, VpsServer $vps): void
+    {
+        try {
+            Log::info("🎬 [VPS #{$vps->id}] Setting up SRS Server...");
+
+            // Check if SRS should be installed (based on settings)
+            $streamingMethod = \App\Models\Setting::where('key', 'streaming_method')->value('value') ?? 'ffmpeg_copy';
+
+            if ($streamingMethod !== 'srs') {
+                Log::info("🔧 [VPS #{$vps->id}] SRS not enabled in settings, skipping installation");
+                return;
+            }
+
+            $vps->update(['status_message' => 'Installing SRS Server...']);
+
+            // Run SRS setup script
+            $agentDir = '/opt/ezstream-agent';
+            $setupScript = "{$agentDir}/setup-srs.sh";
+
+            // Make setup script executable
+            $sshService->execute("chmod +x {$setupScript}");
+
+            // Run SRS setup
+            $result = $sshService->execute("{$setupScript} setup", 300); // 5 minute timeout
+
+            if (strpos($result, 'SRS Server setup completed successfully') !== false) {
+                Log::info("✅ [VPS #{$vps->id}] SRS Server installed successfully");
+
+                // Verify SRS is running
+                $this->verifySrsInstallation($sshService, $vps);
+            } else {
+                Log::warning("⚠️ [VPS #{$vps->id}] SRS setup may have failed, output: {$result}");
+            }
+
+        } catch (\Exception $e) {
+            Log::error("❌ [VPS #{$vps->id}] Failed to setup SRS Server: " . $e->getMessage());
+            // Don't throw - SRS is optional, continue with FFmpeg fallback
+        }
+    }
+
+    /**
+     * Verify SRS installation
+     */
+    private function verifySrsInstallation(SshService $sshService, VpsServer $vps): void
+    {
+        try {
+            Log::info("🔍 [VPS #{$vps->id}] Verifying SRS installation...");
+
+            // Check if SRS container is running
+            $result = $sshService->execute("docker ps --filter 'name=ezstream-srs' --format '{{.Status}}'");
+
+            if (strpos($result, 'Up') !== false) {
+                Log::info("✅ [VPS #{$vps->id}] SRS container is running");
+
+                // Test SRS API
+                $apiTest = $sshService->execute("curl -s http://localhost:1985/api/v1/summaries | grep '\"code\":0' || echo 'API_FAILED'");
+
+                if (strpos($apiTest, 'API_FAILED') === false) {
+                    Log::info("✅ [VPS #{$vps->id}] SRS API is responding correctly");
+                } else {
+                    Log::warning("⚠️ [VPS #{$vps->id}] SRS API test failed");
+                }
+            } else {
+                Log::warning("⚠️ [VPS #{$vps->id}] SRS container is not running");
+            }
+
+        } catch (\Exception $e) {
+            Log::error("❌ [VPS #{$vps->id}] Failed to verify SRS installation: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Check if SRS is installed and running
+     */
+    private function isSrsInstalled(SshService $sshService): bool
+    {
+        try {
+            $result = $sshService->execute("docker ps --filter 'name=ezstream-srs' --format '{{.Status}}'");
+            return strpos($result, 'Up') !== false;
+        } catch (\Exception $e) {
+            return false;
+        }
     }
 
     private function mockProvisionSuccess(VpsServer $vps): void

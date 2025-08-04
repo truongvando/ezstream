@@ -1086,6 +1086,8 @@ Route::middleware(['auth'])->group(function () {
 
     // Debug route to see AI prompt data
     Route::get('/debug-ai-prompt/{channelId}', [App\Http\Controllers\YoutubeAIController::class, 'debugPrompt'])->name('debug.ai.prompt');
+
+
 });
 
 require __DIR__.'/auth.php';

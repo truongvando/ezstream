@@ -117,43 +117,59 @@ class StartMultistreamJob implements ShouldQueue
     private function buildConfigPayload(StreamConfiguration $stream): array
     {
         $stream->load('userFile'); // Eager load relations
+
+        // Get streaming method from settings
+        $streamingMethod = \App\Models\Setting::where('key', 'streaming_method')->value('value') ?? 'ffmpeg_copy';
+
+        // Determine if we should use SRS
+        $useSrs = $streamingMethod === 'srs';
+
         return [
             'command' => 'START_STREAM',  // ← FIX: Agent cần biết command
             'config' => [
                 'id' => $stream->id,
                 'stream_key' => $stream->stream_key,
-                'video_files' => $this->prepareVideoFiles($stream),
+                'video_files' => $this->prepareVideoFiles($stream, $useSrs),
                 'rtmp_url' => $stream->rtmp_url . '/' . $stream->stream_key,
                 'push_urls' => $stream->push_urls ?? [],
                 'loop' => $stream->loop ?? true,
                 'keep_files_on_agent' => $stream->keep_files_on_agent ?? false,
+                'use_srs' => $useSrs,  // NEW: Tell agent to use SRS
+                'streaming_method' => $streamingMethod,  // NEW: Pass streaming method
             ]
         ];
     }
 
-    private function prepareVideoFiles(StreamConfiguration $stream): array
+    private function prepareVideoFiles(StreamConfiguration $stream, bool $useSrs = false): array
     {
         $videoFiles = [];
         foreach (($stream->video_source_path ?? []) as $fileInfo) {
             $userFile = \App\Models\UserFile::find($fileInfo['file_id']);
             if (!$userFile) continue;
 
-            $downloadUrl = $this->getDownloadUrl($userFile);
+            $downloadUrl = $this->getDownloadUrl($userFile, $useSrs);
             if ($downloadUrl) {
                 $videoFiles[] = [
                     'file_id' => $userFile->id,
                     'filename' => $userFile->original_name,
                     'download_url' => $downloadUrl,
                     'size' => $userFile->size,
+                    'disk' => $userFile->disk,
+                    'use_srs' => $useSrs,  // NEW: Pass SRS flag to agent
                 ];
             }
         }
         return $videoFiles;
     }
 
-    private function getDownloadUrl(\App\Models\UserFile $userFile): ?string
+    private function getDownloadUrl(\App\Models\UserFile $userFile, bool $useSrs = false): ?string
     {
         try {
+            // For SRS streaming, check if we should use Stream Library
+            if ($useSrs && $this->shouldUseStreamLibrary($userFile)) {
+                return $this->getStreamLibraryUrl($userFile);
+            }
+
             // Handle all storage types through BunnyStorageService
             if (in_array($userFile->disk, ['bunny_cdn', 'local', 'hybrid'])) {
                 $bunnyService = app(\App\Services\BunnyStorageService::class);
@@ -171,6 +187,36 @@ class StartMultistreamJob implements ShouldQueue
 
         } catch (\Exception $e) {
             Log::error("Failed to get download URL", ['file_id' => $userFile->id, 'error' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    /**
+     * Check if we should use Stream Library for this file
+     */
+    private function shouldUseStreamLibrary(\App\Models\UserFile $userFile): bool
+    {
+        // Check if file has stream_video_id (uploaded to Stream Library)
+        return !empty($userFile->stream_video_id);
+    }
+
+    /**
+     * Get Stream Library URL for SRS streaming
+     */
+    private function getStreamLibraryUrl(\App\Models\UserFile $userFile): ?string
+    {
+        try {
+            if (empty($userFile->stream_video_id)) {
+                return null;
+            }
+
+            $bunnyStreamService = app(\App\Services\BunnyStreamService::class);
+
+            // Return HLS playlist URL for SRS to ingest
+            return $bunnyStreamService->getHlsUrl($userFile->stream_video_id);
+
+        } catch (\Exception $e) {
+            Log::error("Failed to get Stream Library URL for file {$userFile->id}: " . $e->getMessage());
             return null;
         }
     }

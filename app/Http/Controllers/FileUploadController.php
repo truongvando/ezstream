@@ -223,7 +223,14 @@ class FileUploadController extends Controller
                 $request->size
             );
 
-            return response()->json([
+            // Check if upload URL generation was successful
+            if (!$uploadData['success']) {
+                return response()->json([
+                    'error' => $uploadData['error'] ?? 'Failed to generate upload URL'
+                ], 500);
+            }
+
+            $response = [
                 'status' => 'success',
                 'upload_url' => $uploadData['upload_url'],
                 'upload_token' => $uploadData['upload_token'],
@@ -231,7 +238,18 @@ class FileUploadController extends Controller
                 'access_key' => $uploadData['access_key'] ?? null,
                 'method' => $uploadData['method'] ?? 'PUT',
                 'storage_mode' => $uploadData['storage_mode'] ?? 'cdn'
-            ]);
+            ];
+
+            // Add TUS-specific fields if method is TUS
+            if (($uploadData['method'] ?? '') === 'TUS') {
+                $response['video_id'] = $uploadData['video_id'] ?? null;
+                $response['library_id'] = $uploadData['library_id'] ?? null;
+                $response['auth_signature'] = $uploadData['auth_signature'] ?? null;
+                $response['auth_expire'] = $uploadData['auth_expire'] ?? null;
+                $response['upload_token'] = $uploadData['upload_token'] ?? null; // Add upload_token for confirmation
+            }
+
+            return response()->json($response);
 
         } catch (\Exception $e) {
             return response()->json([
@@ -245,6 +263,16 @@ class FileUploadController extends Controller
      */
     public function confirmUpload(Request $request)
     {
+        $user = Auth::user();
+
+        Log::info("Confirm upload request received", [
+            'user_id' => $user->id,
+            'user_role' => $user->hasRole('admin') ? 'admin' : 'user',
+            'upload_token' => $request->upload_token,
+            'size' => $request->size,
+            'content_type' => $request->content_type
+        ]);
+
         $request->validate([
             'upload_token' => 'required|string',
             'size' => 'required|integer|min:1',

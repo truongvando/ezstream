@@ -11,17 +11,18 @@ class FileController extends Controller
     public function index()
     {
         $user = Auth::user();
-        $files = $user->files()->latest()->get();
 
-        // Calculate storage usage and limits
-        $storageUsage = $user->files()->sum('size');
-
-        // Admin has unlimited storage, regular users follow package limits
+        // Admin sees all files, regular users see only their files
         if ($user->hasRole('admin')) {
+            $files = UserFile::with('user')->latest()->get();
+            $storageUsage = UserFile::sum('size');
             $storageLimit = null; // Unlimited for admin
             $canUpload = true;
             $maxFileSize = 10 * 1024 * 1024 * 1024; // 10GB for admin
         } else {
+            $files = $user->files()->latest()->get();
+            $storageUsage = $user->files()->sum('size');
+
             // Get user's package storage limit
             $package = $user->currentPackage();
             $storageLimit = $package ? $package->storage_limit_gb * 1024 * 1024 * 1024 : 5 * 1024 * 1024 * 1024; // Default 5GB
@@ -48,31 +49,55 @@ class FileController extends Controller
 
         try {
             $user = Auth::user();
-            $file = $user->files()->find($request->file_id);
-            
-            if (!$file) {
-                return response()->json(['error' => 'File không tồn tại.'], 404);
-            }
-            
-            $fileName = $file->original_name;
 
-            // Delete from Bunny.net if exists
+            // Admin can delete any file, regular users can only delete their own files
+            if ($user->hasRole('admin')) {
+                $file = UserFile::find($request->file_id);
+            } else {
+                $file = $user->files()->find($request->file_id);
+            }
+
+            if (!$file) {
+                return response()->json(['error' => 'File không tồn tại hoặc bạn không có quyền xóa file này.'], 404);
+            }
+
+            $fileName = $file->original_name;
+            $fileOwner = $file->user->name ?? 'Unknown';
+
+            // Delete from storage based on disk type
             if ($file->disk === 'bunny_cdn' && $file->path) {
                 $bunnyService = app(\App\Services\BunnyStorageService::class);
                 $result = $bunnyService->deleteFile($file->path);
                 if (!$result['success']) {
-                    \Log::warning('Failed to delete file from Bunny.net: ' . ($result['error'] ?? 'Unknown error'));
+                    \Log::warning('Failed to delete file from Bunny CDN: ' . ($result['error'] ?? 'Unknown error'));
+                }
+            } elseif ($file->disk === 'bunny_stream' && $file->stream_video_id) {
+                // Delete from Bunny Stream Library
+                $streamService = app(\App\Services\BunnyStreamService::class);
+                $result = $streamService->deleteVideo($file->stream_video_id);
+                if (!$result['success']) {
+                    \Log::warning('Failed to delete video from Bunny Stream: ' . ($result['error'] ?? 'Unknown error'));
+                }
+            } elseif ($file->disk === 'local' && $file->path) {
+                // Delete from local storage
+                $localPath = storage_path('app/files/' . $file->path);
+                if (file_exists($localPath)) {
+                    unlink($localPath);
                 }
             }
-            
+
             // Delete database record
             $file->delete();
-            
+
+            $message = $user->hasRole('admin')
+                ? "File '{$fileName}' của user '{$fileOwner}' đã được xóa thành công!"
+                : "File '{$fileName}' đã được xóa thành công!";
+
             return response()->json([
                 'success' => true,
-                'message' => "File '{$fileName}' đã được xóa thành công!"
+                'message' => $message
             ]);
-            
+
         } catch (\Exception $e) {
             \Log::error('Delete file error: ' . $e->getMessage());
             return response()->json([

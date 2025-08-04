@@ -19,6 +19,8 @@ from config import get_config
 from utils import safe_json_loads, PerformanceTimer
 from status_reporter import get_status_reporter
 from stream_manager import get_stream_manager
+from srs_manager import init_srs_manager, get_srs_manager
+from srs_stream_manager import init_srs_stream_manager, get_srs_stream_manager
 
 
 
@@ -320,20 +322,40 @@ class CommandHandler:
                 self.active_commands.pop(command_key, None)
     
     def _handle_start_stream(self, stream_id: int, config: Dict[str, Any], command_data: Dict[str, Any]) -> bool:
-        """Handle START_STREAM command - simplified"""
+        """Handle START_STREAM command with SRS support"""
         try:
             logging.info(f"🚀 [COMMAND] Starting stream {stream_id}")
 
-            if not self.stream_manager:
-                logging.error("Stream manager not available")
+            # Check streaming method preference
+            use_srs = self.config.srs_enabled and config.get('use_srs', False)
+
+            if use_srs:
+                return self._start_stream_srs(stream_id, config)
+            else:
+                return self._start_stream_ffmpeg(stream_id, config)
+
+        except Exception as e:
+            logging.error(f"❌ Error in start_stream handler: {e}")
+            return False
+
+    def _start_stream_srs(self, stream_id: int, config: Dict[str, Any]) -> bool:
+        """Start stream using SRS"""
+        try:
+            logging.info(f"🎬 [SRS] Starting stream {stream_id}")
+
+            # Get SRS stream manager
+            srs_stream_manager = get_srs_stream_manager()
+            if not srs_stream_manager:
+                logging.error("❌ SRS stream manager not available")
+                if self.config.srs_fallback_to_ffmpeg:
+                    logging.info("🔄 Falling back to FFmpeg method")
+                    return self._start_stream_ffmpeg(stream_id, config)
                 return False
 
-            # Start the stream directly - Laravel already decided this is valid
-            # Convert config to new API format
+            # Convert config to SRS format
             video_files = []
             for video_file in config.get('video_files', []):
                 if isinstance(video_file, dict):
-                    # Try different field names: download_url, url, path
                     file_path = video_file.get('download_url') or video_file.get('url') or video_file.get('path', '')
                     video_files.append(file_path)
                 else:
@@ -349,7 +371,60 @@ class CommandHandler:
             rtmp_endpoint = None
             rtmp_url = config.get('rtmp_url', '')
             if not rtmp_url.startswith('rtmp://'):
-                # Direct file output
+                rtmp_endpoint = rtmp_url
+
+            result = srs_stream_manager.start_stream(
+                stream_id=stream_id,
+                video_files=video_files,
+                stream_config=stream_config,
+                rtmp_endpoint=rtmp_endpoint
+            )
+
+            if result:
+                logging.info(f"✅ [SRS] Stream {stream_id} started successfully")
+            else:
+                logging.error(f"❌ [SRS] Failed to start stream {stream_id}")
+                if self.config.srs_fallback_to_ffmpeg:
+                    logging.info("🔄 Falling back to FFmpeg method")
+                    return self._start_stream_ffmpeg(stream_id, config)
+
+            return result
+
+        except Exception as e:
+            logging.error(f"❌ [SRS] Error starting stream: {e}")
+            if self.config.srs_fallback_to_ffmpeg:
+                logging.info("🔄 Falling back to FFmpeg method")
+                return self._start_stream_ffmpeg(stream_id, config)
+            return False
+
+    def _start_stream_ffmpeg(self, stream_id: int, config: Dict[str, Any]) -> bool:
+        """Start stream using FFmpeg (original method)"""
+        try:
+            logging.info(f"🎥 [FFmpeg] Starting stream {stream_id}")
+
+            if not self.stream_manager:
+                logging.error("Stream manager not available")
+                return False
+
+            # Convert config to original API format
+            video_files = []
+            for video_file in config.get('video_files', []):
+                if isinstance(video_file, dict):
+                    file_path = video_file.get('download_url') or video_file.get('url') or video_file.get('path', '')
+                    video_files.append(file_path)
+                else:
+                    video_files.append(str(video_file))
+
+            stream_config = {
+                'loop': config.get('loop', True),
+                'rtmp_url': config.get('rtmp_url', ''),
+                'stream_key': config.get('stream_key', '')
+            }
+
+            # Handle direct file output for testing
+            rtmp_endpoint = None
+            rtmp_url = config.get('rtmp_url', '')
+            if not rtmp_url.startswith('rtmp://'):
                 rtmp_endpoint = rtmp_url
 
             result = self.stream_manager.start_stream(
@@ -360,14 +435,14 @@ class CommandHandler:
             )
 
             if result:
-                logging.info(f"✅ Stream {stream_id} started successfully")
+                logging.info(f"✅ [FFmpeg] Stream {stream_id} started successfully")
             else:
-                logging.error(f"❌ Failed to start stream {stream_id}")
+                logging.error(f"❌ [FFmpeg] Failed to start stream {stream_id}")
 
             return result
 
         except Exception as e:
-            logging.error(f"❌ Error in start_stream handler: {e}")
+            logging.error(f"❌ [FFmpeg] Error starting stream: {e}")
             return False
     
     def _handle_stop_stream(self, stream_id: int, config: Dict[str, Any], command_data: Dict[str, Any]) -> bool:
@@ -734,6 +809,9 @@ class CommandHandler:
 
             logging.info("✅ Settings refreshed successfully")
 
+            # Handle SRS-specific settings
+            self._handle_streaming_method_change(updated_settings)
+
             # Apply settings to running streams if needed
             if self.stream_manager:
                 active_streams = self.stream_manager.get_active_streams()
@@ -742,7 +820,7 @@ class CommandHandler:
 
                     # Check if critical settings changed that require restart
                     critical_settings = [
-                        'ffmpeg_mode', 'hls_video_preset', 'hls_video_crf',
+                        'ffmpeg_mode', 'hls_video_preset', 'hls_video_crf', 'streaming_method',
                         'hls_video_maxrate', 'hls_audio_bitrate'
                     ]
 
@@ -767,6 +845,38 @@ class CommandHandler:
         except Exception as e:
             logging.error(f"❌ Error in refresh_settings handler: {e}")
             return False
+
+    def _handle_streaming_method_change(self, updated_settings: Dict[str, Any]):
+        """Handle streaming method change"""
+        try:
+            streaming_method = updated_settings.get('streaming_method', 'ffmpeg_copy')
+            logging.info(f"🎬 Streaming method: {streaming_method}")
+
+            if streaming_method == 'srs':
+                # Initialize SRS managers if not already done
+                if not get_srs_manager():
+                    logging.info("🔧 Initializing SRS managers...")
+                    init_srs_manager()
+                    init_srs_stream_manager()
+
+                    # Start SRS monitoring
+                    srs_stream_manager = get_srs_stream_manager()
+                    if srs_stream_manager:
+                        srs_stream_manager.start_monitoring()
+                        logging.info("✅ SRS managers initialized and monitoring started")
+
+                # Check SRS server status
+                srs_manager = get_srs_manager()
+                if srs_manager and srs_manager.check_server_status():
+                    logging.info("✅ SRS server is accessible and ready")
+                else:
+                    logging.warning("⚠️ SRS server is not accessible - will fallback to FFmpeg")
+
+            elif streaming_method in ['ffmpeg_encoding', 'ffmpeg_copy']:
+                logging.info(f"🎥 Using FFmpeg method: {streaming_method}")
+
+        except Exception as e:
+            logging.error(f"❌ Error handling streaming method change: {e}")
 
 
 # Global command handler instance

@@ -180,13 +180,63 @@
                                         </button>
                                     </div>
                                     
-                                    <h3 class="font-medium text-gray-900 dark:text-gray-100 text-sm mb-2 truncate" title="{{ $file->original_name }}">
-                                        {{ $file->original_name }}
-                                    </h3>
+                                    <div class="flex items-start justify-between mb-2">
+                                        <h3 class="font-medium text-gray-900 dark:text-gray-100 text-sm truncate" title="{{ $file->original_name }}">
+                                            {{ $file->original_name }}
+                                        </h3>
+                                        @if($file->stream_video_id)
+                                            <span class="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                                </svg>
+                                                Stream
+                                            </span>
+                                        @elseif($file->disk === 'bunny_cdn')
+                                            <span class="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064"/>
+                                                </svg>
+                                                CDN
+                                            </span>
+                                        @elseif($file->disk === 'local')
+                                            <span class="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
+                                                </svg>
+                                                Server
+                                            </span>
+                                        @else
+                                            <span class="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4V2a1 1 0 011-1h8a1 1 0 011 1v2m-9 0h10m-9 0a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V6a2 2 0 00-2-2"/>
+                                                </svg>
+                                                {{ ucfirst($file->disk) }}
+                                            </span>
+                                        @endif
+                                    </div>
 
                                     <div class="text-xs text-gray-500 dark:text-gray-400 space-y-1">
                                         <p>📦 {{ \Illuminate\Support\Number::fileSize($file->size) }}</p>
                                         <p>📅 {{ $file->created_at->format('d/m/Y H:i') }}</p>
+
+                                        @if($file->stream_video_id)
+                                            <p class="flex items-center">
+                                                🎬
+                                                @if($file->stream_metadata && isset($file->stream_metadata['processing_status']))
+                                                    @if($file->stream_metadata['processing_status'] === 'completed')
+                                                        <span class="text-green-600 font-medium">Ready for streaming</span>
+                                                    @elseif($file->stream_metadata['processing_status'] === 'processing')
+                                                        <span class="text-yellow-600 font-medium">Processing...</span>
+                                                    @else
+                                                        <span class="text-gray-600">{{ ucfirst($file->stream_metadata['processing_status']) }}</span>
+                                                    @endif
+                                                @else
+                                                    <span class="text-blue-600">Stream Library</span>
+                                                @endif
+                                            </p>
+                                        @else
+                                            <p>💾 {{ ucfirst($file->disk) }} Storage</p>
+                                        @endif
                                         <p>
                                             @if($file->disk === 'bunny_cdn')
                                                 <span class="text-green-600">☁️ Server</span>

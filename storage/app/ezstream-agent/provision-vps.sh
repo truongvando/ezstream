@@ -214,8 +214,67 @@ fi
 
 echo "✅ All base services verified successfully"
 
+# Install Docker for SRS support
+echo ""
+echo "=== INSTALLING DOCKER FOR SRS SUPPORT ==="
+echo "Installing Docker to support SRS streaming server..."
+
+# Check if Docker is already installed
+if command -v docker &> /dev/null; then
+    echo "✅ Docker is already installed"
+    docker --version
+else
+    echo "📦 Installing Docker..."
+
+    # Update package index
+    apt-get update
+
+    # Install required packages
+    apt-get install -y \
+        ca-certificates \
+        curl \
+        gnupg \
+        lsb-release
+
+    # Add Docker's official GPG key
+    mkdir -p /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+    # Set up the repository
+    echo \
+      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+      $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    # Update package index again
+    apt-get update
+
+    # Install Docker Engine
+    apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+    # Start and enable Docker
+    systemctl start docker
+    systemctl enable docker
+
+    # Add current user to docker group (if not root)
+    if [ "$USER" != "root" ]; then
+        usermod -aG docker $USER
+    fi
+
+    echo "✅ Docker installed successfully"
+    docker --version
+fi
+
+# Verify Docker is working
+echo "🔍 Verifying Docker installation..."
+if docker run --rm hello-world > /dev/null 2>&1; then
+    echo "✅ Docker is working correctly"
+else
+    echo "⚠️ Docker test failed, but continuing..."
+fi
+
 echo ""
 echo "=== VPS BASE PROVISION COMPLETE ==="
 echo "✅ Base system is ready for EZStream Agent v5.0 deployment from Laravel."
-echo "📋 Architecture: Stream Manager + Process Manager + File Manager"
+echo "📋 Architecture: Stream Manager + Process Manager + File Manager + SRS Support"
+echo "🐳 Docker installed for SRS streaming server support"
 echo ""

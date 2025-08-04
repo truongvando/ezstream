@@ -75,7 +75,7 @@
                     </div>
 
                     <!-- Upload Progress -->
-                    <div id="upload-progress" class="hidden mt-4">
+                    <div id="upload-progress" class="mt-4 hidden">
                         <div class="bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
                             <div id="progress-bar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
                         </div>
@@ -99,15 +99,38 @@
                                         <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                                             {{ $file->original_name }}
                                         </h4>
+
+                                        @if($isAdmin)
+                                            <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                                                👤 {{ $file->user->name ?? 'Unknown User' }} (ID: {{ $file->user_id }})
+                                            </p>
+                                        @endif
+
+                                        <div class="flex items-center gap-2 mt-1">
+                                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                                                📦 {{ number_format($file->size / 1024 / 1024, 1) }} MB
+                                            </p>
+                                            <span class="text-xs px-2 py-1 rounded-full {{
+                                                $file->disk === 'bunny_stream' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' :
+                                                ($file->disk === 'bunny_cdn' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                                                'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200')
+                                            }}">
+                                                {{ $file->disk === 'bunny_stream' ? '🎥 Stream' : ($file->disk === 'bunny_cdn' ? '☁️ CDN' : '💾 Server') }}
+                                            </span>
+                                        </div>
+
                                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                            {{ number_format($file->size / 1024 / 1024, 1) }} MB
+                                            🕒 {{ $file->created_at->diffForHumans() }}
                                         </p>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400">
-                                            {{ $file->created_at->diffForHumans() }}
-                                        </p>
+
+                                        @if($file->stream_video_id)
+                                            <p class="text-xs text-purple-600 dark:text-purple-400 mt-1">
+                                                🎬 Video ID: {{ Str::limit($file->stream_video_id, 20) }}
+                                            </p>
+                                        @endif
                                     </div>
-                                    <button onclick="deleteFile({{ $file->id }}, '{{ $file->original_name }}')" 
-                                            class="text-red-600 hover:text-red-800 text-sm">
+                                    <button onclick="deleteFile({{ $file->id }}, '{{ $file->original_name }}', '{{ $file->user->name ?? 'Unknown' }}')"
+                                            class="text-red-600 hover:text-red-800 text-sm ml-2">
                                         🗑️
                                     </button>
                                 </div>
@@ -213,8 +236,13 @@
 
 
 
-    function deleteFile(fileId, fileName) {
-        if (!confirm(`Bạn có chắc muốn xóa file "${fileName}"?`)) {
+    function deleteFile(fileId, fileName, userName = null) {
+        let confirmMessage = `Bạn có chắc muốn xóa file "${fileName}"?`;
+        if (userName && userName !== 'Unknown') {
+            confirmMessage = `Bạn có chắc muốn xóa file "${fileName}" của user "${userName}"?`;
+        }
+
+        if (!confirm(confirmMessage)) {
             return;
         }
 
@@ -246,5 +274,7 @@
         });
     }
     </script>
+
+    <!-- File upload script already loaded globally -->
     @endpush
 </x-app-layout>

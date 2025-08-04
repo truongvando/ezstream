@@ -92,29 +92,93 @@ function formatDetailKey(key) {
     return keyMap[key] || key;
 }
 
+
+
 // Immediately expose functions (don't wait for DOMContentLoaded)
 function exposeGlobalFunctions() {
     // Global function for showing detailed error modal
     window.showDetailedErrorModal = function(errorData) {
         showDetailedError(errorData);
     };
+
+
 }
 
 // Expose immediately
 exposeGlobalFunctions();
 
+/**
+ * Get current streaming method from server
+ */
+async function getStreamingMethod() {
+    try {
+        const response = await fetch('/api/settings/streaming-method', {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            credentials: 'same-origin'
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            return data.streaming_method || 'ffmpeg_copy';
+        }
+    } catch (error) {
+        // Fallback to default
+    }
+
+    return 'ffmpeg_copy'; // Default fallback
+}
+
+// Preload TUS library function
+function ensureTUSLibrary() {
+    return new Promise((resolve) => {
+        if (typeof tus !== 'undefined') {
+            resolve(true);
+            return;
+        }
+
+        // Check if script already exists
+        const existingScript = document.querySelector('script[src*="tus-js-client"]');
+        if (existingScript) {
+            // Wait for existing script to load
+            existingScript.onload = () => resolve(true);
+            existingScript.onerror = () => resolve(false);
+            return;
+        }
+
+        // Load TUS library
+        const script = document.createElement('script');
+        script.src = 'https://cdn.jsdelivr.net/npm/tus-js-client@3.1.1/dist/tus.min.js';
+        script.onload = () => {
+            resolve(true);
+        };
+        script.onerror = () => {
+            resolve(false);
+        };
+        document.head.appendChild(script);
+    });
+}
+
 // Only initialize once
 if (!window.fileUploadInitialized) {
     document.addEventListener('DOMContentLoaded', function() {
-        initializeFileUpload();
-        window.fileUploadInitialized = true;
+        // Preload TUS library
+        ensureTUSLibrary().then(() => {
+            initializeFileUpload();
+            window.fileUploadInitialized = true;
+        });
     });
 
     // Also initialize when Livewire navigates (for SPA-like behavior)
     document.addEventListener('livewire:navigated', function() {
         if (!window.fileUploadInitialized) {
-            initializeFileUpload();
-            window.fileUploadInitialized = true;
+            ensureTUSLibrary().then(() => {
+                initializeFileUpload();
+                window.fileUploadInitialized = true;
+            });
         }
     });
 }
@@ -135,17 +199,15 @@ function initializeFileUpload() {
         return;
     }
 
-    console.log('✅ Upload form initialized successfully');
+    // Upload form initialized
 
     // Mark as initialized
     fileInput.setAttribute('data-initialized', 'true');
 
     // File input change handler
     fileInput.addEventListener('change', function(e) {
-        console.log('📁 File input changed:', e.target.files);
         const file = e.target.files[0];
         if (file) {
-            console.log('📁 Selected file:', file.name, file.size, file.type);
             handleFileUpload(file);
         }
     });
@@ -188,7 +250,7 @@ function initializeFileUpload() {
             return;
         }
 
-        console.log('🚀 Starting upload:', file.name, 'Size:', formatFileSize(file.size));
+
         
         // Call custom start handler if it exists
         if (typeof window.uploadStartHandler === 'function') {
@@ -205,8 +267,13 @@ function initializeFileUpload() {
 
             updateProgress('📋 Đang tạo URL upload...', 5);
 
+            // Use unified upload endpoint
+            const uploadEndpoint = '/api/generate-upload-url';
+
+
+
             // Step 1: Generate upload URL
-            const uploadUrlResponse = await fetch('/api/generate-upload-url', {
+            const uploadUrlResponse = await fetch(uploadEndpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -241,115 +308,98 @@ function initializeFileUpload() {
                 throw new Error(uploadUrlData.message || 'Failed to generate upload URL');
             }
 
-            // Step 2: Upload based on storage mode
-            if (uploadUrlData.storage_mode === 'server' || uploadUrlData.storage_mode === 'hybrid') {
-                updateProgress('📤 Đang upload lên server...', 10);
-                await uploadToServer(file, uploadUrlData);
-            } else {
-                updateProgress('📤 Đang upload lên Bunny.net CDN...', 10);
-                await uploadToBunny(file, uploadUrlData);
-            }
+            // Step 2: Upload based on method
+            if (uploadUrlData.upload_method === 'stream_library') {
+                // Stream Library upload for SRS
+                updateProgress('📤 Đang upload lên Stream Library...', 10);
+                await uploadToStreamLibrary(file, uploadUrlData);
 
-            // Step 3: Confirm upload
-            updateProgress('✅ Đang xác nhận upload...', 95);
+                // Stream Library handles confirmation internally
+                updateProgress('✅ Upload hoàn tất!', 100);
 
-            const confirmResponse = await fetch('/api/confirm-upload', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                    'Accept': 'application/json'
-                },
-                credentials: 'same-origin',
-                body: JSON.stringify({
-                    upload_token: uploadUrlData.upload_token,
-                    size: file.size,
-                    content_type: file.type
-                })
-            });
-
-            if (!confirmResponse.ok) {
-                const errorData = await confirmResponse.json().catch(() => ({}));
-                throw new Error(errorData.message || 'Failed to confirm upload');
-            }
-
-            const confirmData = await confirmResponse.json();
-
-            if (confirmData.status !== 'success') {
-                throw new Error(confirmData.message || 'Upload confirmation failed');
-            }
-
-            // Success!
-            updateProgress('🎉 Upload hoàn tất!', 100);
-            
-            // Notify Livewire component or call custom success handler (only once)
-            if (!window.uploadNotificationSent) {
-                window.uploadNotificationSent = true;
-
-                // Try multiple notification methods for better compatibility
-                let notificationSent = false;
-
-                // Method 1: Custom success handler (highest priority)
-                if (typeof window.uploadSuccessHandler === 'function') {
-                    console.log('📤 Using custom upload success handler');
-                    window.uploadSuccessHandler({
-                        file_name: file.name,
-                        file_id: confirmData.file.id,
-                        file_size: file.size
-                    });
-                    notificationSent = true;
-                }
-
-                // Method 2: Livewire dispatch (for Livewire components)
-                if (window.Livewire && !notificationSent) {
-                    try {
-                        window.Livewire.dispatch('fileUploaded', {
-                            file_name: file.name,
-                            file_id: confirmData.file.id,
-                            file_size: file.size
-                        });
-                        notificationSent = true;
-                        console.log('✅ Livewire notification sent');
-                    } catch (e) {
-                        console.warn('⚠️ Livewire dispatch failed:', e);
-                    }
-                }
-
-                // Method 3: Global event (for any page listening)
-                if (!notificationSent) {
-                    try {
-                        window.dispatchEvent(new CustomEvent('fileUploaded', {
-                            detail: {
-                                file_name: file.name,
-                                file_id: confirmData.file.id,
-                                file_size: file.size
-                            }
-                        }));
-                        notificationSent = true;
-                        console.log('✅ Global event dispatched');
-                    } catch (e) {
-                        console.warn('⚠️ Global event failed:', e);
-                    }
-                }
-
-                // Method 4: Fallback - reload page (last resort)
-                if (!notificationSent) {
-                    console.log('📄 No notification method worked, falling back to page reload');
-                    setTimeout(() => {
-                        location.reload();
-                    }, 1500);
-                }
-
-                // Reset flag after delay
+                // Delay refresh to let user see completion
                 setTimeout(() => {
-                    window.uploadNotificationSent = false;
-                }, 1000);
-            }
+                    if (window.Livewire) {
+                        window.Livewire.dispatch('refreshFiles');
+                    }
+                    resetForm();
+                }, 1500);
+                return;
+            } else {
+                // Step 2: Upload based on method
 
-            // Reset form after delay
-            setTimeout(() => {
-                resetForm();
-            }, 2000);
+                switch (uploadUrlData.method) {
+                    case 'TUS':
+                        // TUS Resumable Upload to Stream Library
+                        updateProgress('📤 Đang upload lên Stream Library (TUS)...', 10);
+                        await uploadWithTUS(file, uploadUrlData);
+
+                        // Confirm upload with server
+                        updateProgress('✅ Đang xác nhận upload...', 95);
+                        await confirmTUSUpload(uploadUrlData.upload_token, file.size, file.type);
+                        break;
+
+                    case 'POST':
+                        // Server upload
+                        updateProgress('📤 Đang upload lên server...', 10);
+                        await uploadToServer(file, uploadUrlData);
+                        break;
+
+                    case 'PUT':
+                        // Bunny CDN upload
+                        updateProgress('📤 Đang upload lên Bunny CDN...', 10);
+                        await uploadToBunny(file, uploadUrlData);
+                        break;
+
+                    default:
+                        throw new Error(`Unsupported upload method: ${uploadUrlData.method}`);
+                }
+
+                // For non-TUS and non-POST uploads, confirm upload
+                if (uploadUrlData.method !== 'POST' && uploadUrlData.method !== 'TUS') {
+                    updateProgress('✅ Đang xác nhận upload...', 95);
+
+                    const confirmResponse = await fetch('/api/confirm-upload', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                        },
+                        body: JSON.stringify({
+                            upload_token: uploadUrlData.upload_token,
+                            size: file.size,
+                            content_type: file.type
+                        })
+                    });
+
+                    if (!confirmResponse.ok) {
+                        const errorData = await confirmResponse.json().catch(() => ({}));
+                        throw new Error(errorData.error || 'Confirm upload failed');
+                    }
+                }
+
+                updateProgress('✅ Upload hoàn tất!', 100);
+
+                // Dispatch global event for other components
+                window.dispatchEvent(new CustomEvent('fileUploaded', {
+                    detail: {
+                        fileName: file.name,
+                        fileSize: file.size,
+                        uploadToken: uploadUrlData.upload_token,
+                        storageMode: uploadUrlData.storage_mode
+                    }
+                }));
+
+                // Delay refresh to let user see completion
+                setTimeout(() => {
+                    if (window.Livewire) {
+                        window.Livewire.dispatch('refreshFiles');
+                    }
+                    resetForm();
+                }, 1500);
+
+                return;
+            }
 
         } catch (error) {
             updateProgress('❌ Lỗi: ' + error.message, 0);
@@ -532,7 +582,6 @@ function initializeFileUpload() {
             // Success handler
             xhr.addEventListener('load', function() {
                 if (xhr.status >= 200 && xhr.status < 300) {
-                    console.log('✅ Upload to Bunny.net successful');
                     resolve();
                 } else {
                     reject(new Error(`Bunny.net upload failed: ${xhr.status} ${xhr.statusText}`));
@@ -569,7 +618,6 @@ function initializeFileUpload() {
             // Success handler
             xhr.addEventListener('load', function() {
                 if (xhr.status >= 200 && xhr.status < 300) {
-                    console.log('✅ Upload to server successful');
                     resolve();
                 } else {
                     reject(new Error(`Server upload failed: ${xhr.status} ${xhr.statusText}`));
@@ -588,8 +636,147 @@ function initializeFileUpload() {
         });
     }
 
+    /**
+     * Upload file using TUS Resumable Upload to Stream Library
+     */
+    async function uploadWithTUS(file, uploadData) {
+        return new Promise(async (resolve, reject) => {
+
+            // Ensure TUS library is loaded
+            const tusLoaded = await ensureTUSLibrary();
+            if (!tusLoaded) {
+                reject(new Error('TUS library không thể tải được. Vui lòng kiểm tra kết nối internet hoặc chọn storage mode khác.'));
+                return;
+            }
+
+            if (typeof tus === 'undefined') {
+                reject(new Error('TUS library không khả dụng. Vui lòng thử lại.'));
+                return;
+            }
+
+
+
+            startTUSUpload();
+
+            function startTUSUpload() {
+
+            const upload = new tus.Upload(file, {
+                endpoint: uploadData.upload_url,
+                retryDelays: [0, 3000, 5000, 10000, 20000, 60000],
+                headers: {
+                    'AuthorizationSignature': uploadData.auth_signature,
+                    'AuthorizationExpire': uploadData.auth_expire,
+                    'VideoId': uploadData.video_id,
+                    'LibraryId': uploadData.library_id,
+                },
+                metadata: {
+                    filetype: file.type,
+                    title: file.name,
+                },
+                onError: function(error) {
+                    reject(new Error('TUS upload failed: ' + error.message));
+                },
+                onProgress: function(bytesUploaded, bytesTotal) {
+                    const percentComplete = Math.round((bytesUploaded / bytesTotal) * 80) + 10; // 10-90%
+                    updateProgress(`📤 Uploading to Stream Library... ${formatFileSize(bytesUploaded)}/${formatFileSize(bytesTotal)}`, percentComplete);
+                },
+                onSuccess: function() {
+                    resolve();
+                }
+            });
+
+            // Check for previous uploads and resume if possible
+            upload.findPreviousUploads().then(function(previousUploads) {
+                if (previousUploads.length) {
+                    upload.resumeFromPreviousUpload(previousUploads[0]);
+                }
+                upload.start();
+            }).catch(function() {
+                upload.start();
+            });
+            } // End of startTUSUpload function
+        });
+    }
+
+    /**
+     * Confirm TUS upload with server
+     */
+    async function confirmTUSUpload(uploadToken, fileSize, mimeType) {
+        const response = await fetch('/api/confirm-upload', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+                upload_token: uploadToken,
+                size: fileSize,
+                content_type: mimeType
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+            throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        return await response.json();
+    }
+
+    /**
+     * Upload file to Stream Library (for SRS streaming)
+     */
+    async function uploadToStreamLibrary(file, uploadData) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('upload_token', uploadData.upload_token);
+
+            // Progress handler
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    const percentComplete = Math.round((e.loaded / e.total) * 80) + 10; // 10-90%
+                    updateProgress(`📤 Uploading to Stream Library... ${formatFileSize(e.loaded)}/${formatFileSize(e.total)}`, percentComplete);
+                }
+            });
+
+            // Success handler
+            xhr.addEventListener('load', function() {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        if (response.status === 'success') {
+                            updateProgress('🎬 Video uploaded to Stream Library successfully!', 90);
+                            resolve(response);
+                        } else {
+                            reject(new Error(response.message || 'Stream Library upload failed'));
+                        }
+                    } catch (e) {
+                        reject(new Error('Invalid response from Stream Library upload'));
+                    }
+                } else {
+                    reject(new Error(`Stream Library upload failed: ${xhr.status} ${xhr.statusText}`));
+                }
+            });
+
+            // Error handler
+            xhr.addEventListener('error', function() {
+                reject(new Error('Network error during Stream Library upload'));
+            });
+
+            // Upload to Stream Library
+            xhr.open('POST', '/api/stream-library/upload');
+            xhr.setRequestHeader('X-CSRF-TOKEN', document.querySelector('meta[name="csrf-token"]').getAttribute('content'));
+            xhr.send(formData);
+        });
+    }
+
     function showProgress() {
         uploadProgress.classList.remove('hidden');
+        uploadProgress.style.display = 'block'; // Override any inline style
         uploadForm.querySelector('input').disabled = true;
     }
 
@@ -609,6 +796,7 @@ function initializeFileUpload() {
 
     function resetForm() {
         uploadProgress.classList.add('hidden');
+        uploadProgress.style.display = 'none'; // Ensure it's hidden
         uploadForm.querySelector('input').disabled = false;
         fileInput.value = '';
         progressBar.style.width = '0%';
@@ -663,9 +851,9 @@ function initializeFileUpload() {
     }
 
     // Global function for showing detailed error modal
-    window.showDetailedErrorModal = function(errorData) {
-        showDetailedError(errorData);
-    };
+    window.showDetailedError = showDetailedError;
+
+
 
     // Expose functions globally
     window.handleFileUpload = handleFileUpload;

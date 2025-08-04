@@ -16,7 +16,8 @@ class SettingsManager extends Component
         'payment_account_no',
         'payment_account_name',
         'storage_mode', // server, cdn, hybrid
-        'ffmpeg_encoding_mode', // encoding, copy
+        'streaming_method', // srs, ffmpeg_encoding, ffmpeg_copy
+        'ffmpeg_encoding_mode', // encoding, copy (backward compatibility)
     ];
 
     public function mount()
@@ -26,6 +27,8 @@ class SettingsManager extends Component
         foreach ($this->settingKeys as $key) {
             if ($key === 'storage_mode') {
                 $this->settings[$key] = $dbSettings[$key] ?? 'server'; // Default to server for cost savings
+            } elseif ($key === 'streaming_method') {
+                $this->settings[$key] = $dbSettings[$key] ?? 'ffmpeg_copy'; // Default to FFmpeg copy mode
             } elseif ($key === 'ffmpeg_encoding_mode') {
                 $this->settings[$key] = $dbSettings[$key] ?? 'copy'; // Default to copy with fast restart
             } else {
@@ -36,6 +39,9 @@ class SettingsManager extends Component
 
     public function save()
     {
+        // Handle backward compatibility for streaming_method
+        $this->handleStreamingMethodCompatibility();
+
         foreach ($this->settings as $key => $value) {
             Setting::updateOrCreate(['key' => $key], ['value' => $value]);
         }
@@ -44,6 +50,28 @@ class SettingsManager extends Component
         $this->refreshAgentSettings();
 
         session()->flash('message', 'Settings saved and agents refreshed successfully!');
+    }
+
+    /**
+     * Handle backward compatibility between streaming_method and ffmpeg_encoding_mode
+     */
+    private function handleStreamingMethodCompatibility()
+    {
+        $streamingMethod = $this->settings['streaming_method'] ?? 'ffmpeg_copy';
+
+        // Update ffmpeg_encoding_mode based on streaming_method for backward compatibility
+        switch ($streamingMethod) {
+            case 'srs':
+                $this->settings['ffmpeg_encoding_mode'] = 'copy'; // SRS uses copy mode internally
+                break;
+            case 'ffmpeg_encoding':
+                $this->settings['ffmpeg_encoding_mode'] = 'encoding';
+                break;
+            case 'ffmpeg_copy':
+            default:
+                $this->settings['ffmpeg_encoding_mode'] = 'copy';
+                break;
+        }
     }
 
     public function refreshAgentSettings()

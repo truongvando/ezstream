@@ -35,6 +35,8 @@ class UserFile extends Model
         'is_locked',
         'upload_session_url',
         'deleted_at',
+        'stream_video_id',
+        'stream_metadata',
     ];
 
     protected $casts = [
@@ -44,6 +46,7 @@ class UserFile extends Model
         'auto_delete_after_stream' => 'boolean',
         'is_locked' => 'boolean',
         'storage_locations' => 'array',
+        'stream_metadata' => 'array',
     ];
 
     public function user(): BelongsTo

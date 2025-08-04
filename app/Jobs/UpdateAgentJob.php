@@ -94,11 +94,15 @@ class UpdateAgentJob implements ShouldQueue
             $this->setUpdateProgress($vps->id, 'starting', 80, 'Khởi động EZStream Agent v5.0');
             $this->startNewAgent($sshService, $vps);
 
-            // Step 6: Verify agent is running
+            // Step 6: Update/Install SRS Server (if needed)
+            $this->setUpdateProgress($vps->id, 'srs_update', 85, 'Cập nhật SRS Server');
+            $this->updateSrsServer($sshService, $vps);
+
+            // Step 7: Verify agent is running
             $this->setUpdateProgress($vps->id, 'verifying', 90, 'Kiểm tra agent đang chạy');
             $this->verifyAgentRunning($sshService, $vps);
 
-            // Step 7: Verify agent compatibility
+            // Step 8: Verify agent compatibility
             $this->setUpdateProgress($vps->id, 'compatibility', 95, 'Kiểm tra tương thích v5.0');
             $this->verifyAgentCompatibility($sshService, $vps);
 
@@ -631,6 +635,100 @@ WantedBy=multi-user.target";
 
         } catch (\Exception $e) {
             Log::error("Failed to set update progress: {$e->getMessage()}");
+        }
+    }
+
+    /**
+     * Update/Install SRS Server if needed
+     */
+    private function updateSrsServer(SshService $sshService, VpsServer $vps): void
+    {
+        try {
+            Log::info("🎬 [VPS #{$vps->id}] Checking SRS Server status...");
+
+            // Check if SRS should be installed (based on settings)
+            $streamingMethod = \App\Models\Setting::where('key', 'streaming_method')->value('value') ?? 'ffmpeg_copy';
+
+            if ($streamingMethod !== 'srs') {
+                Log::info("🔧 [VPS #{$vps->id}] SRS not enabled in settings, skipping SRS update");
+                return;
+            }
+
+            $agentDir = '/opt/ezstream-agent';
+            $setupScript = "{$agentDir}/setup-srs.sh";
+
+            // Check if SRS is already installed
+            $srsStatus = $sshService->execute("docker ps --filter 'name=ezstream-srs' --format '{{.Status}}' 2>/dev/null || echo 'NOT_INSTALLED'");
+
+            if (strpos($srsStatus, 'Up') !== false) {
+                Log::info("✅ [VPS #{$vps->id}] SRS Server is already running, checking for updates...");
+
+                // Restart SRS to ensure latest configuration
+                $sshService->execute("{$setupScript} restart");
+                Log::info("🔄 [VPS #{$vps->id}] SRS Server restarted with latest configuration");
+
+            } else {
+                Log::info("🔧 [VPS #{$vps->id}] Installing SRS Server...");
+
+                // Make setup script executable
+                $sshService->execute("chmod +x {$setupScript}");
+
+                // Install SRS
+                $result = $sshService->execute("{$setupScript} setup", 300); // 5 minute timeout
+
+                if (strpos($result, 'SRS Server setup completed successfully') !== false) {
+                    Log::info("✅ [VPS #{$vps->id}] SRS Server installed successfully");
+                } else {
+                    Log::warning("⚠️ [VPS #{$vps->id}] SRS installation may have failed, output: {$result}");
+                }
+            }
+
+            // Verify SRS is working
+            $this->verifySrsAfterUpdate($sshService, $vps);
+
+        } catch (\Exception $e) {
+            Log::error("❌ [VPS #{$vps->id}] Failed to update SRS Server: " . $e->getMessage());
+            // Don't throw - SRS is optional, continue with agent update
+        }
+    }
+
+    /**
+     * Verify SRS is working after update
+     */
+    private function verifySrsAfterUpdate(SshService $sshService, VpsServer $vps): void
+    {
+        try {
+            // Wait a moment for SRS to start
+            sleep(5);
+
+            // Check if SRS container is running
+            $result = $sshService->execute("docker ps --filter 'name=ezstream-srs' --format '{{.Status}}'");
+
+            if (strpos($result, 'Up') !== false) {
+                Log::info("✅ [VPS #{$vps->id}] SRS container is running");
+
+                // Test SRS API
+                $apiTest = $sshService->execute("curl -s http://localhost:1985/api/v1/summaries | grep '\"code\":0' || echo 'API_FAILED'");
+
+                if (strpos($apiTest, 'API_FAILED') === false) {
+                    Log::info("✅ [VPS #{$vps->id}] SRS API is responding correctly");
+
+                    // Update VPS capabilities to include SRS
+                    $capabilities = json_decode($vps->capabilities ?? '[]', true);
+                    if (!in_array('srs-streaming', $capabilities)) {
+                        $capabilities[] = 'srs-streaming';
+                        $vps->update(['capabilities' => json_encode($capabilities)]);
+                        Log::info("✅ [VPS #{$vps->id}] Added SRS streaming capability");
+                    }
+                } else {
+                    Log::warning("⚠️ [VPS #{$vps->id}] SRS API test failed");
+                }
+            } else {
+                Log::warning("⚠️ [VPS #{$vps->id}] SRS container is not running");
+            }
+
+        } catch (\Exception $e) {
+            Log::error("❌ [VPS #{$vps->id}] Failed to verify SRS after update: " . $e->getMessage());
         }
     }
 }

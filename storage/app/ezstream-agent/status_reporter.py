@@ -138,6 +138,39 @@ class StatusReporter:
         except Exception as e:
             logging.error(f"❌ Error publishing stream status: {e}")
 
+    def publish_srs_stream_status(self, stream_id: int, status: str, message: str, srs_data: Optional[Dict] = None):
+        """Publish SRS stream status update to Laravel"""
+        try:
+            extra_data = {
+                'streaming_method': 'srs',
+                'srs_data': srs_data or {}
+            }
+
+            # Use existing stream status method with SRS-specific data
+            self.publish_stream_status(stream_id, status, message, extra_data)
+
+        except Exception as e:
+            logging.error(f"❌ Error publishing SRS stream status: {e}")
+
+    def publish_file_processing_status(self, file_id: int, video_id: str, status: str, message: str):
+        """Publish file processing status (for Stream Library files)"""
+        try:
+            payload = {
+                'type': 'FILE_PROCESSING_UPDATE',
+                'file_id': file_id,
+                'video_id': video_id,
+                'vps_id': self.config.vps_id,
+                'status': status,
+                'message': message,
+                'timestamp': int(time.time())
+            }
+
+            logging.info(f"📁 [FILE] Processing status for file {file_id}: {status} - {message}")
+            self._publish_report(payload)
+
+        except Exception as e:
+            logging.error(f"❌ Error publishing file processing status: {e}")
+
     def publish_restart_request(self, stream_id: int, reason: str, crash_count: int, last_error: str = None, error_type: str = None):
         """Request Laravel to decide whether to restart stream"""
         try:
@@ -203,10 +236,26 @@ class StatusReporter:
 
         while self.running:
             try:
-                # Get active streams from stream manager
+                # Get active streams from both FFmpeg and SRS managers
+                active_stream_ids = []
+
+                # FFmpeg streams
                 from stream_manager import get_stream_manager
                 stream_manager = get_stream_manager()
-                active_stream_ids = stream_manager.get_active_streams() if stream_manager else []
+                if stream_manager:
+                    ffmpeg_streams = stream_manager.get_active_streams()
+                    active_stream_ids.extend(ffmpeg_streams)
+
+                # SRS streams
+                try:
+                    from srs_stream_manager import get_srs_stream_manager
+                    srs_stream_manager = get_srs_stream_manager()
+                    if srs_stream_manager:
+                        srs_streams = srs_stream_manager.get_active_streams()
+                        active_stream_ids.extend(srs_streams)
+                except ImportError:
+                    # SRS not available, continue with FFmpeg only
+                    pass
 
                 heartbeat_payload = {
                     'type': 'HEARTBEAT',

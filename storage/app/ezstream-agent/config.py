@@ -97,6 +97,15 @@ class AgentConfig:
     restart_threshold_failures: int = 3             # Number of failures before restart
     fast_restart_delay: int = 5                     # Delay before fast restart (seconds)
 
+    # SRS Server settings - NEW STREAMING METHOD
+    srs_enabled: bool = False                       # Enable SRS streaming (alternative to FFmpeg)
+    srs_host: str = 'localhost'                     # SRS server host
+    srs_port: int = 1985                            # SRS HTTP API port
+    srs_rtmp_port: int = 1935                       # SRS RTMP port
+    srs_fallback_to_ffmpeg: bool = True             # Fallback to FFmpeg if SRS fails
+    srs_ingest_timeout: int = 30                    # SRS ingest start timeout (seconds)
+    srs_health_check_interval: int = 10             # SRS health check interval (seconds)
+
     def update_from_laravel_settings(self, settings: dict):
         """Update config from Laravel settings"""
         updated_settings = []
@@ -153,6 +162,25 @@ class AgentConfig:
             self.fast_restart_delay = int(settings['fast_restart_delay'])
             if old_delay != self.fast_restart_delay:
                 updated_settings.append(f"fast_restart_delay: {old_delay} → {self.fast_restart_delay}")
+
+        # SRS settings
+        if 'srs_enabled' in settings:
+            old_enabled = self.srs_enabled
+            self.srs_enabled = bool(settings['srs_enabled'])
+            if old_enabled != self.srs_enabled:
+                updated_settings.append(f"srs_enabled: {old_enabled} → {self.srs_enabled}")
+
+        if 'srs_host' in settings:
+            old_host = self.srs_host
+            self.srs_host = settings['srs_host']
+            if old_host != self.srs_host:
+                updated_settings.append(f"srs_host: {old_host} → {self.srs_host}")
+
+        if 'srs_fallback_to_ffmpeg' in settings:
+            old_fallback = self.srs_fallback_to_ffmpeg
+            self.srs_fallback_to_ffmpeg = bool(settings['srs_fallback_to_ffmpeg'])
+            if old_fallback != self.srs_fallback_to_ffmpeg:
+                updated_settings.append(f"srs_fallback_to_ffmpeg: {old_fallback} → {self.srs_fallback_to_ffmpeg}")
 
         # Log all changes
         if updated_settings:
