@@ -659,6 +659,7 @@ Route::middleware(['auth', 'locale'])->group(function () {
     // File Upload routes
     Route::get('/files', [\App\Http\Controllers\FileController::class, 'index'])->name('files.index');
     Route::post('/files/delete', [\App\Http\Controllers\FileController::class, 'delete'])->name('files.delete');
+    Route::get('/files/stats', [\App\Http\Controllers\FileController::class, 'stats'])->name('files.stats');
 
     // User file routes for consistency
     Route::get('/user/files', [\App\Http\Controllers\FileController::class, 'index'])->name('user.files');
@@ -711,6 +712,7 @@ Route::middleware(['auth', 'locale'])->group(function () {
         Route::get('/vps-monitoring', VpsMonitoring::class)->name('vps-monitoring');
         Route::get('/files', [\App\Http\Controllers\FileController::class, 'index'])->name('files');
         Route::post('/files/delete', [\App\Http\Controllers\FileController::class, 'delete'])->name('files.delete');
+        Route::get('/files/stats', [\App\Http\Controllers\FileController::class, 'stats'])->name('files.stats');
         Route::get('/service-packages', ServicePackageManager::class)->name('service-packages');
         Route::get('/transactions', AdminTransactionManagement::class)->name('transactions');
         Route::get('/settings', AdminSettingsManager::class)->name('settings');
