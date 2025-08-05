@@ -21,7 +21,7 @@
 
     <div class="py-6">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-
+            
             <!-- Stats Cards -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <!-- Storage Usage Card -->
@@ -47,7 +47,7 @@
                                 </div>
                                 @if(!$isAdmin)
                                     <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mt-2">
-                                        <div class="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                                        <div class="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
                                              style="width: {{ min(($storageUsage / $storageLimit) * 100, 100) }}%"></div>
                                     </div>
                                 @endif
@@ -134,7 +134,7 @@
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                                     </svg>
                                 </div>
-                                <input type="text" id="search-input" placeholder="Search files..."
+                                <input type="text" id="search-input" placeholder="Search files..." 
                                        class="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                             </div>
                         </div>
@@ -165,11 +165,11 @@
 
             <!-- Upload Modal (Hidden by default) -->
             @if($canUpload)
-            <div id="upload-modal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+            <div id="upload-modal" class="fixed inset-0 z-[9999] overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
                 <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
                     <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
                     <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
+                    
                     <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
                         <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                             <div class="sm:flex sm:items-start">
@@ -259,11 +259,6 @@
                                                     👁️
                                                 </button>
                                             @endif
-                                            <button onclick="downloadFile({{ $file->id }})"
-                                                    class="bg-white text-gray-900 p-2 rounded-full hover:bg-gray-100 transition-colors"
-                                                    title="Download">
-                                                �
-                                            </button>
                                             <button onclick="deleteFile({{ $file->id }}, '{{ $file->original_name }}')"
                                                     class="bg-red-600 text-white p-2 rounded-full hover:bg-red-700 transition-colors"
                                                     title="Delete">
@@ -330,7 +325,7 @@
     </div>
 
     <!-- File Preview Modal -->
-    <div id="preview-modal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="preview-modal-title" role="dialog" aria-modal="true">
+    <div id="preview-modal" class="fixed inset-0 z-[9999] overflow-y-auto hidden" aria-labelledby="preview-modal-title" role="dialog" aria-modal="true">
         <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
             <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
@@ -356,7 +351,7 @@
     </div>
 
     <!-- Toast Notifications Container -->
-    <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+    <div id="toast-container" class="fixed top-4 right-4 z-[9998] space-y-2"></div>
 
     @push('scripts')
     <script>
@@ -598,13 +593,6 @@
             const toast = document.createElement('div');
             toast.className = `max-w-sm w-full bg-white dark:bg-gray-800 shadow-lg rounded-lg pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden transform transition-all duration-300 translate-x-full`;
 
-            const bgColor = {
-                success: 'bg-green-50 dark:bg-green-900',
-                error: 'bg-red-50 dark:bg-red-900',
-                warning: 'bg-yellow-50 dark:bg-yellow-900',
-                info: 'bg-blue-50 dark:bg-blue-900'
-            }[type] || 'bg-gray-50 dark:bg-gray-900';
-
             const icon = {
                 success: '✅',
                 error: '❌',
@@ -693,10 +681,6 @@
 
     function closePreviewModal() {
         document.getElementById('preview-modal')?.classList.add('hidden');
-    }
-
-    function downloadFile(fileId) {
-        window.open(`/api/secure-download/${fileId}`, '_blank');
     }
 
     function openUploadModal() {
