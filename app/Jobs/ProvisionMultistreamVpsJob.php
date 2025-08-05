@@ -24,19 +24,19 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
     public function __construct(int $vpsId)
     {
         $this->vpsId = $vpsId;
-        Log::info("✅ [VPS #{$this->vpsId}] Provisioning job created for EZStream Agent v5.0 (Stream Manager + Process Manager)");
+        Log::info("✅ [VPS #{$this->vpsId}] Provisioning job created for EZStream Agent v6.0 (SRS-Only Streaming)");
     }
 
     public function handle(SshService $sshService): void
     {
         $vps = VpsServer::findOrFail($this->vpsId);
 
-        Log::info("🚀 [VPS #{$vps->id}] Starting provision for EZStream Agent v5.0");
+        Log::info("🚀 [VPS #{$vps->id}] Starting provision for EZStream Agent v6.0");
 
         try {
             $vps->update([
                 'status' => 'PROVISIONING',
-                'status_message' => 'Setting up base system and EZStream Agent v5.0...'
+                'status_message' => 'Setting up base system and EZStream Agent v6.0...'
             ]);
 
             // Check if VPS operations are enabled for this environment
@@ -55,7 +55,7 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
             // 1. Upload and run the main provision script (installs nginx, ffmpeg, etc.)
             $this->uploadAndRunProvisionScript($sshService, $vps);
 
-            // 2. Upload and set up EZStream Agent v5.0
+            // 2. Upload and set up EZStream Agent v6.0
             $this->uploadAndSetupStreamAgent($sshService, $vps);
 
             // 3. Setup SRS Server (if enabled)
@@ -70,12 +70,13 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
 
             // Check if SRS is installed
             $srsInstalled = $this->isSrsInstalled($sshService);
-            $capabilities = ['direct-ffmpeg', 'youtube-streaming', 'redis-agent', 'process-manager'];
-            $statusMessage = 'Provisioned with EZStream Agent v5.0 (Direct FFmpeg)';
+            $capabilities = ['srs-streaming', 'youtube-streaming', 'redis-agent', 'process-manager'];
+            $statusMessage = 'Provisioned with EZStream Agent v6.0 (SRS-Only Streaming)';
 
             if ($srsInstalled) {
-                $capabilities[] = 'srs-streaming';
-                $statusMessage = 'Provisioned with EZStream Agent v5.0 + SRS Server';
+                $statusMessage = 'Provisioned with EZStream Agent v6.0 + SRS Server';
+            } else {
+                Log::warning("⚠️ [VPS #{$vps->id}] SRS Server not installed - agent may not function properly");
             }
 
             $vps->update([
@@ -133,7 +134,12 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         // Log the full output for debugging
         Log::info("📋 [VPS #{$vps->id}] Provision script output", ['output' => $result]);
 
-        if (strpos($result, 'VPS BASE PROVISION COMPLETE') === false) {
+        // Check for success indicators (more flexible)
+        $hasCompleteMessage = strpos($result, 'VPS BASE PROVISION COMPLETE') !== false;
+        $hasSuccessIndicators = strpos($result, 'Docker installed for SRS streaming server support') !== false ||
+                               strpos($result, 'Base system is ready for EZStream Agent') !== false;
+
+        if (!$hasCompleteMessage && !$hasSuccessIndicators) {
             Log::error("❌ [VPS #{$vps->id}] Base provision script failed", [
                 'output' => $result,
                 'script_path' => $remoteScript
@@ -146,28 +152,49 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
             throw new \Exception('Base provision script execution failed. Check logs for details.');
         }
 
+        if (!$hasCompleteMessage) {
+            Log::warning("⚠️ [VPS #{$vps->id}] Provision script completed but without final completion message");
+
+            // Additional verification - check if key services are available
+            $nginxCheck = $sshService->execute('systemctl is-active nginx 2>/dev/null || echo "inactive"');
+            $dockerCheck = $sshService->execute('command -v docker >/dev/null 2>&1 && echo "installed" || echo "not_installed"');
+
+            Log::info("🔍 [VPS #{$vps->id}] Service verification", [
+                'nginx_status' => trim($nginxCheck),
+                'docker_status' => trim($dockerCheck)
+            ]);
+
+            if (trim($nginxCheck) !== 'active') {
+                throw new \Exception('Nginx service is not active after provision script');
+            }
+        }
+
         Log::info("✅ [VPS #{$vps->id}] Base provision script completed successfully");
     }
 
     private function uploadAndSetupStreamAgent(SshService $sshService, VpsServer $vps): void
     {
-        Log::info("📦 [VPS #{$vps->id}] Uploading and setting up EZStream Agent v5.0");
+        Log::info("📦 [VPS #{$vps->id}] Uploading and setting up EZStream Agent v6.0");
 
         // 1. Create remote directory
         $remoteDir = '/opt/ezstream-agent';
         $sshService->execute("mkdir -p {$remoteDir}");
 
-        // 2. Upload all agent files (EZStream Agent v5.0 - Stream Manager + Process Manager)
+        // 2. Upload all agent files (EZStream Agent v6.0 - SRS-Only Streaming)
         $agentFiles = [
             'agent.py',                    // Main entry point
             'config.py',                   // Configuration management
-            'stream_manager.py',           // Stream & Playlist Management
-            'process_manager.py',          // FFmpeg Process Management with auto reconnect
+            'stream_manager.py',           // SRS-based Stream Manager (main)
+            'process_manager.py',          // Process Management with auto reconnect
             'file_manager.py',             // File download/validation/cleanup
             'status_reporter.py',          // Status reporting to Laravel
             'command_handler.py',          // Command processing from Laravel
             'video_optimizer.py',          // Video optimization (optional)
-            'utils.py'                     // Shared utilities
+            'utils.py',                    // Shared utilities
+            // SRS Support files
+            'srs_manager.py',              // SRS Server API Manager
+            'setup-srs.sh',                // SRS setup script
+            'srs.conf'                     // SRS configuration
         ];
 
         foreach ($agentFiles as $filename) {
@@ -227,14 +254,14 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
             throw new \Exception('EZStream Agent service failed to start. Check journalctl logs on the VPS.');
         }
 
-        Log::info("✅ [VPS #{$vps->id}] EZStream Agent v5.0 service started successfully");
+        Log::info("✅ [VPS #{$vps->id}] EZStream Agent v6.0 service started successfully");
     }
     
     private function generateAgentSystemdService(string $agentPath, string $redisHost, int $redisPort, ?string $redisPassword, VpsServer $vps): string
     {
         $pythonCmd = "/usr/bin/python3";
 
-        // Build the command arguments dynamically (v5.0 uses named arguments).
+        // Build the command arguments dynamically (v6.0 uses named arguments).
         $commandArgs = "--vps-id {$vps->id} --redis-host {$redisHost} --redis-port {$redisPort}";
         if ($redisPassword) {
             $commandArgs .= " --redis-password '{$redisPassword}'"; // Append password only if it exists
@@ -243,7 +270,7 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         $command = "{$pythonCmd} {$agentPath} {$commandArgs}";
 
         return "[Unit]
-Description=EZStream Agent v5.0 (Stream Manager + Process Manager)
+Description=EZStream Agent v6.0 (SRS-Only Streaming)
 After=network.target
 Wants=nginx.service
 
@@ -271,7 +298,7 @@ WantedBy=multi-user.target";
 
     private function verifyBaseServices(SshService $sshService, VpsServer $vps): void
     {
-        Log::info("🔍 [VPS #{$vps->id}] Verifying base services (Nginx health endpoint) - Agent v5.0");
+        Log::info("🔍 [VPS #{$vps->id}] Verifying base services (Nginx health endpoint) - Agent v6.0");
 
         // Check nginx
         $nginxStatus = $sshService->execute('systemctl is-active nginx');
@@ -279,7 +306,7 @@ WantedBy=multi-user.target";
             throw new \Exception('Nginx service is not running');
         }
 
-        // Check HTTP health endpoint port 8080 (Agent v5.0 không cần RTMP)
+        // Check HTTP health endpoint port 8080 (Agent v6.0 SRS-only)
         $httpPort = $sshService->execute('ss -tulpn | grep :8080');
         if (empty(trim($httpPort))) {
             throw new \Exception('HTTP health endpoint port 8080 is not listening');
@@ -293,7 +320,7 @@ WantedBy=multi-user.target";
             Log::info("✅ [VPS #{$vps->id}] Health endpoint responding: " . trim($healthCheck));
         }
 
-        Log::info("✅ [VPS #{$vps->id}] Base services verified (Agent v5.0 - Direct FFmpeg mode)");
+        Log::info("✅ [VPS #{$vps->id}] Base services verified (Agent v6.0 - SRS-Only mode)");
     }
 
     private function verifyPythonDependencies(SshService $sshService, VpsServer $vps): void

@@ -4,6 +4,9 @@ window.handleFileUpload = null;
 // Global flag to prevent multiple initializations
 window.fileUploadInitialized = window.fileUploadInitialized || false;
 
+// Global resetForm function - accessible from anywhere
+window.resetForm = null;
+
 // Define showDetailedError function globally first
 function showDetailedError(errorData) {
     // Check if modal already exists and remove it
@@ -818,6 +821,9 @@ function initializeFileUpload() {
         // Clear global flags
         window.uploadNotificationSent = false;
     }
+
+    // Expose resetForm globally
+    window.resetForm = resetForm;
 
     function formatFileSize(bytes) {
         if (bytes === 0) return '0 Bytes';

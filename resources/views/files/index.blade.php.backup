@@ -12,10 +12,7 @@
                 </div>
                 @if($canUpload)
                     <button id="upload-btn" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-blue-700 focus:bg-blue-700 active:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                        </svg>
-                        Upload
+                        📤 Upload
                     </button>
                 @endif
             </div>
@@ -24,7 +21,7 @@
 
     <div class="py-6">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-            
+
             <!-- Stats Cards -->
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <!-- Storage Usage Card -->
@@ -33,9 +30,7 @@
                         <div class="flex items-center">
                             <div class="flex-shrink-0">
                                 <div class="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-                                    <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
-                                    </svg>
+                                    <span class="text-blue-600 dark:text-blue-400">💾</span>
                                 </div>
                             </div>
                             <div class="ml-3 flex-1">
@@ -52,7 +47,7 @@
                                 </div>
                                 @if(!$isAdmin)
                                     <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mt-2">
-                                        <div class="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
+                                        <div class="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
                                              style="width: {{ min(($storageUsage / $storageLimit) * 100, 100) }}%"></div>
                                     </div>
                                 @endif
@@ -67,9 +62,7 @@
                         <div class="flex items-center">
                             <div class="flex-shrink-0">
                                 <div class="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center">
-                                    <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
-                                    </svg>
+                                    <span class="text-green-600 dark:text-green-400">📁</span>
                                 </div>
                             </div>
                             <div class="ml-3">
@@ -86,9 +79,7 @@
                         <div class="flex items-center">
                             <div class="flex-shrink-0">
                                 <div class="w-8 h-8 bg-yellow-100 dark:bg-yellow-900 rounded-full flex items-center justify-center">
-                                    <svg class="w-5 h-5 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                    </svg>
+                                    <span class="text-yellow-600 dark:text-yellow-400">✅</span>
                                 </div>
                             </div>
                             <div class="ml-3">
@@ -105,15 +96,13 @@
                         <div class="flex items-center">
                             <div class="flex-shrink-0">
                                 <div class="w-8 h-8 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center">
-                                    @if($canUpload)
-                                        <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                                        </svg>
-                                    @else
-                                        <svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
-                                        </svg>
-                                    @endif
+                                    <span class="text-purple-600 dark:text-purple-400">
+                                        @if($canUpload)
+                                            ✅
+                                        @else
+                                            ⚠️
+                                        @endif
+                                    </span>
                                 </div>
                             </div>
                             <div class="ml-3">
@@ -136,7 +125,7 @@
             <!-- Search & Filters -->
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="p-6">
-                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0 sm:space-x-4">
+                    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between space-y-4 lg:space-y-0 lg:space-x-4">
                         <!-- Search -->
                         <div class="flex-1 max-w-md">
                             <div class="relative">
@@ -146,13 +135,13 @@
                                     </svg>
                                 </div>
                                 <input type="text" id="search-input" placeholder="Search files..."
-                                       class="block w-full pl-10 pr-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
+                                       class="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md leading-5 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                             </div>
                         </div>
 
                         <!-- Filters -->
                         <div class="flex items-center space-x-3">
-                            <select id="sort-select" class="block px-3 py-2.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 min-w-[140px]">
+                            <select id="sort-select" class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500">
                                 <option value="newest">Newest First</option>
                                 <option value="oldest">Oldest First</option>
                                 <option value="largest">Largest First</option>
@@ -166,10 +155,7 @@
                                     Select All
                                 </button>
                                 <button id="bulk-delete-btn" class="inline-flex items-center px-3 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">
-                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                                    </svg>
-                                    Delete Selected
+                                    🗑️ Delete Selected
                                 </button>
                             </div>
                         </div>
@@ -177,7 +163,57 @@
                 </div>
             </div>
 
+            <!-- Upload Modal (Hidden by default) -->
+            @if($canUpload)
+            <div id="upload-modal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+                <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+                    <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
+                    <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+                        <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                            <div class="sm:flex sm:items-start">
+                                <div class="mt-3 text-center sm:mt-0 sm:text-left w-full">
+                                    <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100" id="modal-title">
+                                        📤 Upload Video
+                                    </h3>
+                                    <div class="mt-4">
+                                        <div id="upload-form" class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer">
+                                            <input type="file" id="file-input" accept="video/mp4,.mp4" class="hidden">
+                                            <div class="space-y-2">
+                                                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                                                </svg>
+                                                <p class="text-gray-600 dark:text-gray-400">
+                                                    <span class="font-medium text-blue-600 hover:text-blue-500 cursor-pointer">Click to select file</span>
+                                                    or drag and drop
+                                                </p>
+                                                <p class="text-xs text-gray-500">
+                                                    MP4 only • Max {{ number_format($maxFileSize / 1024 / 1024 / 1024, 0) }}GB
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        <!-- Upload Progress -->
+                                        <div id="upload-progress" class="hidden mt-4">
+                                            <div class="bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
+                                                <div id="progress-bar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                                            </div>
+                                            <p id="upload-status" class="text-sm text-gray-600 dark:text-gray-400">Preparing...</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                            <button type="button" id="close-upload-modal" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            @endif
 
             <!-- Files Grid -->
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
@@ -193,25 +229,23 @@
                                  data-created-at="{{ $file->created_at->timestamp }}">
 
                                 <!-- Selection Checkbox -->
-                                <div class="absolute top-2 left-2 z-20">
-                                    <input type="checkbox" class="file-checkbox w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500 focus:ring-2 shadow-sm"
+                                <div class="absolute top-2 left-2 z-10">
+                                    <input type="checkbox" class="file-checkbox w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
                                            value="{{ $file->id }}"
                                            onchange="updateSelection()">
                                 </div>
 
                                 <!-- File Preview -->
                                 <div class="aspect-video bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-800 dark:to-gray-900 flex items-center justify-center relative">
-                                    <svg class="w-16 h-16 text-blue-500 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
-                                    </svg>
+                                    <div class="text-4xl">🎬</div>
 
                                     <!-- File Type Badge -->
-                                    <div class="absolute top-2 right-2 bg-blue-600 bg-opacity-90 text-white text-xs px-2 py-1 rounded-md font-medium">
+                                    <div class="absolute top-2 right-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
                                         MP4
                                     </div>
 
-                                    <!-- File Size Badge (right below MP4) -->
-                                    <div class="absolute top-10 right-2 bg-gray-900 bg-opacity-90 text-white text-xs px-2 py-1 rounded-md font-medium">
+                                    <!-- File Size Badge -->
+                                    <div class="absolute bottom-2 right-2 bg-black bg-opacity-75 text-white text-xs px-2 py-1 rounded">
                                         {{ number_format($file->size / 1024 / 1024, 1) }}MB
                                     </div>
 
@@ -222,18 +256,18 @@
                                                 <button onclick="previewFile('{{ $file->public_url }}', '{{ $file->original_name }}')"
                                                         class="bg-white text-gray-900 p-2 rounded-full hover:bg-gray-100 transition-colors"
                                                         title="Preview">
-                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                                                    </svg>
+                                                    👁️
                                                 </button>
                                             @endif
+                                            <button onclick="downloadFile({{ $file->id }})"
+                                                    class="bg-white text-gray-900 p-2 rounded-full hover:bg-gray-100 transition-colors"
+                                                    title="Download">
+                                                �
+                                            </button>
                                             <button onclick="deleteFile({{ $file->id }}, '{{ $file->original_name }}')"
                                                     class="bg-red-600 text-white p-2 rounded-full hover:bg-red-700 transition-colors"
                                                     title="Delete">
-                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                                                </svg>
+                                                🗑️
                                             </button>
                                         </div>
                                     </div>
@@ -285,10 +319,7 @@
                             <p class="text-gray-500 dark:text-gray-400 mb-4">Upload your first video to get started</p>
                             @if($canUpload)
                                 <button onclick="openUploadModal()" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-blue-700 focus:bg-blue-700 active:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150">
-                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                                    </svg>
-                                    Upload Video
+                                    📤 Upload Video
                                 </button>
                             @endif
                         </div>
@@ -298,63 +329,8 @@
         </div>
     </div>
 
-    <!-- Upload Modal (Outside container for proper z-index) -->
-    @if($canUpload)
-    <div id="upload-modal" class="fixed inset-0 z-[99999] overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-        <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
-            <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-
-            <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-                <div class="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                    <div class="sm:flex sm:items-start">
-                        <div class="mt-3 text-center sm:mt-0 sm:text-left w-full">
-                            <h3 class="text-lg leading-6 font-medium text-gray-900 dark:text-gray-100 flex items-center" id="modal-title">
-                                <svg class="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                                </svg>
-                                Upload Video
-                            </h3>
-                            <div class="mt-4">
-                                <div id="upload-form" class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer">
-                                    <input type="file" id="file-input" accept="video/mp4,.mp4" class="hidden">
-                                    <div class="space-y-2">
-                                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                                        </svg>
-                                        <p class="text-gray-600 dark:text-gray-400">
-                                            <span class="font-medium text-blue-600 hover:text-blue-500 cursor-pointer">Click to select file</span>
-                                            or drag and drop
-                                        </p>
-                                        <p class="text-xs text-gray-500">
-                                            MP4 only • Max {{ number_format($maxFileSize / 1024 / 1024 / 1024, 0) }}GB
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <!-- Upload Progress -->
-                                <div id="upload-progress" class="hidden mt-4">
-                                    <div class="bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
-                                        <div id="progress-bar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
-                                    </div>
-                                    <p id="upload-status" class="text-sm text-gray-600 dark:text-gray-400">Preparing...</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                    <button type="button" id="close-upload-modal" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-                        Close
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-    @endif
-
     <!-- File Preview Modal -->
-    <div id="preview-modal" class="fixed inset-0 z-[99999] overflow-y-auto hidden" aria-labelledby="preview-modal-title" role="dialog" aria-modal="true">
+    <div id="preview-modal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="preview-modal-title" role="dialog" aria-modal="true">
         <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
             <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
@@ -380,7 +356,7 @@
     </div>
 
     <!-- Toast Notifications Container -->
-    <div id="toast-container" class="fixed top-4 right-4 z-[99998] space-y-2"></div>
+    <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
     @push('scripts')
     <script>
@@ -538,7 +514,7 @@
 
                 if (response.success) {
                     this.showToast(response.message, 'success');
-                    setTimeout(() => location.reload(), 500);
+                    setTimeout(() => location.reload(), 1000);
                 } else {
                     this.showToast(response.message || 'Delete failed', 'error');
                 }
@@ -622,6 +598,13 @@
             const toast = document.createElement('div');
             toast.className = `max-w-sm w-full bg-white dark:bg-gray-800 shadow-lg rounded-lg pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden transform transition-all duration-300 translate-x-full`;
 
+            const bgColor = {
+                success: 'bg-green-50 dark:bg-green-900',
+                error: 'bg-red-50 dark:bg-red-900',
+                warning: 'bg-yellow-50 dark:bg-yellow-900',
+                info: 'bg-blue-50 dark:bg-blue-900'
+            }[type] || 'bg-gray-50 dark:bg-gray-900';
+
             const icon = {
                 success: '✅',
                 error: '❌',
@@ -683,7 +666,7 @@
 
             if (response.success) {
                 window.fileManager.showToast(response.message, 'success');
-                setTimeout(() => location.reload(), 500);
+                setTimeout(() => location.reload(), 1000);
             } else {
                 window.fileManager.showToast(response.message || 'Delete failed', 'error');
             }
@@ -710,6 +693,10 @@
 
     function closePreviewModal() {
         document.getElementById('preview-modal')?.classList.add('hidden');
+    }
+
+    function downloadFile(fileId) {
+        window.open(`/api/secure-download/${fileId}`, '_blank');
     }
 
     function openUploadModal() {

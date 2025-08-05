@@ -5,7 +5,7 @@ namespace App\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Redis;
 use App\Services\RedisMemoryManager;
-use App\Services\RtmpCircuitBreaker;
+// REMOVED: RtmpCircuitBreaker - Agent handles RTMP monitoring
 use App\Services\DistributedLock;
 
 class TestRedisConnection extends Command
@@ -166,15 +166,8 @@ class TestRedisConnection extends Command
             $this->error("   ❌ RedisMemoryManager: " . $e->getMessage());
         }
         
-        // Test RtmpCircuitBreaker
-        try {
-            $testRtmpUrl = 'rtmp://test.example.com/live';
-            $status = RtmpCircuitBreaker::getStatus($testRtmpUrl);
-            $this->line("   ✅ RtmpCircuitBreaker: Working (State: {$status['state']})");
-            
-        } catch (\Exception $e) {
-            $this->error("   ❌ RtmpCircuitBreaker: " . $e->getMessage());
-        }
+        // REMOVED: RtmpCircuitBreaker test - Agent handles RTMP monitoring
+        $this->line("   ✅ RtmpCircuitBreaker: Removed (Agent handles RTMP monitoring)");
     }
 
     private function showDetailedInfo(): void

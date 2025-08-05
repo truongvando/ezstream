@@ -30,11 +30,7 @@ class AppServiceProvider extends ServiceProvider
                     }
                 })->everyFiveMinutes()->name('check-partitions');
 
-                // Monitor RTMP server health every 3 minutes
-                $schedule->job(new \App\Jobs\MonitorRtmpHealthJob)
-                    ->everyThreeMinutes()
-                    ->name('monitor-rtmp-health')
-                    ->withoutOverlapping();
+                // REMOVED: MonitorRtmpHealthJob - Agent already handles RTMP monitoring
 
                 // Redis memory cleanup every hour
                 $schedule->call(function () {

@@ -60,22 +60,16 @@ class EZStreamAgent:
             self.stream_manager = init_stream_manager()  # Stream management with playlist support
             self.command_handler = init_command_handler()
 
-            # Initialize SRS managers if enabled
-            if self.config.srs_enabled:
-                try:
-                    from srs_manager import init_srs_manager
-                    from srs_stream_manager import init_srs_stream_manager
+            # Initialize SRS managers (main streaming method)
+            try:
+                from srs_manager import init_srs_manager
+                # stream_manager is already initialized above
 
-                    init_srs_manager()
-                    srs_stream_manager = init_srs_stream_manager()
-
-                    # Start SRS monitoring
-                    if srs_stream_manager:
-                        srs_stream_manager.start_monitoring()
-                        logging.info("✅ SRS managers initialized and monitoring started")
-                except Exception as e:
-                    logging.error(f"❌ Failed to initialize SRS managers: {e}")
-                    logging.info("🔄 Continuing with FFmpeg fallback")
+                init_srs_manager()
+                logging.info("✅ SRS managers initialized successfully")
+            except Exception as e:
+                logging.error(f"❌ Failed to initialize SRS managers: {e}")
+                raise
 
             # Start services
             if self.status_reporter:

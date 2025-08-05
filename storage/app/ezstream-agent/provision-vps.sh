@@ -239,6 +239,7 @@ else
     # Add Docker's official GPG key
     mkdir -p /etc/apt/keyrings
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    chmod a+r /etc/apt/keyrings/docker.gpg
 
     # Set up the repository
     echo \
@@ -249,11 +250,18 @@ else
     apt-get update
 
     # Install Docker Engine
-    apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    if apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin; then
+        echo "✅ Docker packages installed successfully"
+    else
+        echo "⚠️ Docker installation had issues, but continuing..."
+    fi
 
     # Start and enable Docker
     systemctl start docker
     systemctl enable docker
+
+    # Wait for Docker to start
+    sleep 3
 
     # Add current user to docker group (if not root)
     if [ "$USER" != "root" ]; then
@@ -266,10 +274,13 @@ fi
 
 # Verify Docker is working
 echo "🔍 Verifying Docker installation..."
-if docker run --rm hello-world > /dev/null 2>&1; then
+# Use timeout to prevent hanging
+if timeout 30 docker run --rm hello-world > /dev/null 2>&1; then
     echo "✅ Docker is working correctly"
 else
-    echo "⚠️ Docker test failed, but continuing..."
+    echo "⚠️ Docker test failed or timed out, but continuing..."
+    # Try to start docker service if it's not running
+    systemctl start docker 2>/dev/null || true
 fi
 
 echo ""
@@ -277,4 +288,5 @@ echo "=== VPS BASE PROVISION COMPLETE ==="
 echo "✅ Base system is ready for EZStream Agent v5.0 deployment from Laravel."
 echo "📋 Architecture: Stream Manager + Process Manager + File Manager + SRS Support"
 echo "🐳 Docker installed for SRS streaming server support"
+echo "🕐 Provision completed at: $(date)"
 echo ""

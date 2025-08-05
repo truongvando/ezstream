@@ -1,26 +1,35 @@
-<x-app-layout>
-    <x-slot name="header">
+<?php if (isset($component)) { $__componentOriginal9ac128a9029c0e4701924bd2d73d7f54 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal9ac128a9029c0e4701924bd2d73d7f54 = $attributes; } ?>
+<?php $component = App\View\Components\AppLayout::resolve([] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component->withName('app-layout'); ?>
+<?php if ($component->shouldRender()): ?>
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>
+<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php $attributes = $attributes->except(\App\View\Components\AppLayout::ignoredParameterNames()); ?>
+<?php endif; ?>
+<?php $component->withAttributes([]); ?>
+     <?php $__env->slot('header', null, []); ?> 
         <div class="flex items-center justify-between">
             <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
                 📁 File Manager
             </h2>
             <div class="flex items-center space-x-4">
                 <div class="text-sm text-gray-600 dark:text-gray-400">
-                    <span id="file-count">{{ $files->total() }} file(s)</span>
+                    <span id="file-count"><?php echo e($files->total()); ?> file(s)</span>
                     <span class="mx-2">•</span>
-                    <span id="storage-used">{{ number_format($storageUsage / 1024 / 1024 / 1024, 2) }} GB</span>
+                    <span id="storage-used"><?php echo e(number_format($storageUsage / 1024 / 1024 / 1024, 2)); ?> GB</span>
                 </div>
-                @if($canUpload)
+                <?php if($canUpload): ?>
                     <button id="upload-btn" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-blue-700 focus:bg-blue-700 active:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                         </svg>
                         Upload
                     </button>
-                @endif
+                <?php endif; ?>
             </div>
         </div>
-    </x-slot>
+     <?php $__env->endSlot(); ?>
 
     <div class="py-6">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
@@ -42,20 +51,20 @@
                                 <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Storage</p>
                                 <div class="flex items-center mt-1">
                                     <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">
-                                        {{ number_format($storageUsage / 1024 / 1024 / 1024, 1) }}GB
+                                        <?php echo e(number_format($storageUsage / 1024 / 1024 / 1024, 1)); ?>GB
                                     </p>
-                                    @if(!$isAdmin)
+                                    <?php if(!$isAdmin): ?>
                                         <span class="text-sm text-gray-500 dark:text-gray-400 ml-1">
-                                            / {{ number_format($storageLimit / 1024 / 1024 / 1024, 0) }}GB
+                                            / <?php echo e(number_format($storageLimit / 1024 / 1024 / 1024, 0)); ?>GB
                                         </span>
-                                    @endif
+                                    <?php endif; ?>
                                 </div>
-                                @if(!$isAdmin)
+                                <?php if(!$isAdmin): ?>
                                     <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mt-2">
                                         <div class="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
-                                             style="width: {{ min(($storageUsage / $storageLimit) * 100, 100) }}%"></div>
+                                             style="width: <?php echo e(min(($storageUsage / $storageLimit) * 100, 100)); ?>%"></div>
                                     </div>
-                                @endif
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
@@ -74,7 +83,7 @@
                             </div>
                             <div class="ml-3">
                                 <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Total Files</p>
-                                <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ $files->total() }}</p>
+                                <p class="text-lg font-semibold text-gray-900 dark:text-gray-100"><?php echo e($files->total()); ?></p>
                             </div>
                         </div>
                     </div>
@@ -105,27 +114,27 @@
                         <div class="flex items-center">
                             <div class="flex-shrink-0">
                                 <div class="w-8 h-8 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center">
-                                    @if($canUpload)
+                                    <?php if($canUpload): ?>
                                         <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                                         </svg>
-                                    @else
+                                    <?php else: ?>
                                         <svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
                                         </svg>
-                                    @endif
+                                    <?php endif; ?>
                                 </div>
                             </div>
                             <div class="ml-3">
                                 <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Upload</p>
-                                <p class="text-sm font-semibold {{ $canUpload ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400' }}">
-                                    @if($isAdmin)
+                                <p class="text-sm font-semibold <?php echo e($canUpload ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'); ?>">
+                                    <?php if($isAdmin): ?>
                                         Unlimited
-                                    @elseif($canUpload)
+                                    <?php elseif($canUpload): ?>
                                         Available
-                                    @else
+                                    <?php else: ?>
                                         Quota Full
-                                    @endif
+                                    <?php endif; ?>
                                 </p>
                             </div>
                         </div>
@@ -182,20 +191,20 @@
             <!-- Files Grid -->
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="p-6">
-                    @if($files->count() > 0)
+                    <?php if($files->count() > 0): ?>
                         <!-- Files Grid -->
                         <div id="files-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                            @foreach($files as $file)
+                            <?php $__currentLoopData = $files; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $file): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
                             <div class="file-card group relative bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg overflow-hidden hover:shadow-lg transition-all duration-200 hover:scale-105"
-                                 data-file-id="{{ $file->id }}"
-                                 data-file-name="{{ $file->original_name }}"
-                                 data-file-size="{{ $file->size }}"
-                                 data-created-at="{{ $file->created_at->timestamp }}">
+                                 data-file-id="<?php echo e($file->id); ?>"
+                                 data-file-name="<?php echo e($file->original_name); ?>"
+                                 data-file-size="<?php echo e($file->size); ?>"
+                                 data-created-at="<?php echo e($file->created_at->timestamp); ?>">
 
                                 <!-- Selection Checkbox -->
                                 <div class="absolute top-2 left-2 z-20">
                                     <input type="checkbox" class="file-checkbox w-4 h-4 text-blue-600 bg-white border-gray-300 rounded focus:ring-blue-500 focus:ring-2 shadow-sm"
-                                           value="{{ $file->id }}"
+                                           value="<?php echo e($file->id); ?>"
                                            onchange="updateSelection()">
                                 </div>
 
@@ -212,14 +221,14 @@
 
                                     <!-- File Size Badge (right below MP4) -->
                                     <div class="absolute top-10 right-2 bg-gray-900 bg-opacity-90 text-white text-xs px-2 py-1 rounded-md font-medium">
-                                        {{ number_format($file->size / 1024 / 1024, 1) }}MB
+                                        <?php echo e(number_format($file->size / 1024 / 1024, 1)); ?>MB
                                     </div>
 
                                     <!-- Hover Actions -->
                                     <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
                                         <div class="flex space-x-2">
-                                            @if($file->public_url)
-                                                <button onclick="previewFile('{{ $file->public_url }}', '{{ $file->original_name }}')"
+                                            <?php if($file->public_url): ?>
+                                                <button onclick="previewFile('<?php echo e($file->public_url); ?>', '<?php echo e($file->original_name); ?>')"
                                                         class="bg-white text-gray-900 p-2 rounded-full hover:bg-gray-100 transition-colors"
                                                         title="Preview">
                                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -227,8 +236,8 @@
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
                                                     </svg>
                                                 </button>
-                                            @endif
-                                            <button onclick="deleteFile({{ $file->id }}, '{{ $file->original_name }}')"
+                                            <?php endif; ?>
+                                            <button onclick="deleteFile(<?php echo e($file->id); ?>, '<?php echo e($file->original_name); ?>')"
                                                     class="bg-red-600 text-white p-2 rounded-full hover:bg-red-700 transition-colors"
                                                     title="Delete">
                                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -241,39 +250,41 @@
 
                                 <!-- File Info -->
                                 <div class="p-4">
-                                    <h3 class="font-medium text-gray-900 dark:text-gray-100 text-sm truncate mb-2" title="{{ $file->original_name }}">
-                                        {{ $file->original_name }}
+                                    <h3 class="font-medium text-gray-900 dark:text-gray-100 text-sm truncate mb-2" title="<?php echo e($file->original_name); ?>">
+                                        <?php echo e($file->original_name); ?>
+
                                     </h3>
 
                                     <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                                        <span>{{ $file->created_at->diffForHumans() }}</span>
-                                        @if($file->disk === 'bunny_stream')
+                                        <span><?php echo e($file->created_at->diffForHumans()); ?></span>
+                                        <?php if($file->disk === 'bunny_stream'): ?>
                                             <span class="bg-purple-100 text-purple-800 px-2 py-1 rounded-full">Stream</span>
-                                        @elseif($file->disk === 'bunny_cdn')
+                                        <?php elseif($file->disk === 'bunny_cdn'): ?>
                                             <span class="bg-blue-100 text-blue-800 px-2 py-1 rounded-full">CDN</span>
-                                        @elseif($file->disk === 'hybrid')
+                                        <?php elseif($file->disk === 'hybrid'): ?>
                                             <span class="bg-green-100 text-green-800 px-2 py-1 rounded-full">Hybrid</span>
-                                        @else
+                                        <?php else: ?>
                                             <span class="bg-gray-100 text-gray-800 px-2 py-1 rounded-full">Local</span>
-                                        @endif
+                                        <?php endif; ?>
                                     </div>
 
-                                    @if($isAdmin && $file->user)
+                                    <?php if($isAdmin && $file->user): ?>
                                         <div class="mt-2 flex items-center text-xs text-blue-600 dark:text-blue-400">
                                             <span class="mr-1">👤</span>
-                                            <span>{{ $file->user->name }}</span>
+                                            <span><?php echo e($file->user->name); ?></span>
                                         </div>
-                                    @endif
+                                    <?php endif; ?>
                                 </div>
                             </div>
-                            @endforeach
+                            <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>
                         </div>
 
                         <!-- Pagination -->
                         <div class="mt-6">
-                            {{ $files->links() }}
+                            <?php echo e($files->links()); ?>
+
                         </div>
-                    @else
+                    <?php else: ?>
                         <!-- Empty State -->
                         <div class="text-center py-12">
                             <div class="mx-auto h-24 w-24 text-gray-400 mb-4">
@@ -283,23 +294,23 @@
                             </div>
                             <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">No files yet</h3>
                             <p class="text-gray-500 dark:text-gray-400 mb-4">Upload your first video to get started</p>
-                            @if($canUpload)
+                            <?php if($canUpload): ?>
                                 <button onclick="openUploadModal()" class="inline-flex items-center px-4 py-2 bg-blue-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-blue-700 focus:bg-blue-700 active:bg-blue-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150">
                                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
                                     </svg>
                                     Upload Video
                                 </button>
-                            @endif
+                            <?php endif; ?>
                         </div>
-                    @endif
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Upload Modal (Outside container for proper z-index) -->
-    @if($canUpload)
+    <?php if($canUpload): ?>
     <div id="upload-modal" class="fixed inset-0 z-[99999] overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
         <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
             <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
@@ -327,7 +338,7 @@
                                             or drag and drop
                                         </p>
                                         <p class="text-xs text-gray-500">
-                                            MP4 only • Max {{ number_format($maxFileSize / 1024 / 1024 / 1024, 0) }}GB
+                                            MP4 only • Max <?php echo e(number_format($maxFileSize / 1024 / 1024 / 1024, 0)); ?>GB
                                         </p>
                                     </div>
                                 </div>
@@ -351,7 +362,7 @@
             </div>
         </div>
     </div>
-    @endif
+    <?php endif; ?>
 
     <!-- File Preview Modal -->
     <div id="preview-modal" class="fixed inset-0 z-[99999] overflow-y-auto hidden" aria-labelledby="preview-modal-title" role="dialog" aria-modal="true">
@@ -382,7 +393,7 @@
     <!-- Toast Notifications Container -->
     <div id="toast-container" class="fixed top-4 right-4 z-[99998] space-y-2"></div>
 
-    @push('scripts')
+    <?php $__env->startPush('scripts'); ?>
     <script>
     // 🎯 Modern File Manager JavaScript
     class FileManager {
@@ -721,5 +732,15 @@
         window.fileManager = new FileManager();
     });
     </script>
-    @endpush
-</x-app-layout>
+    <?php $__env->stopPush(); ?>
+ <?php echo $__env->renderComponent(); ?>
+<?php endif; ?>
+<?php if (isset($__attributesOriginal9ac128a9029c0e4701924bd2d73d7f54)): ?>
+<?php $attributes = $__attributesOriginal9ac128a9029c0e4701924bd2d73d7f54; ?>
+<?php unset($__attributesOriginal9ac128a9029c0e4701924bd2d73d7f54); ?>
+<?php endif; ?>
+<?php if (isset($__componentOriginal9ac128a9029c0e4701924bd2d73d7f54)): ?>
+<?php $component = $__componentOriginal9ac128a9029c0e4701924bd2d73d7f54; ?>
+<?php unset($__componentOriginal9ac128a9029c0e4701924bd2d73d7f54); ?>
+<?php endif; ?>
+<?php /**PATH D:\laragon\www\ezstream\resources\views/files/index.blade.php ENDPATH**/ ?>

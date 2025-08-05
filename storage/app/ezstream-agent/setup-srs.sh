@@ -11,9 +11,10 @@ echo "================================"
 # Configuration
 SRS_VERSION="5.0-r3"
 SRS_CONTAINER_NAME="ezstream-srs"
-SRS_CONFIG_PATH="$(pwd)/srs.conf"
-SRS_DATA_DIR="$(pwd)/srs-data"
-SRS_LOGS_DIR="$(pwd)/logs"
+SCRIPT_DIR="/opt/ezstream-agent"
+SRS_CONFIG_PATH="${SCRIPT_DIR}/srs.conf"
+SRS_DATA_DIR="${SCRIPT_DIR}/srs-data"
+SRS_LOGS_DIR="${SCRIPT_DIR}/logs"
 
 # Colors for output
 RED='\033[0;31m'

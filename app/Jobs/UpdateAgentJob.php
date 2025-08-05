@@ -32,17 +32,17 @@ class UpdateAgentJob implements ShouldQueue
     {
         $vps = VpsServer::findOrFail($this->vpsId);
 
-        Log::info("🔄 [VPS #{$vps->id}] Bắt đầu cập nhật EZStream Agent v5.0");
+        Log::info("🔄 [VPS #{$vps->id}] Bắt đầu cập nhật EZStream Agent v6.0");
 
         try {
             // Update VPS status
             $vps->update([
                 'status' => 'UPDATING',
-                'status_message' => 'Đang cập nhật EZStream Agent v5.0...'
+                'status_message' => 'Đang cập nhật EZStream Agent v6.0...'
             ]);
 
             // Initialize progress tracking
-            $this->setUpdateProgress($vps->id, 'starting', 5, 'Bắt đầu cập nhật EZStream Agent v5.0');
+            $this->setUpdateProgress($vps->id, 'starting', 5, 'Bắt đầu cập nhật EZStream Agent v6.0');
 
             // Check if VPS operations are enabled for this environment
             if (!config('deployment.vps_operations_enabled')) {
@@ -91,7 +91,7 @@ class UpdateAgentJob implements ShouldQueue
             $this->updateSystemdService($sshService, $vps);
 
             // Step 5: Start new agent
-            $this->setUpdateProgress($vps->id, 'starting', 80, 'Khởi động EZStream Agent v5.0');
+            $this->setUpdateProgress($vps->id, 'starting', 80, 'Khởi động EZStream Agent v6.0');
             $this->startNewAgent($sshService, $vps);
 
             // Step 6: Update/Install SRS Server (if needed)
@@ -103,17 +103,17 @@ class UpdateAgentJob implements ShouldQueue
             $this->verifyAgentRunning($sshService, $vps);
 
             // Step 8: Verify agent compatibility
-            $this->setUpdateProgress($vps->id, 'compatibility', 95, 'Kiểm tra tương thích v5.0');
+            $this->setUpdateProgress($vps->id, 'compatibility', 95, 'Kiểm tra tương thích v6.0');
             $this->verifyAgentCompatibility($sshService, $vps);
 
             // Update status to active
-            $this->setUpdateProgress($vps->id, 'completed', 100, 'Cập nhật EZStream Agent v5.0 hoàn tất');
+            $this->setUpdateProgress($vps->id, 'completed', 100, 'Cập nhật EZStream Agent v6.0 hoàn tất');
             $vps->update([
                 'status' => 'ACTIVE',
-                'status_message' => 'EZStream Agent v5.0 đã được cập nhật thành công'
+                'status_message' => 'EZStream Agent v6.0 đã được cập nhật thành công'
             ]);
 
-            Log::info("✅ [VPS #{$vps->id}] Cập nhật EZStream Agent v5.0 hoàn tất");
+            Log::info("✅ [VPS #{$vps->id}] Cập nhật EZStream Agent v6.0 hoàn tất");
 
         } catch (\Exception $e) {
             $this->setUpdateProgress($vps->id, 'error', 0, 'Lỗi: ' . $e->getMessage());
@@ -174,7 +174,7 @@ class UpdateAgentJob implements ShouldQueue
 
     private function uploadNewAgentFiles(SshService $sshService, VpsServer $vps): void
     {
-        Log::info("📤 [VPS #{$vps->id}] Đang upload các file EZStream Agent v5.0");
+        Log::info("📤 [VPS #{$vps->id}] Đang upload các file EZStream Agent v6.0");
 
         $remoteDir = '/opt/ezstream-agent';
         $sshService->execute("mkdir -p {$remoteDir}");
@@ -251,7 +251,7 @@ class UpdateAgentJob implements ShouldQueue
             $uploadedCount++;
         }
 
-        Log::info("✅ [VPS #{$vps->id}] Đã upload {$uploadedCount} file EZStream Agent v5.0");
+        Log::info("✅ [VPS #{$vps->id}] Đã upload {$uploadedCount} file EZStream Agent v6.0");
     }
 
 
@@ -438,18 +438,19 @@ PYTHON;
 
     private function verifyAgentCompatibility(SshService $sshService, VpsServer $vps): void
     {
-        Log::info("🔍 [VPS #{$vps->id}] Kiểm tra tương thích EZStream Agent v5.0");
+        Log::info("🔍 [VPS #{$vps->id}] Kiểm tra tương thích EZStream Agent v6.0");
 
         try {
-            // Check if agent files exist (v5.0 architecture)
+            // Check if agent files exist (v6.0 SRS-only architecture)
             $requiredFiles = [
                 'agent.py',
                 'command_handler.py',
                 'config.py',
                 'status_reporter.py',
-                'stream_manager.py',        // ✅ New v5.0 file
-                'process_manager.py',       // ✅ New v5.0 file
-                'file_manager.py',
+                'stream_manager.py',        // ✅ SRS-only stream manager
+                'process_manager.py',       // ✅ SRS-only process manager
+                'file_manager.py',          // ✅ SRS-only file manager
+                'srs_manager.py',           // ✅ SRS server manager
                 'utils.py'
             ];
 
@@ -465,8 +466,8 @@ PYTHON;
                 throw new \Exception('Thiếu các file agent: ' . implode(', ', $missingFiles));
             }
 
-            // Test agent version/compatibility by checking imports (v5.0 modules)
-            $testImports = $sshService->execute("cd /opt/ezstream-agent && python3 -c 'import config, command_handler, status_reporter, stream_manager, process_manager; print(\"OK\")'");
+            // Test agent version/compatibility by checking imports (v6.0 SRS modules)
+            $testImports = $sshService->execute("cd /opt/ezstream-agent && python3 -c 'import config, command_handler, status_reporter, stream_manager, process_manager, srs_manager; print(\"OK\")'");
 
             if (strpos($testImports, 'OK') === false) {
                 throw new \Exception('Agent modules không import được: ' . $testImports);
@@ -481,7 +482,7 @@ PYTHON;
                 if ($agentState) {
                     $stateData = json_decode($agentState, true);
                     if (isset($stateData['last_heartbeat'])) {
-                        Log::info("✅ [VPS #{$vps->id}] EZStream Agent v5.0 đang báo cáo heartbeat bình thường");
+                        Log::info("✅ [VPS #{$vps->id}] EZStream Agent v6.0 đang báo cáo heartbeat bình thường");
                         return;
                     }
                 }
@@ -492,7 +493,7 @@ PYTHON;
 
         } catch (\Exception $e) {
             Log::error("❌ [VPS #{$vps->id}] Agent compatibility check failed: {$e->getMessage()}");
-            throw new \Exception('EZStream Agent v5.0 compatibility check failed: ' . $e->getMessage());
+            throw new \Exception('EZStream Agent v6.0 compatibility check failed: ' . $e->getMessage());
         }
     }
 
@@ -525,7 +526,7 @@ PYTHON;
     {
         $pythonCmd = "/usr/bin/python3";
 
-        // Build command arguments (v5.0 uses named arguments)
+        // Build command arguments (v6.0 uses named arguments)
         $commandArgs = "--vps-id {$vps->id} --redis-host {$redisHost} --redis-port {$redisPort}";
         if ($redisPassword) {
             $commandArgs .= " --redis-password '{$redisPassword}'";
@@ -534,7 +535,7 @@ PYTHON;
         $command = "{$pythonCmd} {$agentPath} {$commandArgs}";
 
         return "[Unit]
-Description=EZStream Agent v5.0 (Stream Manager + Process Manager)
+Description=EZStream Agent v6.0 (SRS-Only Streaming)
 After=network.target nginx.service
 Requires=nginx.service
 

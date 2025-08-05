@@ -70,8 +70,8 @@ class FileController extends Controller
                 return ApiResponse::notFound('Không tìm thấy file để xóa');
             }
 
-            // Use async deletion for better performance
-            $result = $this->fileDeleteService->deleteFiles($files, true);
+            // Use sync deletion for immediate UI update
+            $result = $this->fileDeleteService->deleteFiles($files, false);
 
             if ($result['success']) {
                 return ApiResponse::success([

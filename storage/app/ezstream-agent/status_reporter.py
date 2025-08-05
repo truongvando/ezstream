@@ -236,26 +236,14 @@ class StatusReporter:
 
         while self.running:
             try:
-                # Get active streams from both FFmpeg and SRS managers
+                # Get active streams from SRS stream manager
                 active_stream_ids = []
 
-                # FFmpeg streams
+                # SRS streams (main and only stream manager)
                 from stream_manager import get_stream_manager
                 stream_manager = get_stream_manager()
                 if stream_manager:
-                    ffmpeg_streams = stream_manager.get_active_streams()
-                    active_stream_ids.extend(ffmpeg_streams)
-
-                # SRS streams
-                try:
-                    from srs_stream_manager import get_srs_stream_manager
-                    srs_stream_manager = get_srs_stream_manager()
-                    if srs_stream_manager:
-                        srs_streams = srs_stream_manager.get_active_streams()
-                        active_stream_ids.extend(srs_streams)
-                except ImportError:
-                    # SRS not available, continue with FFmpeg only
-                    pass
+                    active_stream_ids = stream_manager.get_active_streams()
 
                 heartbeat_payload = {
                     'type': 'HEARTBEAT',

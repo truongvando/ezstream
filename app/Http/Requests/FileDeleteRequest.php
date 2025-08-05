@@ -22,8 +22,8 @@ class FileDeleteRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'file_id' => 'required|integer|exists:user_files,id',
-            'bulk_ids' => 'sometimes|array|min:1',
+            'file_id' => 'required_without:bulk_ids|integer|exists:user_files,id',
+            'bulk_ids' => 'required_without:file_id|array|min:1',
             'bulk_ids.*' => 'integer|exists:user_files,id',
         ];
     }
@@ -120,10 +120,10 @@ class FileDeleteRequest extends FormRequest
             
             if ($user->hasRole('admin')) {
                 $file = UserFile::find($fileId);
-                return $file ? collect([$file]) : collect();
+                return $file ? new \Illuminate\Database\Eloquent\Collection([$file]) : new \Illuminate\Database\Eloquent\Collection();
             } else {
                 $file = $user->files()->find($fileId);
-                return $file ? collect([$file]) : collect();
+                return $file ? new \Illuminate\Database\Eloquent\Collection([$file]) : new \Illuminate\Database\Eloquent\Collection();
             }
         }
     }
