@@ -47,7 +47,7 @@
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg mb-6">
                 <div class="p-6">
                     <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">📤 Upload Video</h3>
-                    
+
                     <div id="upload-form" class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 text-center hover:border-blue-400 transition-colors cursor-pointer">
                         <input type="file" id="file-input" accept="video/mp4,.mp4" class="hidden">
                         <div class="space-y-2">
@@ -85,7 +85,7 @@
                     </div>
 
                     <!-- Upload Progress -->
-                    <div id="upload-progress" class="mt-4 hidden">
+                    <div id="upload-progress" class="hidden mt-4">
                         <div class="bg-gray-200 dark:bg-gray-700 rounded-full h-2 mb-2">
                             <div id="progress-bar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
                         </div>
@@ -99,7 +99,7 @@
             <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
                 <div class="p-6">
                     <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4">📁 Danh sách file</h3>
-                    
+
                     <?php if($files->count() > 0): ?>
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                             <?php $__currentLoopData = $files; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $file): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
@@ -110,39 +110,22 @@
                                             <?php echo e($file->original_name); ?>
 
                                         </h4>
-
-                                        <?php if($isAdmin): ?>
-                                            <p class="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                                                👤 <?php echo e($file->user->name ?? 'Unknown User'); ?> (ID: <?php echo e($file->user_id); ?>)
-                                            </p>
-                                        <?php endif; ?>
-
-                                        <div class="flex items-center gap-2 mt-1">
-                                            <p class="text-xs text-gray-500 dark:text-gray-400">
-                                                📦 <?php echo e(number_format($file->size / 1024 / 1024, 1)); ?> MB
-                                            </p>
-                                            <span class="text-xs px-2 py-1 rounded-full <?php echo e($file->disk === 'bunny_stream' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' :
-                                                ($file->disk === 'bunny_cdn' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                                                'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200')); ?>">
-                                                <?php echo e($file->disk === 'bunny_stream' ? '🎥 Stream' : ($file->disk === 'bunny_cdn' ? '☁️ CDN' : '💾 Server')); ?>
-
-                                            </span>
-                                        </div>
-
                                         <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                            🕒 <?php echo e($file->created_at->diffForHumans()); ?>
+                                            <?php echo e(number_format($file->size / 1024 / 1024, 1)); ?> MB
+                                        </p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                                            <?php echo e($file->created_at->diffForHumans()); ?>
 
                                         </p>
-
-                                        <?php if($file->stream_video_id): ?>
-                                            <p class="text-xs text-purple-600 dark:text-purple-400 mt-1">
-                                                🎬 Video ID: <?php echo e(Str::limit($file->stream_video_id, 20)); ?>
+                                        <?php if($isAdmin && $file->user): ?>
+                                            <p class="text-xs text-blue-600 dark:text-blue-400">
+                                                👤 <?php echo e($file->user->name); ?>
 
                                             </p>
                                         <?php endif; ?>
                                     </div>
-                                    <button onclick="deleteFile(<?php echo e($file->id); ?>, '<?php echo e($file->original_name); ?>', '<?php echo e($file->user->name ?? 'Unknown'); ?>')"
-                                            class="text-red-600 hover:text-red-800 text-sm ml-2">
+                                    <button onclick="deleteFile(<?php echo e($file->id); ?>, '<?php echo e($file->original_name); ?>')"
+                                            class="text-red-600 hover:text-red-800 text-sm">
                                         🗑️
                                     </button>
                                 </div>
@@ -176,11 +159,8 @@
             return;
         }
 
-        // Click to select file (only if not already handled by file-upload.js)
-        if (!uploadForm.hasAttribute('data-click-initialized')) {
-            uploadForm.addEventListener('click', () => fileInput.click());
-            uploadForm.setAttribute('data-click-initialized', 'true');
-        }
+        // Click to select file
+        uploadForm.addEventListener('click', () => fileInput.click());
 
         // Listen for file upload completion events
         window.addEventListener('fileUploaded', function(event) {
@@ -213,53 +193,36 @@
             }));
         };
 
-        // File input change handler is now handled by file-upload.js globally
-        // Remove duplicate handler to prevent double uploads
+        // Drag and drop handlers
+        uploadForm.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            uploadForm.classList.add('border-blue-400', 'bg-blue-50');
+        });
 
-        // Drag and drop handlers (only if not already handled)
-        if (!uploadForm.hasAttribute('data-drag-initialized')) {
-            uploadForm.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                uploadForm.classList.add('border-blue-400', 'bg-blue-50');
-            });
+        uploadForm.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            uploadForm.classList.remove('border-blue-400', 'bg-blue-50');
+        });
 
-            uploadForm.addEventListener('dragleave', function(e) {
-                e.preventDefault();
-                uploadForm.classList.remove('border-blue-400', 'bg-blue-50');
-            });
+        uploadForm.addEventListener('drop', function(e) {
+            e.preventDefault();
+            uploadForm.classList.remove('border-blue-400', 'bg-blue-50');
 
-            uploadForm.addEventListener('drop', function(e) {
-                e.preventDefault();
-                uploadForm.classList.remove('border-blue-400', 'bg-blue-50');
-
-                const file = e.dataTransfer.files[0];
-                if (file && window.handleFileUpload) {
-                    fileInput.files = e.dataTransfer.files;
-                    window.handleFileUpload(file); // Use global function
-                }
-            });
-
-            uploadForm.setAttribute('data-drag-initialized', 'true');
-        }
-
-        // All upload functionality is now handled by file-upload.js globally
-        // No need for duplicate functions here
+            const file = e.dataTransfer.files[0];
+            if (file && window.handleFileUpload) {
+                fileInput.files = e.dataTransfer.files;
+                window.handleFileUpload(file); // Use global function
+            }
+        });
     });
 
-
-
-    function deleteFile(fileId, fileName, userName = null) {
-        let confirmMessage = `Bạn có chắc muốn xóa file "${fileName}"?`;
-        if (userName && userName !== 'Unknown') {
-            confirmMessage = `Bạn có chắc muốn xóa file "${fileName}" của user "${userName}"?`;
-        }
-
-        if (!confirm(confirmMessage)) {
+    function deleteFile(fileId, fileName) {
+        if (!confirm(`Bạn có chắc muốn xóa file "${fileName}"?`)) {
             return;
         }
 
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
-        
+
         fetch('/files/delete', {
             method: 'POST',
             headers: {
@@ -286,8 +249,6 @@
         });
     }
     </script>
-
-    <!-- File upload script already loaded globally -->
     <?php $__env->stopPush(); ?>
  <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>

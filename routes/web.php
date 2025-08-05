@@ -23,7 +23,7 @@ use App\Livewire\VpsServerManager;
 use App\Livewire\Dashboard;
 use App\Models\StreamConfiguration;
 use App\Services\StreamProgressService;
-use App\Livewire\FileUpload;
+
 use App\Livewire\PaymentManager;
 use App\Livewire\TransactionHistory;
 use App\Livewire\UserStreamManager;
@@ -657,7 +657,7 @@ Route::middleware(['auth', 'locale'])->group(function () {
     // Alias routes for consistency
     Route::get('/user/streams', \App\Livewire\UserStreamManager::class)->name('user.streams');
     // File Upload routes
-    Route::get('/files', FileUpload::class)->name('files.index');
+    Route::get('/files', [\App\Http\Controllers\FileController::class, 'index'])->name('files.index');
     Route::post('/files/delete', [\App\Http\Controllers\FileController::class, 'delete'])->name('files.delete');
 
     // User file routes for consistency

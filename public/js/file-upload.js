@@ -660,20 +660,37 @@ function initializeFileUpload() {
 
             function startTUSUpload() {
 
+            // Debug upload data
+            console.log('🔍 [TUS] Upload data:', {
+                endpoint: uploadData.upload_url,
+                video_id: uploadData.video_id,
+                library_id: uploadData.library_id,
+                auth_signature: uploadData.auth_signature ? 'present' : 'missing',
+                auth_expire: uploadData.auth_expire
+            });
+
             const upload = new tus.Upload(file, {
                 endpoint: uploadData.upload_url,
                 retryDelays: [0, 3000, 5000, 10000, 20000, 60000],
+                removeFingerprintOnSuccess: true, // Don't store fingerprint for resume
+                storeFingerprintForResuming: false, // Disable resume functionality
                 headers: {
                     'AuthorizationSignature': uploadData.auth_signature,
-                    'AuthorizationExpire': uploadData.auth_expire,
+                    'AuthorizationExpire': uploadData.auth_expire.toString(),
                     'VideoId': uploadData.video_id,
-                    'LibraryId': uploadData.library_id,
+                    'LibraryId': uploadData.library_id.toString(),
                 },
                 metadata: {
                     filetype: file.type,
-                    title: file.name,
+                    title: file.name
                 },
                 onError: function(error) {
+                    console.error('❌ [TUS] Upload error:', error);
+                    console.error('❌ [TUS] Error details:', {
+                        message: error.message,
+                        originalRequest: error.originalRequest,
+                        originalResponse: error.originalResponse
+                    });
                     reject(new Error('TUS upload failed: ' + error.message));
                 },
                 onProgress: function(bytesUploaded, bytesTotal) {
@@ -681,19 +698,14 @@ function initializeFileUpload() {
                     updateProgress(`📤 Uploading to Stream Library... ${formatFileSize(bytesUploaded)}/${formatFileSize(bytesTotal)}`, percentComplete);
                 },
                 onSuccess: function() {
+                    console.log('✅ [TUS] Upload completed successfully');
                     resolve();
                 }
             });
 
-            // Check for previous uploads and resume if possible
-            upload.findPreviousUploads().then(function(previousUploads) {
-                if (previousUploads.length) {
-                    upload.resumeFromPreviousUpload(previousUploads[0]);
-                }
-                upload.start();
-            }).catch(function() {
-                upload.start();
-            });
+            // Start upload directly (Bunny.net doesn't support resume)
+            console.log('🚀 [TUS] Starting fresh upload to Bunny Stream...');
+            upload.start();
             } // End of startTUSUpload function
         });
     }
