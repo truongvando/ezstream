@@ -268,7 +268,8 @@ class SshService
 
             // Ensure remote directory exists
             $remoteDir = dirname($remotePath);
-            $this->execute("sudo mkdir -p " . escapeshellarg($remoteDir));
+            $mkdirResult = $this->execute("sudo mkdir -p " . escapeshellarg($remoteDir));
+            Log::info("Created remote directory: {$remoteDir}", ['result' => $mkdirResult]);
 
             // Upload file using SFTP
             Log::info("Attempting SFTP upload: {$localPath} to {$remotePath}");
@@ -286,6 +287,14 @@ class SshService
 
             $localSize = filesize($localPath);
             Log::info("Local file size: {$localSize} bytes");
+
+            // Check if we have write permission to remote directory
+            $permCheck = $this->execute("test -w " . escapeshellarg($remoteDir) . " && echo 'WRITABLE' || echo 'NOT_WRITABLE'");
+            if (strpos($permCheck, 'NOT_WRITABLE') !== false) {
+                Log::warning("Remote directory may not be writable: {$remoteDir}");
+                // Try to fix permissions
+                $this->execute("sudo chmod 755 " . escapeshellarg($remoteDir));
+            }
 
             // Try SFTP upload with error details
             Log::info("Starting SFTP put operation", [
@@ -346,12 +355,19 @@ class SshService
     private function uploadFileViaSSH(string $localPath, string $remotePath): bool
     {
         try {
+            Log::info("Starting SSH fallback upload for: {$localPath} to {$remotePath}");
+
             // Read local file content
             $fileContent = file_get_contents($localPath);
             if ($fileContent === false) {
                 Log::error("Cannot read local file: {$localPath}");
                 return false;
             }
+
+            // Ensure remote directory exists with proper permissions
+            $remoteDir = dirname($remotePath);
+            $this->execute("sudo mkdir -p " . escapeshellarg($remoteDir));
+            $this->execute("sudo chmod 755 " . escapeshellarg($remoteDir));
 
             // Clear the target file first
             $this->execute("sudo rm -f " . escapeshellarg($remotePath));
@@ -371,10 +387,19 @@ class SshService
                 $uploadCommand = "echo " . escapeshellarg($base64Chunk) . " | base64 -d | sudo tee -a " . escapeshellarg($remotePath) . " > /dev/null";
                 $result = $this->execute($uploadCommand);
 
+                // Check if command failed
+                if ($result === null) {
+                    Log::error("SSH upload chunk {$i} failed - command returned null");
+                    return false;
+                }
+
                 if ($i % 20 == 0) { // Log progress every 20 chunks
                     Log::info("SSH upload progress: " . round(($i + 1) / $chunks * 100, 1) . "%");
                 }
             }
+
+            // Set proper permissions on uploaded file
+            $this->execute("sudo chmod 644 " . escapeshellarg($remotePath));
 
             // Verify upload worked by checking file size
             $verifySize = $this->execute("stat -c%s " . escapeshellarg($remotePath) . " 2>/dev/null || echo '0'");
@@ -382,6 +407,17 @@ class SshService
 
             if (trim($verifySize) != $expectedSize) {
                 Log::error("SSH upload verification failed. Expected size: {$expectedSize}, got: " . trim($verifySize));
+
+                // Additional debug info
+                $fileExists = $this->execute("test -f " . escapeshellarg($remotePath) . " && echo 'EXISTS' || echo 'NOT_EXISTS'");
+                $filePerms = $this->execute("ls -la " . escapeshellarg($remotePath) . " 2>/dev/null || echo 'NO_PERMS'");
+
+                Log::error("SSH upload debug info", [
+                    'file_exists' => trim($fileExists),
+                    'file_permissions' => trim($filePerms),
+                    'remote_path' => $remotePath
+                ]);
+
                 return false;
             }
 
@@ -389,7 +425,11 @@ class SshService
             return true;
 
         } catch (\Exception $e) {
-            Log::error("SSH fallback upload failed. Error: " . $e->getMessage());
+            Log::error("SSH fallback upload failed. Error: " . $e->getMessage(), [
+                'local_path' => $localPath,
+                'remote_path' => $remotePath,
+                'exception_trace' => $e->getTraceAsString()
+            ]);
             return false;
         }
     }

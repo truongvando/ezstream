@@ -156,15 +156,25 @@ class Config:
 _config: Optional[Config] = None
 
 
-def init_config() -> Config:
+def init_config(vps_id: int = None, redis_host: str = None, redis_port: int = None, redis_password: str = None) -> Config:
     """Initialize global configuration"""
     global _config
     _config = Config()
+
+    # Override with provided parameters
+    if redis_host:
+        _config.redis_host = redis_host
+    if redis_port:
+        _config.redis_port = redis_port
+    if redis_password:
+        _config.redis_password = redis_password
+
+    # Load from environment (can override the above)
     _config.load_from_env()
-    
+
     if not _config.validate():
         raise RuntimeError("Configuration validation failed")
-    
+
     return _config
 
 

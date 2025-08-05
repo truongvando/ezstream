@@ -16,8 +16,9 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $tries = 1;
+    public $tries = 3; // Tăng số lần retry
     public $timeout = 600; // 10 minutes for provision
+    public $backoff = 30; // Delay 30 giây giữa các retry
 
     public int $vpsId;
 
@@ -29,14 +30,21 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
 
     public function handle(SshService $sshService): void
     {
-        $vps = VpsServer::findOrFail($this->vpsId);
+        // Kiểm tra VPS có tồn tại không trước khi xử lý
+        $vps = VpsServer::find($this->vpsId);
+        if (!$vps) {
+            Log::error("💥 [VPS #{$this->vpsId}] VPS not found in database");
+            throw new \Exception("VPS #{$this->vpsId} not found in database");
+        }
 
-        Log::info("🚀 [VPS #{$vps->id}] Starting provision for EZStream Agent v6.0");
+        Log::info("🚀 [VPS #{$vps->id}] Starting provision for EZStream Agent v6.0 (Attempt {$this->attempts()}/{$this->tries})");
 
         try {
+            // Reset error message khi retry
             $vps->update([
                 'status' => 'PROVISIONING',
-                'status_message' => 'Setting up base system and EZStream Agent v6.0...'
+                'status_message' => 'Setting up base system and EZStream Agent v6.0...',
+                'error_message' => null
             ]);
 
             // Check if VPS operations are enabled for this environment
@@ -51,6 +59,10 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
             }
 
             Log::info("✅ [VPS #{$vps->id}] SSH connection successful");
+
+            // 0. FORCE CLEANUP - Remove any existing agent completely
+            $this->setProvisionProgress($vps->id, 'cleanup', 10, 'Force cleanup existing installations');
+            $this->forceCleanupExistingAgent($sshService, $vps);
 
             // 1. Upload and run the main provision script (installs nginx, ffmpeg, etc.)
             $this->uploadAndRunProvisionScript($sshService, $vps);
@@ -94,16 +106,26 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
             ]);
 
         } catch (\Exception $e) {
-            Log::error("❌ [VPS #{$vps->id}] Redis Agent provision failed", [
+            Log::error("❌ [VPS #{$vps->id}] Redis Agent provision failed (Attempt {$this->attempts()}/{$this->tries})", [
                 'error' => $e->getMessage(),
                 'trace' => Str::limit($e->getTraceAsString(), 2000)
             ]);
 
-            $vps->update([
-                'status' => 'FAILED',
-                'status_message' => 'Provision failed: ' . Str::limit($e->getMessage(), 250),
-                'error_message' => $e->getMessage(),
-            ]);
+            // Chỉ update status FAILED nếu đây là lần thử cuối cùng
+            if ($this->attempts() >= $this->tries) {
+                $vps->update([
+                    'status' => 'FAILED',
+                    'status_message' => 'Provision failed: ' . Str::limit($e->getMessage(), 250),
+                    'error_message' => $e->getMessage(),
+                ]);
+            } else {
+                // Nếu còn retry, giữ status PROVISIONING và update message
+                $vps->update([
+                    'status_message' => "Retrying provision (Attempt {$this->attempts()}/{$this->tries}): " . Str::limit($e->getMessage(), 200),
+                    'error_message' => $e->getMessage(),
+                ]);
+                Log::info("🔄 [VPS #{$vps->id}] Will retry provision in {$this->backoff} seconds");
+            }
 
             throw $e;
         } finally {
@@ -176,9 +198,18 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
     {
         Log::info("📦 [VPS #{$vps->id}] Uploading and setting up EZStream Agent v6.0");
 
-        // 1. Create remote directory
+        // 1. Create remote directory with proper permissions
         $remoteDir = '/opt/ezstream-agent';
-        $sshService->execute("mkdir -p {$remoteDir}");
+        $sshService->execute("sudo mkdir -p {$remoteDir}");
+        $sshService->execute("sudo chown root:root {$remoteDir}");
+        $sshService->execute("sudo chmod 755 {$remoteDir}");
+
+        // Verify directory creation
+        $dirCheck = $sshService->execute("ls -la /opt/ | grep ezstream-agent || echo 'DIRECTORY_NOT_FOUND'");
+        if (strpos($dirCheck, 'DIRECTORY_NOT_FOUND') !== false) {
+            throw new \Exception("Failed to create agent directory: {$remoteDir}");
+        }
+        Log::info("✅ [VPS #{$vps->id}] Agent directory created: {$remoteDir}");
 
         // 2. Upload all agent files (EZStream Agent v6.0 - SRS-Only Streaming)
         $agentFiles = [
@@ -197,25 +228,46 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
             'srs.conf'                     // SRS configuration
         ];
 
+        $uploadedFiles = 0;
         foreach ($agentFiles as $filename) {
             $localPath = storage_path("app/ezstream-agent/{$filename}");
             $remotePath = "{$remoteDir}/{$filename}";
 
             if (!file_exists($localPath)) {
-                Log::warning("Agent file not found: {$filename}");
+                Log::warning("⚠️ [VPS #{$vps->id}] Agent file not found: {$filename}");
                 continue;
             }
+
+            Log::info("📤 [VPS #{$vps->id}] Uploading {$filename}...");
 
             if (!$sshService->uploadFile($localPath, $remotePath)) {
                 throw new \Exception("Failed to upload agent file: {$filename}");
             }
 
-            if ($filename === 'agent.py') {
-                $sshService->execute("chmod +x {$remotePath}");
+            // Verify file was uploaded successfully
+            $fileCheck = $sshService->execute("ls -la {$remotePath} 2>/dev/null || echo 'FILE_NOT_FOUND'");
+            if (strpos($fileCheck, 'FILE_NOT_FOUND') !== false) {
+                throw new \Exception("File upload verification failed for: {$filename}");
             }
+
+            // Set proper permissions
+            $sshService->execute("sudo chown root:root {$remotePath}");
+            $sshService->execute("sudo chmod 644 {$remotePath}");
+
+            if ($filename === 'agent.py' || $filename === 'setup-srs.sh') {
+                $sshService->execute("sudo chmod +x {$remotePath}");
+                Log::info("✅ [VPS #{$vps->id}] Made {$filename} executable");
+            }
+
+            $uploadedFiles++;
+            Log::info("✅ [VPS #{$vps->id}] Successfully uploaded {$filename}");
         }
 
-        Log::info("✅ [VPS #{$vps->id}] Uploaded " . count($agentFiles) . " agent files");
+        if ($uploadedFiles === 0) {
+            throw new \Exception("No agent files were uploaded successfully");
+        }
+
+        Log::info("✅ [VPS #{$vps->id}] Uploaded {$uploadedFiles} agent files successfully");
 
         // 3. Upload logrotate config for log management
         $logrotateLocal = storage_path('app/ezstream-agent/ezstream-agent-logrotate.conf');
@@ -237,24 +289,67 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         // Use a heredoc to safely write the multi-line content
         $sshService->execute("cat > /etc/systemd/system/{$serviceName} << 'EOF'\n{$serviceContent}\nEOF");
 
-        // 5. Enable and start the service
-        $sshService->execute('systemctl daemon-reload');
-        $sshService->execute("systemctl enable {$serviceName}");
-        $sshService->execute("systemctl restart {$serviceName}");
+        // 5. Verify agent.py exists and is executable before starting service
+        $agentCheck = $sshService->execute("ls -la {$remoteAgentPath} 2>/dev/null || echo 'AGENT_NOT_FOUND'");
+        if (strpos($agentCheck, 'AGENT_NOT_FOUND') !== false) {
+            throw new \Exception("Agent file not found at {$remoteAgentPath} before starting service");
+        }
+        Log::info("✅ [VPS #{$vps->id}] Agent file verified: {$agentCheck}");
 
-        // Wait a moment and check status
-        sleep(5);
-        $status = $sshService->execute("systemctl is-active {$serviceName}");
-        if (trim($status) !== 'active') {
-            $serviceLog = $sshService->execute("journalctl -u {$serviceName} --no-pager -n 50");
-            Log::error("❌ [VPS #{$vps->id}] EZStream Agent service failed to start", [
-                'status' => $status,
-                'log' => $serviceLog
-            ]);
-            throw new \Exception('EZStream Agent service failed to start. Check journalctl logs on the VPS.');
+        // Test agent.py syntax before starting service
+        $syntaxTest = $sshService->execute("python3 -m py_compile {$remoteAgentPath} 2>&1 || echo 'SYNTAX_ERROR'");
+        if (strpos($syntaxTest, 'SYNTAX_ERROR') !== false) {
+            Log::error("❌ [VPS #{$vps->id}] Agent syntax error: {$syntaxTest}");
+            throw new \Exception("Agent.py has syntax errors: {$syntaxTest}");
         }
 
-        Log::info("✅ [VPS #{$vps->id}] EZStream Agent v6.0 service started successfully");
+        // 6. Enable and start the service
+        Log::info("🔄 [VPS #{$vps->id}] Reloading systemd and enabling service...");
+        $sshService->execute('systemctl daemon-reload');
+        $sshService->execute("systemctl enable {$serviceName}");
+
+        Log::info("🚀 [VPS #{$vps->id}] Starting EZStream Agent service...");
+        $sshService->execute("systemctl restart {$serviceName}");
+
+        // Wait a moment and check status multiple times
+        Log::info("⏳ [VPS #{$vps->id}] Waiting for service to start...");
+        sleep(3);
+
+        for ($attempt = 1; $attempt <= 3; $attempt++) {
+            $status = $sshService->execute("systemctl is-active {$serviceName}");
+            $statusTrimmed = trim($status);
+
+            Log::info("🔍 [VPS #{$vps->id}] Service status check #{$attempt}: {$statusTrimmed}");
+
+            if ($statusTrimmed === 'active') {
+                Log::info("✅ [VPS #{$vps->id}] EZStream Agent v6.0 service started successfully");
+                return;
+            }
+
+            if ($attempt < 3) {
+                Log::info("⏳ [VPS #{$vps->id}] Service not active yet, waiting 2 more seconds...");
+                sleep(2);
+            }
+        }
+
+        // Service failed to start - get detailed logs
+        $serviceStatus = $sshService->execute("systemctl status {$serviceName} --no-pager -l");
+        $serviceLog = $sshService->execute("journalctl -u {$serviceName} --no-pager -n 50");
+        $agentDirListing = $sshService->execute("ls -la {$remoteDir}/");
+
+        // Kiểm tra các lỗi phổ biến
+        $errorAnalysis = $this->analyzeServiceFailure($serviceLog, $serviceStatus);
+
+        Log::error("❌ [VPS #{$vps->id}] EZStream Agent service failed to start", [
+            'final_status' => trim($status),
+            'service_status' => $serviceStatus,
+            'service_log' => $serviceLog,
+            'agent_directory' => $agentDirListing,
+            'error_analysis' => $errorAnalysis,
+            'attempt' => $this->attempts()
+        ]);
+
+        throw new \Exception("EZStream Agent service failed to start. {$errorAnalysis['suggestion']} (Attempt {$this->attempts()}/{$this->tries})");
     }
     
     private function generateAgentSystemdService(string $agentPath, string $redisHost, int $redisPort, ?string $redisPassword, VpsServer $vps): string
@@ -410,19 +505,69 @@ WantedBy=multi-user.target";
     {
         $vps = VpsServer::find($this->vpsId);
         if (!$vps) {
-            Log::error("💥 Provision job failed but could not find VPS #{$this->vpsId}");
+            Log::error("💥 Provision job failed but could not find VPS #{$this->vpsId}", [
+                'exception' => $exception->getMessage(),
+                'attempts' => $this->attempts() ?? 'unknown'
+            ]);
             return;
         }
 
-        Log::error("💥 [VPS #{$vps->id}] Redis Agent provision job failed in failed() method", [
+        Log::error("💥 [VPS #{$vps->id}] Redis Agent provision job failed in failed() method after {$this->attempts()} attempts", [
             'error' => $exception->getMessage(),
+            'final_attempt' => true
         ]);
 
+        // Chỉ update status khi thực sự failed (sau tất cả attempts)
         $vps->update([
             'status' => 'FAILED',
-            'status_message' => 'Provision failed: ' . Str::limit($exception->getMessage(), 250),
+            'status_message' => 'Provision failed after ' . $this->attempts() . ' attempts: ' . Str::limit($exception->getMessage(), 200),
             'error_message' => $exception->getMessage(),
         ]);
+
+        // Clear provision progress từ Redis
+        try {
+            $key = "vps_provision_progress:{$this->vpsId}";
+            \Illuminate\Support\Facades\Redis::del($key);
+        } catch (\Exception $e) {
+            Log::warning("Failed to clear provision progress from Redis", ['error' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Phân tích lỗi service để đưa ra gợi ý khắc phục
+     */
+    private function analyzeServiceFailure(string $serviceLog, string $serviceStatus): array
+    {
+        $analysis = [
+            'error_type' => 'unknown',
+            'suggestion' => 'Check journalctl logs on the VPS for more details'
+        ];
+
+        // Kiểm tra các lỗi phổ biến
+        if (strpos($serviceLog, 'Permission denied') !== false) {
+            $analysis['error_type'] = 'permission';
+            $analysis['suggestion'] = 'Permission denied - check file permissions and ownership';
+        } elseif (strpos($serviceLog, 'No such file or directory') !== false) {
+            $analysis['error_type'] = 'missing_file';
+            $analysis['suggestion'] = 'Missing files - agent files may not have been uploaded correctly';
+        } elseif (strpos($serviceLog, 'python3: command not found') !== false || strpos($serviceLog, 'python: command not found') !== false) {
+            $analysis['error_type'] = 'missing_python';
+            $analysis['suggestion'] = 'Python3 not installed or not in PATH';
+        } elseif (strpos($serviceLog, 'ModuleNotFoundError') !== false || strpos($serviceLog, 'ImportError') !== false) {
+            $analysis['error_type'] = 'missing_dependencies';
+            $analysis['suggestion'] = 'Missing Python dependencies - run pip install requirements';
+        } elseif (strpos($serviceLog, 'Connection refused') !== false || strpos($serviceLog, 'redis') !== false) {
+            $analysis['error_type'] = 'redis_connection';
+            $analysis['suggestion'] = 'Cannot connect to Redis server - check Redis configuration';
+        } elseif (strpos($serviceLog, 'Address already in use') !== false) {
+            $analysis['error_type'] = 'port_conflict';
+            $analysis['suggestion'] = 'Port already in use - another service may be running';
+        } elseif (strpos($serviceStatus, 'failed') !== false && strpos($serviceStatus, 'code=exited') !== false) {
+            $analysis['error_type'] = 'exit_code';
+            $analysis['suggestion'] = 'Service exited with error code - check agent logs for specific error';
+        }
+
+        return $analysis;
     }
 
     /**
@@ -530,5 +675,108 @@ WantedBy=multi-user.target";
         ]);
 
         Log::info("✅ [VPS #{$vps->id}] Mock provision completed successfully");
+    }
+
+    /**
+     * FORCE CLEANUP - Remove any existing agent completely
+     */
+    private function forceCleanupExistingAgent(SshService $sshService, VpsServer $vps): void
+    {
+        Log::info("🧹 [VPS #{$vps->id}] FORCE CLEANUP - Removing any existing agent installations");
+
+        try {
+            // 1. Stop và disable tất cả services
+            $sshService->execute("systemctl stop ezstream-agent 2>/dev/null || true");
+            $sshService->execute("systemctl disable ezstream-agent 2>/dev/null || true");
+            $sshService->execute("systemctl stop srs 2>/dev/null || true");
+            $sshService->execute("systemctl disable srs 2>/dev/null || true");
+
+            // 2. Kill tất cả processes liên quan
+            $sshService->execute("pkill -f 'ezstream-agent' || true");
+            $sshService->execute("pkill -f 'agent.py' || true");
+            $sshService->execute("pkill -f 'python.*agent' || true");
+            $sshService->execute("pkill -f 'srs' || true");
+
+            // 3. Xóa systemd service files
+            $sshService->execute("rm -f /etc/systemd/system/ezstream-agent.service");
+            $sshService->execute("rm -f /etc/systemd/system/srs.service");
+            $sshService->execute("systemctl daemon-reload");
+
+            // 4. Xóa tất cả directories
+            $sshService->execute("rm -rf /opt/ezstream-agent*");
+            $sshService->execute("rm -rf /opt/srs*");
+            $sshService->execute("rm -rf /usr/local/srs*");
+            $sshService->execute("rm -rf /tmp/ezstream*");
+            $sshService->execute("rm -rf /tmp/srs*");
+
+            // 5. Xóa logrotate configs
+            $sshService->execute("rm -f /etc/logrotate.d/ezstream-agent");
+            $sshService->execute("rm -f /etc/logrotate.d/srs");
+
+            // 6. Xóa Docker containers/images SRS (nếu có)
+            $sshService->execute("docker stop ezstream-srs 2>/dev/null || true");
+            $sshService->execute("docker rm ezstream-srs 2>/dev/null || true");
+            $sshService->execute("docker rmi ossrs/srs:5 2>/dev/null || true");
+
+            // 7. Xóa cron jobs (nếu có)
+            $sshService->execute("crontab -l | grep -v ezstream | crontab - 2>/dev/null || true");
+
+            // 8. Clean up logs
+            $sshService->execute("rm -rf /var/log/ezstream*");
+            $sshService->execute("rm -rf /var/log/srs*");
+
+            // 9. Clean up any remaining processes
+            $sshService->execute("ps aux | grep -E '(ezstream|srs)' | grep -v grep | awk '{print \$2}' | xargs kill -9 2>/dev/null || true");
+
+            // 10. Clean up Python cache
+            $sshService->execute("find /opt -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true");
+            $sshService->execute("find /opt -name '*.pyc' -delete 2>/dev/null || true");
+
+            Log::info("✅ [VPS #{$vps->id}] FORCE CLEANUP completed - VPS is now clean");
+
+            // Verify cleanup
+            $remainingProcesses = $sshService->execute("ps aux | grep -E '(ezstream|srs|agent)' | grep -v grep || echo 'No remaining processes'");
+            $remainingDirs = $sshService->execute("ls -la /opt/ | grep -E '(ezstream|srs)' || echo 'No remaining directories'");
+
+            Log::info("🔍 [VPS #{$vps->id}] Cleanup verification", [
+                'remaining_processes' => trim($remainingProcesses),
+                'remaining_directories' => trim($remainingDirs)
+            ]);
+
+        } catch (\Exception $e) {
+            Log::warning("⚠️ [VPS #{$vps->id}] Some cleanup operations failed (continuing): {$e->getMessage()}");
+            // Continue anyway - this is cleanup, not critical
+        }
+    }
+
+    /**
+     * Set provision progress in Redis for real-time UI updates
+     */
+    private function setProvisionProgress(int $vpsId, string $stage, int $progressPercentage, string $message): void
+    {
+        try {
+            $progressData = [
+                'vps_id' => $vpsId,
+                'stage' => $stage,
+                'progress_percentage' => max(0, min(100, $progressPercentage)),
+                'message' => $message,
+                'updated_at' => now()->toISOString(),
+                'completed_at' => $progressPercentage >= 100 ? now()->toISOString() : null
+            ];
+
+            // Store in Redis with TTL (30 minutes)
+            $key = "vps_provision_progress:{$vpsId}";
+            \Illuminate\Support\Facades\Redis::setex($key, 1800, json_encode($progressData));
+
+            Log::debug("VPS provision progress set", [
+                'vps_id' => $vpsId,
+                'stage' => $stage,
+                'progress' => $progressPercentage,
+                'message' => $message
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("Failed to set provision progress: {$e->getMessage()}");
+        }
     }
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-EZStream Agent v5.0 - Direct Streaming Architecture
-Eliminated direct streaming, using direct FFmpeg RTMP streaming
+EZStream Agent v6.0 - SRS-Only Streaming Architecture
+Clean, simple SRS-based streaming without FFmpeg complexity
 """
 
 import sys
@@ -43,20 +43,25 @@ class EZStreamAgent:
         self.stream_manager = None
         self.command_handler = None
 
-        logging.info(f"EZStream Agent v5.0 (Direct Streaming) initialized for VPS {vps_id}")
+        logging.info(f"EZStream Agent v6.0 (SRS-Only Streaming) initialized for VPS {vps_id}")
     
     def start(self):
         """Start agent"""
         try:
-            logging.info("Starting EZStream Agent v5.0 with Direct Streaming...")
+            logging.info("Starting EZStream Agent v6.0 with SRS-Only Streaming...")
             self.running = True
 
-            logging.info("Fetching settings from Laravel...")
-            self.config.fetch_laravel_settings()
+            # Config is already loaded in __init__, no need to fetch from Laravel
 
-            # Initialize components
+            # Initialize components in correct order
             self.status_reporter = init_status_reporter()
             self.file_manager = init_file_manager()
+
+            # Initialize process manager BEFORE stream manager (required dependency)
+            from process_manager import init_process_manager
+            init_process_manager()
+            logging.info("✅ Process manager initialized")
+
             self.stream_manager = init_stream_manager()  # Stream management with playlist support
             self.command_handler = init_command_handler()
 
@@ -81,7 +86,7 @@ class EZStreamAgent:
             if self.command_handler:
                 self.command_handler.start()
 
-            logging.info("EZStream Agent v5.0 (Direct Streaming) started successfully!")
+            logging.info("EZStream Agent v6.0 (SRS-Only Streaming) started successfully!")
             self._main_loop()
             
         except Exception as e:
@@ -92,7 +97,7 @@ class EZStreamAgent:
     def stop(self):
         """Stop agent"""
         try:
-            logging.info("Shutting down EZStream Agent v4.0...")
+            logging.info("Shutting down EZStream Agent v6.0...")
             self.running = False
 
             if self.command_handler:
@@ -123,7 +128,7 @@ class EZStreamAgent:
                 except Exception as e:
                     logging.error(f"Error stopping status reporter: {e}")
 
-            logging.info("EZStream Agent v4.0 shutdown complete")
+            logging.info("EZStream Agent v6.0 shutdown complete")
 
         except Exception as e:
             logging.error(f"Error during shutdown: {e}")
@@ -159,7 +164,7 @@ def main():
     """Main entry point"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='EZStream Agent v5.0 - Direct Streaming')
+    parser = argparse.ArgumentParser(description='EZStream Agent v6.0 - SRS-Only Streaming')
     parser.add_argument('--vps-id', type=int, required=True, help='VPS ID')
     parser.add_argument('--redis-host', type=str, default='127.0.0.1', help='Redis host')
     parser.add_argument('--redis-port', type=int, default=6379, help='Redis port')

@@ -32,17 +32,17 @@ class UpdateAgentJob implements ShouldQueue
     {
         $vps = VpsServer::findOrFail($this->vpsId);
 
-        Log::info("🔄 [VPS #{$vps->id}] Bắt đầu cập nhật EZStream Agent v6.0");
+        Log::info("🔄 [VPS #{$vps->id}] Bắt đầu clean install EZStream Agent v6.0 (thay vì update)");
 
         try {
             // Update VPS status
             $vps->update([
                 'status' => 'UPDATING',
-                'status_message' => 'Đang cập nhật EZStream Agent v6.0...'
+                'status_message' => 'Đang clean install EZStream Agent v6.0...'
             ]);
 
             // Initialize progress tracking
-            $this->setUpdateProgress($vps->id, 'starting', 5, 'Bắt đầu cập nhật EZStream Agent v6.0');
+            $this->setUpdateProgress($vps->id, 'starting', 5, 'Bắt đầu clean install EZStream Agent v6.0');
 
             // Check if VPS operations are enabled for this environment
             if (!config('deployment.vps_operations_enabled')) {
@@ -74,46 +74,40 @@ class UpdateAgentJob implements ShouldQueue
             Log::info("✅ [VPS #{$vps->id}] Kết nối SSH thành công");
             $this->setUpdateProgress($vps->id, 'connected', 10, 'Kết nối SSH thành công');
 
-            // Step 1: Stop current agent
-            $this->setUpdateProgress($vps->id, 'stopping', 20, 'Dừng agent hiện tại');
-            $this->stopCurrentAgent($sshService, $vps);
+            // CLEAN INSTALL APPROACH - Remove everything and start fresh
 
-            // Step 2: Backup current agent
-            $this->setUpdateProgress($vps->id, 'backup', 30, 'Sao lưu agent hiện tại');
-            $this->backupCurrentAgent($sshService, $vps);
+            // Step 1: Clean remove old installation completely
+            $this->setUpdateProgress($vps->id, 'cleaning', 20, 'Xóa hoàn toàn cài đặt cũ');
+            $this->cleanRemoveOldInstallation($sshService, $vps);
 
-            // Step 3: Upload new agent files
-            $this->setUpdateProgress($vps->id, 'uploading', 50, 'Upload agent files v3.0');
-            $this->uploadNewAgentFiles($sshService, $vps);
+            // Step 2: Upload fresh agent files
+            $this->setUpdateProgress($vps->id, 'uploading', 50, 'Upload fresh agent files v6.0');
+            $this->uploadFreshAgentFiles($sshService, $vps);
 
-            // Step 4: Update systemd service
-            $this->setUpdateProgress($vps->id, 'systemd', 70, 'Cập nhật systemd service');
-            $this->updateSystemdService($sshService, $vps);
+            // Step 3: Install SRS Server fresh
+            $this->setUpdateProgress($vps->id, 'srs_install', 70, 'Cài đặt fresh SRS Server');
+            $this->installFreshSrsServer($sshService, $vps);
 
-            // Step 5: Start new agent
-            $this->setUpdateProgress($vps->id, 'starting', 80, 'Khởi động EZStream Agent v6.0');
-            $this->startNewAgent($sshService, $vps);
+            // Step 4: Create fresh systemd service
+            $this->setUpdateProgress($vps->id, 'systemd', 80, 'Tạo fresh systemd service');
+            $this->createFreshSystemdService($sshService, $vps);
 
-            // Step 6: Update/Install SRS Server (if needed)
-            $this->setUpdateProgress($vps->id, 'srs_update', 85, 'Cập nhật SRS Server');
-            $this->updateSrsServer($sshService, $vps);
+            // Step 5: Start fresh agent
+            $this->setUpdateProgress($vps->id, 'starting', 90, 'Khởi động fresh EZStream Agent v6.0');
+            $this->startFreshAgent($sshService, $vps);
 
-            // Step 7: Verify agent is running
-            $this->setUpdateProgress($vps->id, 'verifying', 90, 'Kiểm tra agent đang chạy');
-            $this->verifyAgentRunning($sshService, $vps);
-
-            // Step 8: Verify agent compatibility
-            $this->setUpdateProgress($vps->id, 'compatibility', 95, 'Kiểm tra tương thích v6.0');
-            $this->verifyAgentCompatibility($sshService, $vps);
+            // Step 6: Verify fresh installation
+            $this->setUpdateProgress($vps->id, 'verifying', 95, 'Kiểm tra cài đặt fresh');
+            $this->verifyFreshInstallation($sshService, $vps);
 
             // Update status to active
-            $this->setUpdateProgress($vps->id, 'completed', 100, 'Cập nhật EZStream Agent v6.0 hoàn tất');
+            $this->setUpdateProgress($vps->id, 'completed', 100, 'Clean install EZStream Agent v6.0 hoàn tất');
             $vps->update([
                 'status' => 'ACTIVE',
-                'status_message' => 'EZStream Agent v6.0 đã được cập nhật thành công'
+                'status_message' => 'EZStream Agent v6.0 đã được clean install thành công'
             ]);
 
-            Log::info("✅ [VPS #{$vps->id}] Cập nhật EZStream Agent v6.0 hoàn tất");
+            Log::info("✅ [VPS #{$vps->id}] Clean install EZStream Agent v6.0 hoàn tất");
 
         } catch (\Exception $e) {
             $this->setUpdateProgress($vps->id, 'error', 0, 'Lỗi: ' . $e->getMessage());
@@ -730,6 +724,258 @@ WantedBy=multi-user.target";
 
         } catch (\Exception $e) {
             Log::error("❌ [VPS #{$vps->id}] Failed to verify SRS after update: " . $e->getMessage());
+        }
+    }
+
+    // ===== CLEAN INSTALL METHODS (thay vì update phức tạp) =====
+
+    private function cleanRemoveOldInstallation(SshService $sshService, VpsServer $vps): void
+    {
+        Log::info("🧹 [VPS #{$vps->id}] FORCE CLEANUP - Removing any existing agent installations completely");
+
+        try {
+            // 1. Stop và disable tất cả services
+            $sshService->execute("systemctl stop ezstream-agent 2>/dev/null || true");
+            $sshService->execute("systemctl disable ezstream-agent 2>/dev/null || true");
+            $sshService->execute("systemctl stop srs 2>/dev/null || true");
+            $sshService->execute("systemctl disable srs 2>/dev/null || true");
+
+            // 2. Kill tất cả processes liên quan
+            $sshService->execute("pkill -f 'ezstream-agent' || true");
+            $sshService->execute("pkill -f 'agent.py' || true");
+            $sshService->execute("pkill -f 'python.*agent' || true");
+            $sshService->execute("pkill -f 'srs' || true");
+
+            // 3. Xóa systemd service files
+            $sshService->execute("rm -f /etc/systemd/system/ezstream-agent.service");
+            $sshService->execute("rm -f /etc/systemd/system/srs.service");
+            $sshService->execute("systemctl daemon-reload");
+
+            // 4. Xóa tất cả directories
+            $sshService->execute("rm -rf /opt/ezstream-agent*");
+            $sshService->execute("rm -rf /opt/srs*");
+            $sshService->execute("rm -rf /usr/local/srs*");
+            $sshService->execute("rm -rf /tmp/ezstream*");
+            $sshService->execute("rm -rf /tmp/srs*");
+
+            // 5. Xóa logrotate configs
+            $sshService->execute("rm -f /etc/logrotate.d/ezstream-agent");
+            $sshService->execute("rm -f /etc/logrotate.d/srs");
+
+            // 6. Xóa Docker containers/images SRS (nếu có)
+            $sshService->execute("docker stop ezstream-srs 2>/dev/null || true");
+            $sshService->execute("docker rm ezstream-srs 2>/dev/null || true");
+            $sshService->execute("docker rmi ossrs/srs:5 2>/dev/null || true");
+
+            // 7. Clean up logs
+            $sshService->execute("rm -rf /var/log/ezstream*");
+            $sshService->execute("rm -rf /var/log/srs*");
+
+            // 8. Clean up any remaining processes
+            $sshService->execute("ps aux | grep -E '(ezstream|srs)' | grep -v grep | awk '{print \$2}' | xargs kill -9 2>/dev/null || true");
+
+            // 9. Clean up Python cache
+            $sshService->execute("find /opt -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true");
+            $sshService->execute("find /opt -name '*.pyc' -delete 2>/dev/null || true");
+
+            Log::info("✅ [VPS #{$vps->id}] FORCE CLEANUP completed - VPS is now clean");
+
+            // Verify cleanup
+            $remainingProcesses = $sshService->execute("ps aux | grep -E '(ezstream|srs|agent)' | grep -v grep || echo 'No remaining processes'");
+            $remainingDirs = $sshService->execute("ls -la /opt/ | grep -E '(ezstream|srs)' || echo 'No remaining directories'");
+
+            Log::info("🔍 [VPS #{$vps->id}] Cleanup verification", [
+                'remaining_processes' => trim($remainingProcesses),
+                'remaining_directories' => trim($remainingDirs)
+            ]);
+
+        } catch (\Exception $e) {
+            Log::warning("⚠️ [VPS #{$vps->id}] Some cleanup operations failed (continuing): {$e->getMessage()}");
+            // Continue anyway - this is cleanup, not critical
+        }
+    }
+
+    private function uploadFreshAgentFiles(SshService $sshService, VpsServer $vps): void
+    {
+        Log::info("📤 [VPS #{$vps->id}] Uploading fresh EZStream Agent v6.0 files");
+
+        // Create fresh directory
+        $remoteDir = '/opt/ezstream-agent';
+        $sshService->execute("mkdir -p {$remoteDir}");
+
+        // Get all agent files - same as ProvisionMultistreamVpsJob
+        $agentFiles = [
+            'agent.py',                    // Main entry point
+            'config.py',                   // Configuration management
+            'stream_manager.py',           // SRS-based Stream Manager (main)
+            'process_manager.py',          // Process Management with auto reconnect
+            'file_manager.py',             // File download/validation/cleanup
+            'status_reporter.py',          // Status reporting to Laravel
+            'command_handler.py',          // Command processing from Laravel
+            'video_optimizer.py',          // Video optimization (optional)
+            'utils.py',                    // Shared utilities
+            // SRS Support files
+            'srs_manager.py',              // SRS Server API Manager
+            'setup-srs.sh',                // SRS setup script
+            'srs.conf'                     // SRS configuration
+        ];
+
+        $uploadedCount = 0;
+        foreach ($agentFiles as $filename) {
+            $localPath = storage_path("app/ezstream-agent/{$filename}");
+            $remotePath = "{$remoteDir}/{$filename}";
+
+            if (!file_exists($localPath)) {
+                Log::warning("⚠️ [VPS #{$vps->id}] Agent file not found locally: {$filename}");
+                continue;
+            }
+
+            try {
+                $sshService->uploadFile($localPath, $remotePath);
+                $uploadedCount++;
+            } catch (\Exception $e) {
+                Log::error("❌ [VPS #{$vps->id}] Failed to upload {$filename}: {$e->getMessage()}");
+                throw new \Exception("Failed to upload agent file: {$filename}");
+            }
+        }
+
+        // Set permissions
+        $sshService->execute("chmod +x {$remoteDir}/*.py");
+        $sshService->execute("chmod +x {$remoteDir}/setup-srs.sh");
+
+        Log::info("✅ [VPS #{$vps->id}] Uploaded {$uploadedCount} fresh agent files");
+    }
+
+    private function installFreshSrsServer(SshService $sshService, VpsServer $vps): void
+    {
+        Log::info("🎬 [VPS #{$vps->id}] Installing fresh SRS Server");
+
+        try {
+            // Run SRS setup script
+            $setupResult = $sshService->execute("cd /opt/ezstream-agent && ./setup-srs.sh setup");
+
+            if (strpos($setupResult, 'SRS setup completed') !== false) {
+                Log::info("✅ [VPS #{$vps->id}] SRS Server installed successfully");
+            } else {
+                Log::warning("⚠️ [VPS #{$vps->id}] SRS setup may have issues: {$setupResult}");
+            }
+
+        } catch (\Exception $e) {
+            Log::warning("⚠️ [VPS #{$vps->id}] SRS installation failed: {$e->getMessage()}");
+            // Continue anyway - agent can work without SRS for basic functions
+        }
+    }
+
+    private function createFreshSystemdService(SshService $sshService, VpsServer $vps): void
+    {
+        Log::info("⚙️ [VPS #{$vps->id}] Creating fresh systemd service");
+
+        $redisHost = config('database.redis.default.host');
+        $redisPort = config('database.redis.default.port');
+        $redisPassword = config('database.redis.default.password');
+
+        $serviceContent = $this->generateSystemdService(
+            '/opt/ezstream-agent/agent.py',
+            $redisHost,
+            $redisPort,
+            $redisPassword,
+            $vps
+        );
+
+        // Write service file
+        $sshService->execute("cat > /etc/systemd/system/ezstream-agent.service << 'EOF'\n{$serviceContent}\nEOF");
+
+        // Reload systemd
+        $sshService->execute("systemctl daemon-reload");
+        $sshService->execute("systemctl enable ezstream-agent");
+
+        Log::info("✅ [VPS #{$vps->id}] Fresh systemd service created");
+    }
+
+    private function startFreshAgent(SshService $sshService, VpsServer $vps): void
+    {
+        Log::info("🚀 [VPS #{$vps->id}] Starting fresh EZStream Agent");
+
+        // Start service
+        $sshService->execute("systemctl start ezstream-agent");
+
+        // Wait longer for startup and retry
+        $maxRetries = 6;
+        $retryDelay = 5;
+
+        for ($i = 0; $i < $maxRetries; $i++) {
+            sleep($retryDelay);
+
+            $status = $sshService->execute("systemctl is-active ezstream-agent");
+            $trimmedStatus = trim($status);
+
+            Log::info("🔍 [VPS #{$vps->id}] Agent status check #" . ($i+1) . ": {$trimmedStatus}");
+
+            if ($trimmedStatus === 'active') {
+                Log::info("✅ [VPS #{$vps->id}] Fresh agent started successfully");
+                return;
+            }
+
+            if ($trimmedStatus === 'failed') {
+                // Get detailed error info
+                $serviceLog = $sshService->execute("journalctl -u ezstream-agent --no-pager -n 20");
+                Log::error("❌ [VPS #{$vps->id}] Agent service failed", ['log' => $serviceLog]);
+                throw new \Exception("Fresh agent service failed. Check logs.");
+            }
+
+            if ($i < $maxRetries - 1) {
+                Log::info("⏳ [VPS #{$vps->id}] Agent still {$trimmedStatus}, waiting {$retryDelay}s...");
+            }
+        }
+
+        // Final check with detailed info
+        $serviceLog = $sshService->execute("journalctl -u ezstream-agent --no-pager -n 20");
+        $systemdStatus = $sshService->execute("systemctl status ezstream-agent --no-pager");
+
+        Log::error("❌ [VPS #{$vps->id}] Fresh agent failed to start after {$maxRetries} retries", [
+            'final_status' => trim($status),
+            'systemd_status' => $systemdStatus,
+            'service_log' => $serviceLog
+        ]);
+
+        throw new \Exception("Fresh agent failed to start. Status: " . trim($status));
+    }
+
+    private function verifyFreshInstallation(SshService $sshService, VpsServer $vps): void
+    {
+        Log::info("🔍 [VPS #{$vps->id}] Verifying fresh installation");
+
+        try {
+            // Check required files exist
+            $requiredFiles = [
+                'agent.py', 'config.py', 'stream_manager.py',
+                'process_manager.py', 'srs_manager.py'
+            ];
+
+            foreach ($requiredFiles as $file) {
+                $exists = $sshService->execute("test -f /opt/ezstream-agent/{$file} && echo 'exists' || echo 'missing'");
+                if (trim($exists) !== 'exists') {
+                    throw new \Exception("Required file missing: {$file}");
+                }
+            }
+
+            // Test Python imports
+            $testImports = $sshService->execute("cd /opt/ezstream-agent && python3 -c 'import config, stream_manager, srs_manager; print(\"OK\")'");
+            if (strpos($testImports, 'OK') === false) {
+                throw new \Exception('Python modules import failed: ' . $testImports);
+            }
+
+            // Check service is running
+            $status = $sshService->execute("systemctl is-active ezstream-agent");
+            if (trim($status) !== 'active') {
+                throw new \Exception("Service not active: {$status}");
+            }
+
+            Log::info("✅ [VPS #{$vps->id}] Fresh installation verified successfully");
+
+        } catch (\Exception $e) {
+            Log::error("❌ [VPS #{$vps->id}] Fresh installation verification failed: {$e->getMessage()}");
+            throw new \Exception('Fresh installation verification failed: ' . $e->getMessage());
         }
     }
 }
