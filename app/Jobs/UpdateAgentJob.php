@@ -108,7 +108,22 @@ class UpdateAgentJob implements ShouldQueue
         // 5. Reload systemd
         $sshService->execute("sudo systemctl daemon-reload");
 
-        Log::info("✅ [UpdateAgent] Agent installed successfully");
+        // 6. Restart agent service to load new code
+        Log::info("🔄 [UpdateAgent] Restarting agent service...");
+        $sshService->execute("sudo systemctl restart ezstream-agent.service");
+
+        // 7. Wait and verify service is running
+        sleep(3);
+        $statusResult = $sshService->execute("sudo systemctl is-active ezstream-agent.service");
+
+        if (trim($statusResult) === 'active') {
+            Log::info("✅ [UpdateAgent] Agent service restarted successfully");
+        } else {
+            Log::error("❌ [UpdateAgent] Agent service failed to start after restart");
+            throw new \Exception("Agent service failed to start after update");
+        }
+
+        Log::info("✅ [UpdateAgent] Agent installed and restarted successfully");
     }
 
     /**
