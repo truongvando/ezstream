@@ -222,15 +222,74 @@ class CommandHandler:
                 self.active_commands.pop(execution.command_key, None)
 
     def _handle_start_stream(self, stream_id: int, config: Dict[str, Any], command_data: Dict[str, Any]) -> bool:
-        """Handle START_STREAM command - SRS only"""
+        """Handle START_STREAM command - Robust streaming with fallback"""
         try:
-            logging.info(f"🚀 [COMMAND] Starting SRS stream {stream_id}")
+            logging.info(f"🚀 [COMMAND] Starting robust stream {stream_id}")
 
-            # SRS-only streaming
-            return self._start_stream_srs(stream_id, config)
+            # Try robust streaming first
+            success = self._start_stream_robust(stream_id, config)
+
+            if success:
+                logging.info(f"✅ [COMMAND] Robust stream {stream_id} started successfully")
+                return True
+            else:
+                logging.warning(f"⚠️ [COMMAND] Robust streaming failed, falling back to legacy SRS")
+                # Fallback to legacy SRS streaming
+                return self._start_stream_srs(stream_id, config)
 
         except Exception as e:
             logging.error(f"❌ Error in start_stream handler: {e}")
+            return False
+
+    def _start_stream_robust(self, stream_id: int, config: Dict[str, Any]) -> bool:
+        """Start stream using robust stream manager"""
+        try:
+            # Try to get stream integration
+            from stream_integration import get_stream_integration
+            stream_integration = get_stream_integration()
+
+            if not stream_integration:
+                logging.warning(f"⚠️ [COMMAND] Stream integration not available")
+                return False
+
+            # Extract video files from config
+            video_files = config.get('video_files', [])
+            if not video_files:
+                logging.error(f"❌ [COMMAND] No video files provided for stream {stream_id}")
+                return False
+
+            # Extract RTMP endpoint
+            rtmp_endpoint = None
+            if config.get('rtmp_url'):
+                rtmp_endpoint = config['rtmp_url']
+            elif config.get('stream_key'):
+                rtmp_endpoint = f"rtmp://a.rtmp.youtube.com/live2/{config['stream_key']}"
+
+            if not rtmp_endpoint:
+                logging.error(f"❌ [COMMAND] No RTMP endpoint found for stream {stream_id}")
+                return False
+
+            logging.info(f"🎬 [ROBUST] Starting robust stream {stream_id}")
+            logging.info(f"   - Video files: {video_files}")
+            logging.info(f"   - RTMP endpoint: {rtmp_endpoint}")
+
+            # Start stream with robust manager
+            success = stream_integration.start_stream(
+                stream_id=stream_id,
+                video_files=video_files,
+                stream_config=config,
+                rtmp_endpoint=rtmp_endpoint
+            )
+
+            if success:
+                logging.info(f"✅ [ROBUST] Stream {stream_id} started successfully")
+                return True
+            else:
+                logging.error(f"❌ [ROBUST] Failed to start stream {stream_id}")
+                return False
+
+        except Exception as e:
+            logging.error(f"❌ [ROBUST] Error starting robust stream {stream_id}: {e}")
             return False
 
     def _start_stream_srs(self, stream_id: int, config: Dict[str, Any]) -> bool:
@@ -299,10 +358,55 @@ class CommandHandler:
             return False
 
     def _handle_stop_stream(self, stream_id: int, config: Dict[str, Any], command_data: Dict[str, Any]) -> bool:
-        """Handle STOP_STREAM command"""
+        """Handle STOP_STREAM command - Robust streaming with fallback"""
         try:
             logging.info(f"🛑 [COMMAND] Stopping stream {stream_id}")
 
+            # Try robust streaming first
+            success = self._stop_stream_robust(stream_id)
+
+            if success:
+                logging.info(f"✅ [COMMAND] Robust stream {stream_id} stopped successfully")
+                return True
+            else:
+                logging.warning(f"⚠️ [COMMAND] Robust stop failed, trying legacy SRS")
+                # Fallback to legacy SRS streaming
+                return self._stop_stream_srs(stream_id)
+
+        except Exception as e:
+            logging.error(f"❌ Error in stop_stream handler: {e}")
+            return False
+
+    def _stop_stream_robust(self, stream_id: int) -> bool:
+        """Stop stream using robust stream manager"""
+        try:
+            # Try to get stream integration
+            from stream_integration import get_stream_integration
+            stream_integration = get_stream_integration()
+
+            if not stream_integration:
+                logging.warning(f"⚠️ [COMMAND] Stream integration not available")
+                return False
+
+            logging.info(f"🛑 [ROBUST] Stopping robust stream {stream_id}")
+
+            # Stop stream with robust manager
+            success = stream_integration.stop_stream(stream_id)
+
+            if success:
+                logging.info(f"✅ [ROBUST] Stream {stream_id} stopped successfully")
+                return True
+            else:
+                logging.error(f"❌ [ROBUST] Failed to stop stream {stream_id}")
+                return False
+
+        except Exception as e:
+            logging.error(f"❌ [ROBUST] Error stopping robust stream {stream_id}: {e}")
+            return False
+
+    def _stop_stream_srs(self, stream_id: int) -> bool:
+        """Stop stream using legacy SRS manager"""
+        try:
             # Get SRS stream manager
             srs_stream_manager = get_srs_stream_manager()
             if not srs_stream_manager:
@@ -311,7 +415,7 @@ class CommandHandler:
 
             # Stop stream
             result = srs_stream_manager.stop_stream(stream_id)
-            
+
             if result:
                 logging.info(f"✅ Stream {stream_id} stopped successfully")
             else:

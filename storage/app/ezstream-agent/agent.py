@@ -17,6 +17,10 @@ from file_manager import init_file_manager
 from stream_manager import init_stream_manager
 from command_handler import init_command_handler
 
+# Import robust streaming components
+from stream_integration import init_stream_integration
+from srs_config_manager import init_srs_config_manager
+
 # Logging setup - Linux focused
 logging.basicConfig(
     level=logging.INFO,
@@ -43,6 +47,10 @@ class EZStreamAgent:
         self.stream_manager = None
         self.command_handler = None
 
+        # Robust streaming components
+        self.stream_integration = None
+        self.srs_config_manager = None
+
         logging.info(f"EZStream Agent v6.0 (SRS-Only Streaming) initialized for VPS {vps_id}")
     
     def start(self):
@@ -68,12 +76,19 @@ class EZStreamAgent:
             # Initialize SRS managers (main streaming method)
             try:
                 from srs_manager import init_srs_manager
-                # stream_manager is already initialized above
-
                 init_srs_manager()
                 logging.info("✅ SRS managers initialized successfully")
             except Exception as e:
                 logging.error(f"❌ Failed to initialize SRS managers: {e}")
+
+            # Initialize robust streaming components
+            try:
+                self.srs_config_manager = init_srs_config_manager()
+                self.stream_integration = init_stream_integration()
+                logging.info("✅ Robust streaming components initialized successfully")
+            except Exception as e:
+                logging.error(f"❌ Failed to initialize robust streaming components: {e}")
+                # Continue with legacy streaming if robust components fail
                 raise
 
             # Start services
