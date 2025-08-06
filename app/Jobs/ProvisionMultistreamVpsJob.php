@@ -137,11 +137,18 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
     {
         Log::info("📥 [VPS #{$vps->id}] Downloading ezstream-agent from GitHub...");
 
-        // Download ezstream-agent directory from GitHub
-        $downloadCmd = 'curl -sSL https://github.com/truongvando/ezstream/archive/master.tar.gz | tar -xz --strip=3 "ezstream-master/storage/app/ezstream-agent" -C /opt/';
+        // Create target directory first
+        $sshService->execute('mkdir -p /opt/ezstream-agent');
+
+        // Download and extract ezstream-agent directory from GitHub
+        $downloadCmd = 'cd /tmp && curl -sSL https://github.com/truongvando/ezstream/archive/master.tar.gz -o ezstream-master.tar.gz';
+        $extractCmd = 'cd /tmp && tar -xzf ezstream-master.tar.gz && cp -r ezstream-master/storage/app/ezstream-agent/* /opt/ezstream-agent/';
 
         $downloadResult = $sshService->execute($downloadCmd);
         Log::info("📦 [VPS #{$vps->id}] Download result", ['output' => $downloadResult]);
+
+        $extractResult = $sshService->execute($extractCmd);
+        Log::info("📦 [VPS #{$vps->id}] Extract result", ['output' => $extractResult]);
 
         // Verify download success
         $verifyCmd = 'ls -la /opt/ezstream-agent/';
@@ -151,8 +158,13 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
             throw new \Exception('Failed to download ezstream-agent from GitHub');
         }
 
-        // Make provision script executable
+        // Set proper permissions
         $sshService->execute('chmod +x /opt/ezstream-agent/provision-vps.sh');
+        $sshService->execute('chmod -R 755 /opt/ezstream-agent');
+
+        // Clean up temporary files
+        $sshService->execute('rm -f /tmp/ezstream-master.tar.gz');
+        $sshService->execute('rm -rf /tmp/ezstream-master');
 
         Log::info("🚀 [VPS #{$vps->id}] Running provision script from downloaded agent...");
         $result = $sshService->execute('/opt/ezstream-agent/provision-vps.sh'); // SSH service handles timeout internally
@@ -182,22 +194,33 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
             Log::warning("⚠️ [VPS #{$vps->id}] Provision script completed but without final completion message");
 
             // Additional verification - check if key services are available
-            // $nginxCheck = $sshService->execute('systemctl is-active nginx 2>/dev/null || echo "inactive"');
             $dockerCheck = $sshService->execute('command -v docker >/dev/null 2>&1 && echo "installed" || echo "not_installed"');
-            $srsCheck = $sshService->execute('ls -la /usr/local/srs/objs/srs 2>/dev/null && echo "installed" || echo "not_installed"');
+            $srsDockerCheck = $sshService->execute("docker ps --filter 'name=ezstream-srs' --format '{{.Status}}' 2>/dev/null || echo 'not_running'");
+            $srsBinaryCheck = $sshService->execute('ls -la /usr/local/srs/objs/srs 2>/dev/null && echo "installed" || echo "not_installed"');
 
             Log::info("🔍 [VPS #{$vps->id}] Service verification", [
-                // 'nginx_status' => trim($nginxCheck),
                 'docker_status' => trim($dockerCheck),
-                'srs_status' => trim($srsCheck)
+                'srs_docker_status' => trim($srsDockerCheck),
+                'srs_binary_status' => trim($srsBinaryCheck)
             ]);
 
-            // if (trim($nginxCheck) !== 'active') {
-            //     throw new \Exception('Nginx service is not active after provision script');
-            // }
+            if (trim($dockerCheck) !== 'installed') {
+                throw new \Exception('Docker is not installed after provision script');
+            }
 
-            if (trim($srsCheck) !== 'installed') {
-                throw new \Exception('SRS binary not found after provision script');
+            // Check if SRS Docker container is running (as per provision-vps.sh)
+            if (strpos($srsDockerCheck, 'Up') !== false) {
+                Log::info("✅ [VPS #{$vps->id}] SRS Docker container 'ezstream-srs' is running");
+
+                // Test SRS API as per provision script
+                $srsApiTest = $sshService->execute('curl -s http://localhost:1985/api/v1/versions > /dev/null && echo "API_OK" || echo "API_FAILED"');
+                if (trim($srsApiTest) === 'API_OK') {
+                    Log::info("✅ [VPS #{$vps->id}] SRS API is responding correctly");
+                } else {
+                    Log::warning("⚠️ [VPS #{$vps->id}] SRS API not responding yet (may need more time)");
+                }
+            } else {
+                Log::warning("⚠️ [VPS #{$vps->id}] SRS Docker container 'ezstream-srs' not found or not running");
             }
         }
 
@@ -423,10 +446,20 @@ WantedBy=multi-user.target";
     {
         Log::info("🔍 [VPS #{$vps->id}] Verifying base services (SRS ready) - Agent v6.0");
 
-        // Check SRS binary exists
-        $srsExists = $sshService->execute('ls -la /usr/local/srs/objs/srs 2>/dev/null || echo "NOT_FOUND"');
-        if (strpos($srsExists, 'NOT_FOUND') !== false) {
-            throw new \Exception('SRS binary not found at /usr/local/srs/objs/srs');
+        // Check SRS Docker container (provision script uses Docker, not binary)
+        $srsDockerCheck = $sshService->execute("docker ps --filter 'name=ezstream-srs' --format '{{.Status}}' 2>/dev/null || echo 'NOT_RUNNING'");
+
+        if (strpos($srsDockerCheck, 'Up') !== false) {
+            Log::info("✅ [VPS #{$vps->id}] SRS Docker container is running: " . trim($srsDockerCheck));
+        } else {
+            // Fallback: Check if SRS binary exists (for older installations)
+            $srsExists = $sshService->execute('ls -la /usr/local/srs/objs/srs 2>/dev/null || echo "NOT_FOUND"');
+            if (strpos($srsExists, 'NOT_FOUND') !== false) {
+                Log::warning("⚠️ [VPS #{$vps->id}] Neither SRS Docker container nor binary found - SRS may not be available");
+                // Don't throw exception - SRS is optional for some streaming methods
+            } else {
+                Log::info("✅ [VPS #{$vps->id}] SRS binary found (legacy installation)");
+            }
         }
 
         // Check Python dependencies
@@ -605,13 +638,13 @@ WantedBy=multi-user.target";
             if (strpos($result, 'Up') !== false) {
                 Log::info("✅ [VPS #{$vps->id}] SRS container is running");
 
-                // Test SRS API
-                $apiTest = $sshService->execute("curl -s http://localhost:1985/api/v1/summaries | grep '\"code\":0' || echo 'API_FAILED'");
+                // Test SRS API (same as provision script)
+                $apiTest = $sshService->execute("curl -s http://localhost:1985/api/v1/versions > /dev/null && echo 'API_OK' || echo 'API_FAILED'");
 
-                if (strpos($apiTest, 'API_FAILED') === false) {
+                if (trim($apiTest) === 'API_OK') {
                     Log::info("✅ [VPS #{$vps->id}] SRS API is responding correctly");
                 } else {
-                    Log::warning("⚠️ [VPS #{$vps->id}] SRS API test failed");
+                    Log::warning("⚠️ [VPS #{$vps->id}] SRS API test failed - may need more time to start");
                 }
             } else {
                 Log::warning("⚠️ [VPS #{$vps->id}] SRS container is not running");

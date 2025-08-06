@@ -58,20 +58,31 @@ class StreamManager:
                     rtmp_endpoint: Optional[str] = None) -> bool:
         """Start SRS stream"""
         try:
+            logging.info(f"🎬 [STREAM_MANAGER] START_STREAM called for stream {stream_id}")
+            logging.info(f"📋 [STREAM_MANAGER] Video files received: {video_files}")
+            logging.info(f"📋 [STREAM_MANAGER] Stream config received: {stream_config}")
+
             with self.stream_lock:
                 # Check if already running
                 if stream_id in self.streams:
-                    logging.warning(f"Stream {stream_id} already running")
+                    logging.warning(f"⚠️ [STREAM_MANAGER] Stream {stream_id} already running")
                     return False
 
                 # Process video files for SRS (no download needed for HTTP URLs)
                 if not video_files:
-                    logging.error(f"Stream {stream_id}: No video files provided")
+                    logging.error(f"❌ [STREAM_MANAGER] Stream {stream_id}: No video files provided")
                     return False
 
                 # Build RTMP endpoint
                 if rtmp_endpoint is None:
                     rtmp_endpoint = self._build_youtube_rtmp_endpoint(stream_config)
+                    logging.info(f"🔗 [STREAM_MANAGER] Built RTMP endpoint: {rtmp_endpoint}")
+                else:
+                    logging.info(f"🔗 [STREAM_MANAGER] Using provided RTMP endpoint: {rtmp_endpoint}")
+
+                # Log video file details
+                for i, video_file in enumerate(video_files):
+                    logging.info(f"📹 [STREAM_MANAGER] Video {i+1}: {video_file}")
 
                 # Create stream info
                 stream_info = SRSStreamInfo(
@@ -80,58 +91,87 @@ class StreamManager:
                     video_files=video_files,
                     loop_playlist=stream_config.get('loop', True)
                 )
-                
+
                 self.streams[stream_id] = stream_info
-                
-                logging.info(f"🎬 Starting SRS stream {stream_id} with {len(video_files)} videos → {rtmp_endpoint}")
-                
+
+                logging.info(f"🎬 [STREAM_MANAGER] Starting SRS stream {stream_id} with {len(video_files)} videos → {rtmp_endpoint}")
+
                 # Report starting status
                 if self.status_reporter:
                     self.status_reporter.publish_stream_status(
                         stream_id, 'STARTING', f'Starting SRS stream with {len(video_files)} videos'
                     )
+                    logging.info(f"📤 [STREAM_MANAGER] Status STARTING sent to Laravel for stream {stream_id}")
                 
                 # Start SRS ingest
+                logging.info(f"🔧 [STREAM_MANAGER] Getting SRS manager for stream {stream_id}")
                 srs_manager = get_srs_manager()
                 if not srs_manager:
-                    logging.error(f"❌ SRS manager not available for stream {stream_id}")
+                    logging.error(f"❌ [STREAM_MANAGER] SRS manager not available for stream {stream_id}")
                     stream_info.state = SRSStreamState.ERROR
                     stream_info.error_message = "SRS manager not available"
                     return False
 
                 # Create SRS ingest
                 srs_stream_id = f"stream_{stream_id}"
-                success = srs_manager.create_ingest(
-                    stream_id=srs_stream_id,
-                    input_url=video_files[0],  # Use first video file
+                input_url = video_files[0]  # Use first video file
+
+                logging.info(f"🎯 [STREAM_MANAGER] Creating SRS ingest:")
+                logging.info(f"   - SRS Stream ID: {srs_stream_id}")
+                logging.info(f"   - Input URL: {input_url}")
+                logging.info(f"   - Output URL: {rtmp_endpoint}")
+
+                ingest_id = srs_manager.create_ingest(
+                    stream_id=stream_id,  # Use actual stream_id, not srs_stream_id
+                    input_url=input_url,
                     output_url=rtmp_endpoint
                 )
 
-                if success:
-                    stream_info.srs_stream_id = srs_stream_id
-                    stream_info.state = SRSStreamState.STREAMING
-                    
-                    # Register with process manager
-                    self.process_manager.start_process(stream_id, {})
-                    
-                    logging.info(f"✅ SRS stream {stream_id} started successfully")
-                    
-                    if self.status_reporter:
-                        self.status_reporter.publish_stream_status(
-                            stream_id, 'STREAMING', 'SRS stream started successfully'
-                        )
-                    
-                    return True
+                if ingest_id:
+                    logging.info(f"✅ [STREAM_MANAGER] SRS ingest created with ID: {ingest_id}")
+
+                    # Now start the ingest
+                    logging.info(f"🚀 [STREAM_MANAGER] Starting SRS ingest {ingest_id}")
+                    start_success = srs_manager.start_ingest(ingest_id)
+
+                    if start_success:
+                        stream_info.srs_stream_id = ingest_id
+                        stream_info.state = SRSStreamState.STREAMING
+
+                        # Register with process manager
+                        logging.info(f"📝 [STREAM_MANAGER] Registering stream {stream_id} with process manager")
+                        self.process_manager.start_process(stream_id, {})
+
+                        logging.info(f"✅ [STREAM_MANAGER] SRS stream {stream_id} started successfully")
+
+                        if self.status_reporter:
+                            self.status_reporter.publish_stream_status(
+                                stream_id, 'STREAMING', 'SRS stream started successfully'
+                            )
+                            logging.info(f"📤 [STREAM_MANAGER] Status STREAMING sent to Laravel for stream {stream_id}")
+
+                        return True
+                    else:
+                        logging.error(f"❌ [STREAM_MANAGER] Failed to start SRS ingest {ingest_id}")
+                        stream_info.state = SRSStreamState.ERROR
+                        stream_info.error_message = "Failed to start SRS ingest"
+
+                        if self.status_reporter:
+                            self.status_reporter.publish_stream_status(
+                                stream_id, 'ERROR', 'Failed to start SRS ingest'
+                            )
+
+                        return False
                 else:
-                    logging.error(f"❌ Failed to create SRS ingest for stream {stream_id}")
+                    logging.error(f"❌ [STREAM_MANAGER] Failed to create SRS ingest for stream {stream_id}")
                     stream_info.state = SRSStreamState.ERROR
                     stream_info.error_message = "Failed to create SRS ingest"
-                    
+
                     if self.status_reporter:
                         self.status_reporter.publish_stream_status(
                             stream_id, 'ERROR', 'Failed to create SRS ingest'
                         )
-                    
+
                     return False
 
         except Exception as e:

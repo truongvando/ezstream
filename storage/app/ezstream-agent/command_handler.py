@@ -140,23 +140,31 @@ class CommandHandler:
             # Parse command data
             if isinstance(message_data, bytes):
                 message_data = message_data.decode('utf-8')
-            
+
+            logging.info(f"📨 [COMMAND] Raw message received: {message_data}")
+
             command_data = safe_json_loads(message_data)
             if not command_data:
-                logging.error("❌ Invalid command data received")
+                logging.error("❌ [COMMAND] Invalid command data received")
                 return
-            
+
+            logging.info(f"📋 [COMMAND] Parsed command data: {command_data}")
+
             # Extract command info
             command = command_data.get('command')
             config = command_data.get('config', {})
-            
+
             # Get stream_id
             stream_id = config.get('id') or command_data.get('stream_id')
-            
+
+            logging.info(f"🎯 [COMMAND] Extracted command: {command}, stream_id: {stream_id}")
+            logging.info(f"📋 [COMMAND] Config data: {config}")
+
             if command not in self.command_handlers:
-                logging.warning(f"⚠️ Unknown command: {command}")
+                logging.warning(f"⚠️ [COMMAND] Unknown command: {command}")
+                logging.info(f"📋 [COMMAND] Available commands: {list(self.command_handlers.keys())}")
                 return
-            
+
             # Create command execution tracking
             command_key = f"{command}_{stream_id}_{int(time.time())}"
             execution = CommandExecution(
@@ -165,19 +173,23 @@ class CommandHandler:
                 stream_id=stream_id,
                 start_time=time.time()
             )
-            
+
             with self.command_lock:
                 self.active_commands[command_key] = execution
-            
+
+            logging.info(f"📝 [COMMAND] Created execution tracking: {command_key}")
+
             # Submit command for processing
             future = self.command_executor.submit(
                 self._execute_command, execution, config, command_data
             )
-            
-            logging.info(f"📥 [COMMAND] Received {command} for stream {stream_id}")
-            
+
+            logging.info(f"📥 [COMMAND] Received {command} for stream {stream_id} - submitted for processing")
+
         except Exception as e:
-            logging.error(f"❌ Error handling command message: {e}")
+            logging.error(f"❌ [COMMAND] Error handling command message: {e}")
+            import traceback
+            logging.error(f"❌ [COMMAND] Traceback: {traceback.format_exc()}")
 
     def _execute_command(self, execution: CommandExecution, config: Dict[str, Any], command_data: Dict[str, Any]):
         """Execute command with error handling"""
