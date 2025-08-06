@@ -83,9 +83,15 @@ class CommandHandler:
             self.redis_conn.ping()
             logging.info("✅ Connected to Redis for command processing")
             
-            # Subscribe to command channel
+            # Subscribe to VPS-specific command channel
+            from config import get_config
+            config = get_config()
+            command_channel = f'vps-commands:{config.vps_id}'
+
             self.pubsub = self.redis_conn.pubsub()
-            self.pubsub.subscribe('ezstream:commands')
+            self.pubsub.subscribe(command_channel)
+
+            logging.info(f"📡 Subscribed to command channel: {command_channel}")
             
             self.running = True
             logging.info("🎛️ Command Handler started - listening for commands")

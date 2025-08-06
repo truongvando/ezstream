@@ -64,11 +64,11 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
             $this->setProvisionProgress($vps->id, 'cleanup', 10, 'Force cleanup existing installations');
             $this->forceCleanupExistingAgent($sshService, $vps);
 
-            // 1. Upload and run the main provision script (installs nginx, ffmpeg, etc.)
-            $this->uploadAndRunProvisionScript($sshService, $vps);
+            // 1. Download and run the main provision script (installs nginx, ffmpeg, etc.)
+            $this->downloadAndRunProvisionScript($sshService, $vps);
 
-            // 2. Upload and set up EZStream Agent v6.0
-            $this->uploadAndSetupStreamAgent($sshService, $vps);
+            // 2. Setup EZStream Agent v6.0 (files already downloaded)
+            $this->setupStreamAgent($sshService, $vps);
 
             // 3. Setup SRS Server (if enabled)
             $this->setupSrsServer($sshService, $vps);
@@ -133,25 +133,29 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         }
     }
 
-    private function uploadAndRunProvisionScript(SshService $sshService, VpsServer $vps): void
+    private function downloadAndRunProvisionScript(SshService $sshService, VpsServer $vps): void
     {
-        Log::info("📦 [VPS #{$vps->id}] Uploading and running base provision script (provision-vps.sh)");
+        Log::info("📥 [VPS #{$vps->id}] Downloading ezstream-agent from GitHub...");
 
-        $localScript = storage_path('app/ezstream-agent/provision-vps.sh');
-        $remoteScript = '/tmp/provision-vps.sh';
+        // Download ezstream-agent directory from GitHub
+        $downloadCmd = 'curl -sSL https://github.com/truongvando/ezstream/archive/master.tar.gz | tar -xz --strip=3 "ezstream-master/storage/app/ezstream-agent" -C /opt/';
 
-        if (!file_exists($localScript)) {
-            throw new \Exception('Base provision script (provision-vps.sh) not found');
+        $downloadResult = $sshService->execute($downloadCmd);
+        Log::info("📦 [VPS #{$vps->id}] Download result", ['output' => $downloadResult]);
+
+        // Verify download success
+        $verifyCmd = 'ls -la /opt/ezstream-agent/';
+        $verifyResult = $sshService->execute($verifyCmd);
+
+        if (strpos($verifyResult, 'provision-vps.sh') === false) {
+            throw new \Exception('Failed to download ezstream-agent from GitHub');
         }
 
-        if (!$sshService->uploadFile($localScript, $remoteScript)) {
-            throw new \Exception('Failed to upload provision script');
-        }
+        // Make provision script executable
+        $sshService->execute('chmod +x /opt/ezstream-agent/provision-vps.sh');
 
-        $sshService->execute("chmod +x {$remoteScript}");
-
-        Log::info("🚀 [VPS #{$vps->id}] Running base provision script...");
-        $result = $sshService->execute($remoteScript); // SSH service handles timeout internally
+        Log::info("🚀 [VPS #{$vps->id}] Running provision script from downloaded agent...");
+        $result = $sshService->execute('/opt/ezstream-agent/provision-vps.sh'); // SSH service handles timeout internally
 
         // Log the full output for debugging
         Log::info("📋 [VPS #{$vps->id}] Provision script output", ['output' => $result]);
@@ -178,96 +182,49 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
             Log::warning("⚠️ [VPS #{$vps->id}] Provision script completed but without final completion message");
 
             // Additional verification - check if key services are available
-            $nginxCheck = $sshService->execute('systemctl is-active nginx 2>/dev/null || echo "inactive"');
+            // $nginxCheck = $sshService->execute('systemctl is-active nginx 2>/dev/null || echo "inactive"');
             $dockerCheck = $sshService->execute('command -v docker >/dev/null 2>&1 && echo "installed" || echo "not_installed"');
+            $srsCheck = $sshService->execute('ls -la /usr/local/srs/objs/srs 2>/dev/null && echo "installed" || echo "not_installed"');
 
             Log::info("🔍 [VPS #{$vps->id}] Service verification", [
-                'nginx_status' => trim($nginxCheck),
-                'docker_status' => trim($dockerCheck)
+                // 'nginx_status' => trim($nginxCheck),
+                'docker_status' => trim($dockerCheck),
+                'srs_status' => trim($srsCheck)
             ]);
 
-            if (trim($nginxCheck) !== 'active') {
-                throw new \Exception('Nginx service is not active after provision script');
+            // if (trim($nginxCheck) !== 'active') {
+            //     throw new \Exception('Nginx service is not active after provision script');
+            // }
+
+            if (trim($srsCheck) !== 'installed') {
+                throw new \Exception('SRS binary not found after provision script');
             }
         }
 
         Log::info("✅ [VPS #{$vps->id}] Base provision script completed successfully");
     }
 
-    private function uploadAndSetupStreamAgent(SshService $sshService, VpsServer $vps): void
+    private function setupStreamAgent(SshService $sshService, VpsServer $vps): void
     {
-        Log::info("📦 [VPS #{$vps->id}] Uploading and setting up EZStream Agent v6.0");
+        Log::info("🔧 [VPS #{$vps->id}] Setting up EZStream Agent v6.0 (files already downloaded)");
 
-        // 1. Create remote directory with proper permissions
+        // 1. Verify agent files exist from GitHub download
         $remoteDir = '/opt/ezstream-agent';
-        $sshService->execute("sudo mkdir -p {$remoteDir}");
-        $sshService->execute("sudo chown root:root {$remoteDir}");
-        $sshService->execute("sudo chmod 755 {$remoteDir}");
+        $fileCheck = $sshService->execute("ls -la {$remoteDir}/ | grep -E '(agent\.py|stream_manager\.py)' || echo 'FILES_NOT_FOUND'");
 
-        // Verify directory creation
-        $dirCheck = $sshService->execute("ls -la /opt/ | grep ezstream-agent || echo 'DIRECTORY_NOT_FOUND'");
-        if (strpos($dirCheck, 'DIRECTORY_NOT_FOUND') !== false) {
-            throw new \Exception("Failed to create agent directory: {$remoteDir}");
-        }
-        Log::info("✅ [VPS #{$vps->id}] Agent directory created: {$remoteDir}");
-
-        // 2. Upload all agent files (EZStream Agent v6.0 - SRS-Only Streaming)
-        $agentFiles = [
-            'agent.py',                    // Main entry point
-            'config.py',                   // Configuration management
-            'stream_manager.py',           // SRS-based Stream Manager (main)
-            'process_manager.py',          // Process Management with auto reconnect
-            'file_manager.py',             // File download/validation/cleanup
-            'status_reporter.py',          // Status reporting to Laravel
-            'command_handler.py',          // Command processing from Laravel
-            'video_optimizer.py',          // Video optimization (optional)
-            'utils.py',                    // Shared utilities
-            // SRS Support files
-            'srs_manager.py',              // SRS Server API Manager
-            'setup-srs.sh',                // SRS setup script
-            'srs.conf'                     // SRS configuration
-        ];
-
-        $uploadedFiles = 0;
-        foreach ($agentFiles as $filename) {
-            $localPath = storage_path("app/ezstream-agent/{$filename}");
-            $remotePath = "{$remoteDir}/{$filename}";
-
-            if (!file_exists($localPath)) {
-                Log::warning("⚠️ [VPS #{$vps->id}] Agent file not found: {$filename}");
-                continue;
-            }
-
-            Log::info("📤 [VPS #{$vps->id}] Uploading {$filename}...");
-
-            if (!$sshService->uploadFile($localPath, $remotePath)) {
-                throw new \Exception("Failed to upload agent file: {$filename}");
-            }
-
-            // Verify file was uploaded successfully
-            $fileCheck = $sshService->execute("ls -la {$remotePath} 2>/dev/null || echo 'FILE_NOT_FOUND'");
-            if (strpos($fileCheck, 'FILE_NOT_FOUND') !== false) {
-                throw new \Exception("File upload verification failed for: {$filename}");
-            }
-
-            // Set proper permissions
-            $sshService->execute("sudo chown root:root {$remotePath}");
-            $sshService->execute("sudo chmod 644 {$remotePath}");
-
-            if ($filename === 'agent.py' || $filename === 'setup-srs.sh') {
-                $sshService->execute("sudo chmod +x {$remotePath}");
-                Log::info("✅ [VPS #{$vps->id}] Made {$filename} executable");
-            }
-
-            $uploadedFiles++;
-            Log::info("✅ [VPS #{$vps->id}] Successfully uploaded {$filename}");
+        if (strpos($fileCheck, 'FILES_NOT_FOUND') !== false) {
+            throw new \Exception("EZStream Agent files not found in {$remoteDir}. GitHub download may have failed.");
         }
 
-        if ($uploadedFiles === 0) {
-            throw new \Exception("No agent files were uploaded successfully");
-        }
+        Log::info("✅ [VPS #{$vps->id}] Agent files verified in: {$remoteDir}");
 
-        Log::info("✅ [VPS #{$vps->id}] Uploaded {$uploadedFiles} agent files successfully");
+        // 2. Set proper permissions
+        $sshService->execute("sudo chown -R root:root {$remoteDir}");
+        $sshService->execute("sudo chmod -R 755 {$remoteDir}");
+        $sshService->execute("sudo chmod +x {$remoteDir}/*.py");
+
+        // 2. Download and install agent from Redis (same as UpdateAgentJob)
+        $this->downloadAndInstallAgentFromRedis($sshService, $vps, $remoteDir);
 
         // 3. Upload logrotate config for log management
         $logrotateLocal = storage_path('app/ezstream-agent/ezstream-agent-logrotate.conf');
@@ -337,21 +294,92 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         $serviceLog = $sshService->execute("journalctl -u {$serviceName} --no-pager -n 50");
         $agentDirListing = $sshService->execute("ls -la {$remoteDir}/");
 
-        // Kiểm tra các lỗi phổ biến
-        $errorAnalysis = $this->analyzeServiceFailure($serviceLog, $serviceStatus);
-
         Log::error("❌ [VPS #{$vps->id}] EZStream Agent service failed to start", [
             'final_status' => trim($status),
             'service_status' => $serviceStatus,
             'service_log' => $serviceLog,
-            'agent_directory' => $agentDirListing,
-            'error_analysis' => $errorAnalysis,
-            'attempt' => $this->attempts()
+            'agent_directory' => $agentDirListing
         ]);
 
-        throw new \Exception("EZStream Agent service failed to start. {$errorAnalysis['suggestion']} (Attempt {$this->attempts()}/{$this->tries})");
+        throw new \Exception('EZStream Agent service failed to start. Check journalctl logs on the VPS.');
     }
-    
+
+    /**
+     * Download and install agent from Redis (same as UpdateAgentJob)
+     */
+    private function downloadAndInstallAgentFromRedis(SshService $sshService, VpsServer $vps, string $remoteDir): void
+    {
+        Log::info("📦 [VPS #{$vps->id}] Downloading agent from Redis...");
+
+        // Get Redis config
+        $redisHost = config('database.redis.default.host');
+        $redisPort = config('database.redis.default.port');
+        $redisPassword = config('database.redis.default.password');
+
+        // Create download script
+        $downloadScript = $this->createRedisDownloadScript($redisHost, $redisPort, $redisPassword);
+        $sshService->execute("cat > /tmp/download_agent.py << 'EOF'\n{$downloadScript}\nEOF");
+        $sshService->execute("chmod +x /tmp/download_agent.py");
+
+        // Download agent from Redis
+        $downloadResult = $sshService->execute("python3 /tmp/download_agent.py");
+        if (strpos($downloadResult, 'SUCCESS') === false) {
+            throw new \Exception("Failed to download agent from Redis: {$downloadResult}");
+        }
+
+        // Extract agent
+        $sshService->execute("cd /tmp && sudo tar -xzf ezstream-agent-latest.tar.gz -C {$remoteDir}");
+        $sshService->execute("sudo chmod +x {$remoteDir}/agent.py");
+        $sshService->execute("sudo chmod +x {$remoteDir}/setup-srs.sh");
+
+        Log::info("✅ [VPS #{$vps->id}] Agent downloaded and extracted from Redis");
+    }
+
+    /**
+     * Create Python script to download agent from Redis (same as UpdateAgentJob)
+     */
+    private function createRedisDownloadScript(string $redisHost, int $redisPort, ?string $redisPassword): string
+    {
+        $passwordLine = $redisPassword ? "password='{$redisPassword}'," : '';
+
+        return <<<PYTHON
+#!/usr/bin/env python3
+import redis
+import base64
+import sys
+
+try:
+    r = redis.Redis(
+        host='{$redisHost}',
+        port={$redisPort},
+        {$passwordLine}
+        decode_responses=False
+    )
+
+    r.ping()
+    print("Connected to Redis successfully")
+
+    package_data = r.get('agent_package:latest')
+    if not package_data:
+        print("ERROR: Agent package not found in Redis")
+        sys.exit(1)
+
+    if isinstance(package_data, bytes):
+        package_data = package_data.decode('utf-8')
+
+    zip_data = base64.b64decode(package_data)
+
+    with open('/tmp/ezstream-agent-latest.tar.gz', 'wb') as f:
+        f.write(zip_data)
+
+    print(f"SUCCESS: Downloaded agent package ({len(zip_data)} bytes)")
+
+except Exception as e:
+    print(f"ERROR: {str(e)}")
+    sys.exit(1)
+PYTHON;
+    }
+
     private function generateAgentSystemdService(string $agentPath, string $redisHost, int $redisPort, ?string $redisPassword, VpsServer $vps): string
     {
         $pythonCmd = "/usr/bin/python3";
@@ -393,21 +421,21 @@ WantedBy=multi-user.target";
 
     private function verifyBaseServices(SshService $sshService, VpsServer $vps): void
     {
-        Log::info("🔍 [VPS #{$vps->id}] Verifying base services (Nginx health endpoint) - Agent v6.0");
+        Log::info("🔍 [VPS #{$vps->id}] Verifying base services (SRS ready) - Agent v6.0");
 
-        // Check nginx
-        $nginxStatus = $sshService->execute('systemctl is-active nginx');
-        if (trim($nginxStatus) !== 'active') {
-            throw new \Exception('Nginx service is not running');
+        // Check SRS binary exists
+        $srsExists = $sshService->execute('ls -la /usr/local/srs/objs/srs 2>/dev/null || echo "NOT_FOUND"');
+        if (strpos($srsExists, 'NOT_FOUND') !== false) {
+            throw new \Exception('SRS binary not found at /usr/local/srs/objs/srs');
         }
 
-        // Check HTTP health endpoint port 8080 (Agent v6.0 SRS-only)
-        $httpPort = $sshService->execute('ss -tulpn | grep :8080');
-        if (empty(trim($httpPort))) {
-            throw new \Exception('HTTP health endpoint port 8080 is not listening');
+        // Check Python dependencies
+        $pythonCheck = $sshService->execute('python3 -c "import redis, requests, psutil; print(\'OK\')" 2>/dev/null || echo "MISSING"');
+        if (trim($pythonCheck) !== 'OK') {
+            throw new \Exception('Python dependencies missing (redis, requests, psutil)');
         }
 
-        // Test health endpoint
+        // Skip HTTP endpoint test - will be handled by SRS when started
         $healthCheck = $sshService->execute('curl -s http://localhost:8080/health || echo "HEALTH_CHECK_FAILED"');
         if (strpos($healthCheck, 'HEALTH_CHECK_FAILED') !== false) {
             Log::warning("⚠️ [VPS #{$vps->id}] Health endpoint not responding, but HTTP port is active - continuing");
@@ -505,69 +533,19 @@ WantedBy=multi-user.target";
     {
         $vps = VpsServer::find($this->vpsId);
         if (!$vps) {
-            Log::error("💥 Provision job failed but could not find VPS #{$this->vpsId}", [
-                'exception' => $exception->getMessage(),
-                'attempts' => $this->attempts() ?? 'unknown'
-            ]);
+            Log::error("💥 Provision job failed but could not find VPS #{$this->vpsId}");
             return;
         }
 
-        Log::error("💥 [VPS #{$vps->id}] Redis Agent provision job failed in failed() method after {$this->attempts()} attempts", [
+        Log::error("💥 [VPS #{$vps->id}] Redis Agent provision job failed in failed() method", [
             'error' => $exception->getMessage(),
-            'final_attempt' => true
         ]);
 
-        // Chỉ update status khi thực sự failed (sau tất cả attempts)
         $vps->update([
             'status' => 'FAILED',
-            'status_message' => 'Provision failed after ' . $this->attempts() . ' attempts: ' . Str::limit($exception->getMessage(), 200),
+            'status_message' => 'Provision failed: ' . Str::limit($exception->getMessage(), 250),
             'error_message' => $exception->getMessage(),
         ]);
-
-        // Clear provision progress từ Redis
-        try {
-            $key = "vps_provision_progress:{$this->vpsId}";
-            \Illuminate\Support\Facades\Redis::del($key);
-        } catch (\Exception $e) {
-            Log::warning("Failed to clear provision progress from Redis", ['error' => $e->getMessage()]);
-        }
-    }
-
-    /**
-     * Phân tích lỗi service để đưa ra gợi ý khắc phục
-     */
-    private function analyzeServiceFailure(string $serviceLog, string $serviceStatus): array
-    {
-        $analysis = [
-            'error_type' => 'unknown',
-            'suggestion' => 'Check journalctl logs on the VPS for more details'
-        ];
-
-        // Kiểm tra các lỗi phổ biến
-        if (strpos($serviceLog, 'Permission denied') !== false) {
-            $analysis['error_type'] = 'permission';
-            $analysis['suggestion'] = 'Permission denied - check file permissions and ownership';
-        } elseif (strpos($serviceLog, 'No such file or directory') !== false) {
-            $analysis['error_type'] = 'missing_file';
-            $analysis['suggestion'] = 'Missing files - agent files may not have been uploaded correctly';
-        } elseif (strpos($serviceLog, 'python3: command not found') !== false || strpos($serviceLog, 'python: command not found') !== false) {
-            $analysis['error_type'] = 'missing_python';
-            $analysis['suggestion'] = 'Python3 not installed or not in PATH';
-        } elseif (strpos($serviceLog, 'ModuleNotFoundError') !== false || strpos($serviceLog, 'ImportError') !== false) {
-            $analysis['error_type'] = 'missing_dependencies';
-            $analysis['suggestion'] = 'Missing Python dependencies - run pip install requirements';
-        } elseif (strpos($serviceLog, 'Connection refused') !== false || strpos($serviceLog, 'redis') !== false) {
-            $analysis['error_type'] = 'redis_connection';
-            $analysis['suggestion'] = 'Cannot connect to Redis server - check Redis configuration';
-        } elseif (strpos($serviceLog, 'Address already in use') !== false) {
-            $analysis['error_type'] = 'port_conflict';
-            $analysis['suggestion'] = 'Port already in use - another service may be running';
-        } elseif (strpos($serviceStatus, 'failed') !== false && strpos($serviceStatus, 'code=exited') !== false) {
-            $analysis['error_type'] = 'exit_code';
-            $analysis['suggestion'] = 'Service exited with error code - check agent logs for specific error';
-        }
-
-        return $analysis;
     }
 
     /**

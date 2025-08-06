@@ -13,8 +13,11 @@ from typing import Optional
 @dataclass
 class Config:
     """Agent configuration for SRS streaming"""
-    
-    # Agent identification
+
+    # VPS ID - REQUIRED! Must be first (no default value)
+    vps_id: int
+
+    # Agent identification (with defaults)
     agent_id: str = "ezstream-agent"
     agent_version: str = "6.0-srs-only"
     
@@ -156,10 +159,14 @@ class Config:
 _config: Optional[Config] = None
 
 
-def init_config(vps_id: int = None, redis_host: str = None, redis_port: int = None, redis_password: str = None) -> Config:
+def init_config(vps_id: int, redis_host: str = None, redis_port: int = None, redis_password: str = None) -> Config:
     """Initialize global configuration"""
     global _config
-    _config = Config()
+
+    if vps_id is None:
+        raise ValueError("vps_id is required for agent initialization")
+
+    _config = Config(vps_id=vps_id)
 
     # Override with provided parameters
     if redis_host:

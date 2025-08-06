@@ -208,6 +208,30 @@ class StreamManager:
         with self.stream_lock:
             return list(self.streams.keys())
 
+    def stop_all(self) -> None:
+        """Stop all active streams"""
+        try:
+            with self.stream_lock:
+                active_streams = list(self.streams.keys())
+
+            if not active_streams:
+                logging.info("No active streams to stop")
+                return
+
+            logging.info(f"🛑 Stopping {len(active_streams)} active streams...")
+
+            for stream_id in active_streams:
+                try:
+                    self.stop_stream(stream_id)
+                    logging.info(f"✅ Stopped stream {stream_id}")
+                except Exception as e:
+                    logging.error(f"❌ Error stopping stream {stream_id}: {e}")
+
+            logging.info("🛑 All streams stopped")
+
+        except Exception as e:
+            logging.error(f"❌ Error in stop_all: {e}")
+
     def _build_youtube_rtmp_endpoint(self, stream_config: Dict[str, Any]) -> str:
         """Build YouTube RTMP endpoint from config"""
         rtmp_url = stream_config.get('rtmp_url', 'rtmp://a.rtmp.youtube.com/live2/')

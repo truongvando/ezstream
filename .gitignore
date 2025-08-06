@@ -18,6 +18,8 @@
 /public/storage
 /storage/*.key
 /storage/pail
+# Keep ezstream-agent directory
+!/storage/app/ezstream-agent/
 /vendor
 Homestead.json
 Homestead.yaml

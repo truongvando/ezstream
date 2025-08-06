@@ -43,7 +43,11 @@ apt-get install -y \
     curl wget jq ffmpeg \
     python3 python3-pip \
     htop iotop supervisor \
-    redis-tools # Cần thiết cho redis-cli (debug)
+    redis-tools \
+    git build-essential \
+    unzip automake cmake pkg-config
+    # SRS dependencies - cần thiết cho build SRS từ source
+    # nginx removed - conflicts with SRS port 8080
 
 # Cài đặt thư viện Python cần thiết cho EZStream Agent v5.0
 echo "Installing Python packages for EZStream Agent v5.0..."
@@ -57,66 +61,67 @@ timedatectl set-timezone Asia/Ho_Chi_Minh
 export TZ=Asia/Ho_Chi_Minh
 
 
-# 2. NGINX CONFIGURATION (Optional - for health checks only)
-echo "2. Configuring basic Nginx for health checks..."
-# EZStream Agent v5.0 streams direct to YouTube, không cần HLS serving
-cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup
-cat > /etc/nginx/nginx.conf << 'EOF'
-user www-data;
-worker_processes auto;
-pid /run/nginx.pid;
-
-events {
-    worker_connections 1024;
-    use epoll;
-    multi_accept on;
-}
-
-# HTTP Configuration - No RTMP/HLS needed for EZStream Agent v5.0
-http {
-    sendfile on;
-    tcp_nopush on;
-    tcp_nodelay on;
-    keepalive_timeout 65;
-    types_hash_max_size 2048;
-
-    include /etc/nginx/mime.types;
-    default_type application/octet-stream;
-
-    access_log /var/log/nginx/access.log;
-    error_log /var/log/nginx/error.log;
-
-    gzip on;
-
-    # Basic health check and HLS serving
-    server {
-        listen 8080;
-        server_name _;
-
-        # Health check endpoint
-        location /health {
-            return 200 "EZStream Agent v5.0 Ready";
-            add_header Content-Type text/plain;
-        }
-
-        # Agent status endpoint (for monitoring)
-        location /agent-status {
-            return 200 "EZStream Agent v5.0 - Stream Manager + Process Manager";
-            add_header Content-Type text/plain;
-        }
-    }
-}
-EOF
+# 2. NGINX CONFIGURATION - DISABLED (conflicts with SRS port 8080)
+echo "2. Skipping Nginx configuration (not needed for SRS streaming)..."
+# EZStream Agent v6.0 uses SRS for streaming, nginx not needed
+# cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup
+# cat > /etc/nginx/nginx.conf << 'EOF'
+# user www-data;
+# worker_processes auto;
+# pid /run/nginx.pid;
+#
+# events {
+#     worker_connections 1024;
+#     use epoll;
+#     multi_accept on;
+# }
+#
+# # HTTP Configuration - No RTMP/HLS needed for EZStream Agent v5.0
+# http {
+#     sendfile on;
+#     tcp_nopush on;
+#     tcp_nodelay on;
+#     keepalive_timeout 65;
+#     types_hash_max_size 2048;
+#
+#     include /etc/nginx/mime.types;
+#     default_type application/octet-stream;
+#
+#     access_log /var/log/nginx/access.log;
+#     error_log /var/log/nginx/error.log;
+#
+#     gzip on;
+#
+#     # Basic health check and HLS serving
+#     server {
+#         listen 8080;
+#         server_name _;
+#
+#         # Health check endpoint
+#         location /health {
+#             return 200 "EZStream Agent v5.0 Ready";
+#             add_header Content-Type text/plain;
+#         }
+#
+#         # Agent status endpoint (for monitoring)
+#         location /agent-status {
+#             return 200 "EZStream Agent v5.0 - Stream Manager + Process Manager";
+#             add_header Content-Type text/plain;
+#         }
+#     }
+# }
+# EOF
 
 # Tạo thư mục cho downloads (file_manager)
 mkdir -p /opt/ezstream-downloads
 
-# Test nginx config
-nginx -t
-if [ $? -ne 0 ]; then
-    echo "ERROR: Nginx configuration test failed"
-    exit 1
-fi
+# Test nginx config - DISABLED
+# nginx -t
+# if [ $? -ne 0 ]; then
+#     echo "ERROR: Nginx configuration test failed"
+#     exit 1
+# fi
+echo "✅ Nginx disabled - SRS will handle HTTP endpoints"
 
 
 # 3. CREATE AGENT DIRECTORY & LOG FILE
@@ -156,22 +161,22 @@ ufw allow 8080/tcp  # Health check & agent status
 ufw --force enable
 
 
-# 6. START SERVICES
-echo "6. Restarting base services..."
+# 6. START SERVICES - NGINX DISABLED
+echo "6. Skipping nginx services (SRS will handle HTTP)..."
 systemctl daemon-reload
-systemctl enable nginx
-systemctl restart nginx
+# systemctl enable nginx
+# systemctl restart nginx
 
-sleep 5
-if ! systemctl is-active --quiet nginx; then
-    echo "ERROR: Nginx failed to start"
-    systemctl status nginx
-    exit 1
-fi
+# sleep 5
+# if ! systemctl is-active --quiet nginx; then
+#     echo "ERROR: Nginx failed to start"
+#     systemctl status nginx
+#     exit 1
+# fi
 
-echo "✅ Nginx started successfully"
+echo "✅ Base services ready (nginx disabled)"
 
-# 6.5. PREPARE FOR EZSTREAM AGENT (don't start yet - files will be uploaded by ProvisionJob)
+# 6.5. PREPARE FOR EZSTREAM AGENT (files already downloaded from GitHub)
 echo "6.5. Preparing for EZStream Agent..."
 if systemctl list-unit-files | grep -q "ezstream-agent.service"; then
     echo "⚠️ Stopping existing EZStream Agent service (will be reconfigured by ProvisionJob)"
@@ -181,38 +186,50 @@ else
     echo "ℹ️ EZStream Agent service not found (will be created by ProvisionJob)"
 fi
 
-# Create agent directory (files will be uploaded later)
-mkdir -p /opt/ezstream-agent
-echo "✅ Agent directory prepared"
+# Agent directory and files already exist from GitHub download
+if [ -d "/opt/ezstream-agent" ] && [ -f "/opt/ezstream-agent/agent.py" ]; then
+    echo "✅ EZStream Agent files ready from GitHub"
+
+    # Install Python dependencies if requirements.txt exists
+    if [ -f "/opt/ezstream-agent/requirements.txt" ]; then
+        echo "📦 Installing Python dependencies..."
+        cd /opt/ezstream-agent
+        pip3 install -r requirements.txt
+    fi
+
+    # Make Python files executable
+    chmod +x /opt/ezstream-agent/*.py
+else
+    echo "⚠️ EZStream Agent files not found (will be handled by ProvisionJob)"
+fi
 
 # 7. FINAL CHECK
 echo "7. Performing final system check..."
 
-# Test nginx configuration
-echo "Testing nginx configuration..."
-nginx -t
-if [ $? -ne 0 ]; then
-    echo "ERROR: Nginx configuration test failed"
-    exit 1
-fi
+# Test nginx configuration - DISABLED
+echo "Skipping nginx tests (nginx disabled)..."
+# nginx -t
+# if [ $? -ne 0 ]; then
+#     echo "ERROR: Nginx configuration test failed"
+#     exit 1
+# fi
+# Check HTTP port for health endpoint - DISABLED
+echo "Skipping port 8080 check (will be used by SRS)..."
+# if ! ss -tulpn | grep -q ":8080"; then
+#     echo "ERROR: HTTP port 8080 not listening"
+#     ss -tulpn | grep nginx || echo "No nginx processes found"
+#     exit 1
+# fi
 
-# Check HTTP port for health endpoint
-echo "Checking HTTP port 8080..."
-if ! ss -tulpn | grep -q ":8080"; then
-    echo "ERROR: HTTP port 8080 not listening"
-    ss -tulpn | grep nginx || echo "No nginx processes found"
-    exit 1
-fi
+# Check health endpoint - DISABLED
+echo "Skipping nginx health check (nginx disabled)..."
+# if ! curl -s http://localhost:8080/health | grep -q "EZStream Agent v5.0 Ready"; then
+#     echo "WARNING: Nginx health check failed"
+#     echo "This might be normal if health endpoint is not fully configured"
+#     echo "Continuing anyway as HTTP port is working..."
+# fi
 
-# Check health endpoint
-echo "Testing nginx health endpoint..."
-if ! curl -s http://localhost:8080/health | grep -q "EZStream Agent v5.0 Ready"; then
-    echo "WARNING: Nginx health check failed"
-    echo "This might be normal if health endpoint is not fully configured"
-    echo "Continuing anyway as HTTP port is working..."
-fi
-
-echo "✅ All base services verified successfully"
+echo "✅ Base system ready (nginx disabled, SRS will handle HTTP)"
 
 # Install Docker for SRS support
 echo ""
@@ -283,10 +300,102 @@ else
     systemctl start docker 2>/dev/null || true
 fi
 
+# 8. SRS STREAMING SERVER SETUP
+echo "8. Setting up SRS (Simple Realtime Server)..."
+
+# Use Docker SRS instead of building from source (faster and more reliable)
+echo "🐳 Setting up SRS via Docker..."
+
+# Create SRS config directory
+mkdir -p /opt/srs-config
+
+# Create SRS configuration file
+cat > /opt/srs-config/srs.conf << 'EOF'
+# SRS Configuration for EZStream
+listen              1935;
+max_connections     1000;
+daemon              off;
+srs_log_tank        console;
+
+http_server {
+    enabled         on;
+    listen          8080;
+    dir             ./objs/nginx/html;
+}
+
+http_api {
+    enabled         on;
+    listen          1985;
+}
+
+rtc_server {
+    enabled         on;
+    listen          8000;
+}
+
+vhost __defaultVhost__ {
+    hls {
+        enabled         on;
+        hls_path        ./objs/nginx/html;
+        hls_fragment    10;
+        hls_window      60;
+    }
+
+    http_remux {
+        enabled     on;
+        mount       [vhost]/[app]/[stream].flv;
+    }
+
+    dvr {
+        enabled      off;
+    }
+}
+EOF
+
+echo "✅ SRS configuration created"
+
+# Pull SRS Docker image
+echo "📥 Pulling SRS Docker image..."
+docker pull ossrs/srs:5
+
+# Create SRS Docker container
+echo "🚀 Creating SRS Docker container..."
+docker run -d \
+    --name ezstream-srs \
+    --restart unless-stopped \
+    -p 1935:1935 \
+    -p 1985:1985 \
+    -p 8080:8080 \
+    -p 8000:8000/udp \
+    -v /opt/srs-config:/usr/local/srs/conf \
+    ossrs/srs:5 \
+    ./objs/srs -c /usr/local/srs/conf/srs.conf
+
+# Wait for SRS to start
+echo "⏳ Waiting for SRS to start..."
+sleep 10
+
+# Verify SRS is running
+if docker ps | grep -q "ezstream-srs"; then
+    echo "✅ SRS Docker container is running"
+
+    # Test SRS API
+    if curl -s http://localhost:1985/api/v1/versions > /dev/null; then
+        echo "✅ SRS API is responding"
+    else
+        echo "⚠️ SRS API not responding yet (may need more time)"
+    fi
+else
+    echo "❌ SRS Docker container failed to start!"
+    docker logs ezstream-srs
+    exit 1
+fi
+
 echo ""
 echo "=== VPS BASE PROVISION COMPLETE ==="
-echo "✅ Base system is ready for EZStream Agent v5.0 deployment from Laravel."
-echo "📋 Architecture: Stream Manager + Process Manager + File Manager + SRS Support"
-echo "🐳 Docker installed for SRS streaming server support"
+echo "✅ Base system is ready for EZStream Agent v6.0 deployment from Laravel."
+echo "📋 Architecture: Stream Manager + Process Manager + File Manager + SRS Docker"
+echo "🐳 SRS Server running in Docker container (ossrs/srs:5)"
+echo "🔗 SRS Ports: RTMP(1935), API(1985), HTTP(8080), WebRTC(8000)"
 echo "🕐 Provision completed at: $(date)"
 echo ""

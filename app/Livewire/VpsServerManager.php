@@ -215,7 +215,7 @@ class VpsServerManager extends Component
             ]);
 
             // Dispatch job cập nhật agent
-            UpdateAgentJob::dispatch($serverId);
+            UpdateAgentJob::dispatch($server);
 
             session()->flash('message', "Đang cập nhật Redis Agent cho VPS {$server->name}. Theo dõi tiến trình trong cột Provision Status.");
 
@@ -380,7 +380,7 @@ class VpsServerManager extends Component
                     $vps->update(['status' => 'UPDATING']);
 
                     // Dispatch UpdateAgentJob
-                    UpdateAgentJob::dispatch($vps->id)->onQueue('vps-provisioning');
+                    UpdateAgentJob::dispatch($vps)->onQueue('vps-provisioning');
 
                     $this->bulkUpdateProgress[$vps->id] = [
                         'name' => $vps->name,
