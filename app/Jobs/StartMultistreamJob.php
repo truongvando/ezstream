@@ -165,12 +165,17 @@ class StartMultistreamJob implements ShouldQueue
     private function getDownloadUrl(\App\Models\UserFile $userFile, bool $useSrs = false): ?string
     {
         try {
-            // For SRS streaming, check if we should use Stream Library
-            if ($useSrs && $this->shouldUseStreamLibrary($userFile)) {
-                return $this->getStreamLibraryUrl($userFile);
+            // For SRS streaming with bunny_stream files, use HLS URL directly
+            // We've disabled Bunny Stream access restrictions, so VPS can access HLS URLs
+
+            if ($userFile->disk === 'bunny_stream' && $userFile->stream_video_id) {
+                // Use HLS URL directly since access restrictions are disabled
+                $bunnyStreamService = app(\App\Services\BunnyStreamService::class);
+                $hlsUrl = $bunnyStreamService->getHlsUrl($userFile->stream_video_id);
+                return $hlsUrl;
             }
 
-            // Handle all storage types through BunnyStorageService
+            // Handle other storage types through BunnyStorageService
             if (in_array($userFile->disk, ['bunny_cdn', 'local', 'hybrid'])) {
                 $bunnyService = app(\App\Services\BunnyStorageService::class);
                 $result = $bunnyService->getDirectDownloadLink($userFile->path);
@@ -179,7 +184,7 @@ class StartMultistreamJob implements ShouldQueue
                 }
             }
 
-            // Fallback to secure download
+            // Final fallback to secure download
             $downloadToken = \Illuminate\Support\Str::random(32);
             cache()->put("download_token_{$downloadToken}", $userFile->id, now()->addDays(7));
 
