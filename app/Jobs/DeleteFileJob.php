@@ -202,8 +202,12 @@ class DeleteFileJob implements ShouldQueue
         try {
             $file = UserFile::find($this->fileData['id']);
             if ($file) {
+                // Nullify stream references before deleting
+                \App\Models\StreamConfiguration::where('user_file_id', $file->id)
+                    ->update(['user_file_id' => null]);
+
                 $file->delete();
-                Log::info('✅ Deleted from database', [
+                Log::info('✅ Deleted from database and nullified stream references', [
                     'file_id' => $this->fileData['id']
                 ]);
             } else {

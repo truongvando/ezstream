@@ -29,7 +29,7 @@
                             </div>
                             <div class="ml-4">
                                 <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Total Revenue</p>
-                                <p class="text-2xl font-semibold text-gray-900 dark:text-gray-100">{{ number_format($stats['total_revenue'], 0, ',', '.') }} VNĐ</p>
+                                <p class="text-2xl font-semibold text-gray-900 dark:text-gray-100">${{ number_format($stats['total_revenue'], 2) }}</p>
                             </div>
                         </div>
                     </div>
@@ -150,7 +150,7 @@
                                                 </div>
                                             </div>
                                         </td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ number_format($transaction->amount, 0, ',', '.') }} VNĐ</td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${{ number_format($transaction->amount, 2) }}</td>
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
                                                 @switch($transaction->status)

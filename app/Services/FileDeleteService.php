@@ -36,6 +36,16 @@ class FileDeleteService
                 'async' => $async
             ]);
 
+            // Check if file is being used by active streams
+            $activeStreams = $this->getActiveStreamsUsingFile($file);
+            if (!empty($activeStreams)) {
+                $streamIds = implode(', ', array_column($activeStreams, 'id'));
+                return [
+                    'success' => false,
+                    'message' => "File đang được sử dụng bởi stream(s) đang STREAMING: #{$streamIds}. Hãy dừng stream trước khi xóa file."
+                ];
+            }
+
             if ($async) {
                 return $this->deleteAsync($file);
             } else {
@@ -133,6 +143,9 @@ class FileDeleteService
     {
         try {
             $fileName = $file->original_name;
+
+            // Nullify stream references before deleting
+            $this->nullifyStreamReferences($file);
 
             // Delete from storage
             $this->deleteFromStorage($file);
@@ -300,6 +313,47 @@ class FileDeleteService
                 : "Đã xóa {$successful} file thành công";
         } else {
             return "Hoàn thành: {$successful} thành công, {$failed} thất bại";
+        }
+    }
+
+    /**
+     * Get active streams using this file
+     */
+    private function getActiveStreamsUsingFile(UserFile $file): array
+    {
+        $activeStatuses = ['STREAMING', 'STARTING'];
+
+        // Check both user_file_id and video_source_path JSON
+        $streams = \App\Models\StreamConfiguration::where(function($query) use ($file) {
+            $query->where('user_file_id', $file->id)
+                  ->orWhereJsonContains('video_source_path', [['file_id' => $file->id]]);
+        })
+        ->whereIn('status', $activeStatuses)
+        ->get(['id', 'title', 'status'])
+        ->toArray();
+
+        return $streams;
+    }
+
+    /**
+     * Nullify file references in streams when file is deleted
+     */
+    private function nullifyStreamReferences(UserFile $file): void
+    {
+        try {
+            // Update streams that reference this file
+            \App\Models\StreamConfiguration::where('user_file_id', $file->id)
+                ->update(['user_file_id' => null]);
+
+            Log::info('✅ [FileDeleteService] Nullified stream references', [
+                'file_id' => $file->id
+            ]);
+
+        } catch (Exception $e) {
+            Log::error('❌ [FileDeleteService] Failed to nullify stream references', [
+                'file_id' => $file->id,
+                'error' => $e->getMessage()
+            ]);
         }
     }
 }

@@ -31,7 +31,7 @@ HTML;
             }
             ?>
 
-            <?php echo renderStatCard('Doanh Thu', number_format($stats['total_revenue'], 0, ',', '.') . ' VNĐ', '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01"/>', 'yellow', route('admin.transactions'), 'Tổng doanh thu đã hoàn thành'); ?>
+            <?php echo renderStatCard('Doanh Thu', '$' . number_format($stats['total_revenue'], 2), '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01"/>', 'yellow', route('admin.transactions'), 'Tổng doanh thu đã hoàn thành'); ?>
 
             <?php echo renderStatCard('Chờ Xử Lý', $stats['pending_transactions'], '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />', 'orange', route('admin.transactions'), 'Số giao dịch đang chờ xác nhận'); ?>
 
@@ -89,7 +89,7 @@ HTML;
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white"><?php echo e(number_format($transaction->amount, 0, ',', '.')); ?> VNĐ</td>
+                                    <td class="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">$<?php echo e(number_format($transaction->amount, 2)); ?></td>
                                     <td class="py-3 px-4 text-sm text-gray-500 dark:text-gray-300"><?php echo e(optional($transaction->servicePackage)->name ?? 'N/A'); ?></td>
                                     <td class="py-3 px-4">
                                         <?php if (isset($component)) { $__componentOriginal511d4862ff04963c3c16115c05a86a9d = $component; } ?>
@@ -260,7 +260,7 @@ if (isset($__slots)) unset($__slots);
                                         label += ': ';
                                     }
                                     if (context.parsed.y !== null) {
-                                        label += new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(context.parsed.y);
+                                        label += new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(context.parsed.y);
                                     }
                                     return label;
                                 }
