@@ -832,7 +832,7 @@ echo ""
 echo -e "${YELLOW}💡 Useful Commands:${NC}"
 echo -e "  • Check processes: supervisorctl status | grep ezstream"
 echo -e "  • View logs: tail -f /var/www/ezstream/storage/logs/laravel.log"
-echo -e "  • Monitor queues: php artisan queue:monitor"
+echo -e "  • Monitor queues: php artisan queue:work --once"
 echo ""
 echo -e "${YELLOW}💡 To rollback if needed:${NC}"
 echo -e "  gunzip $BACKUP_FILE.gz"
@@ -909,7 +909,7 @@ else
 fi
 
 # Check queue
-QUEUE_SIZE=$(php artisan queue:monitor 2>/dev/null | grep -o '[0-9]\+' | head -1 || echo "0")
+QUEUE_SIZE=$(php artisan queue:size 2>/dev/null || echo "0")
 echo -e "  ✅ Queue: $QUEUE_SIZE jobs pending"
 
 # Check essential services

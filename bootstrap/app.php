@@ -53,9 +53,9 @@ return Application::configure(basePath: dirname(__DIR__))
                  ->everyMinute()
                  ->withoutOverlapping();
 
-        // 🔧 Cleanup hanging streams
-        $schedule->command('streams:force-stop-hanging --timeout=300')
-                 ->everyFiveMinutes()
+        // 🔧 Monitor stream health and auto-fix issues
+        $schedule->command('streams:monitor-health --auto-fix')
+                 ->everyTenMinutes()
                  ->withoutOverlapping();
 
         // 🔄 Sync stream state with all VPS agents (the new Master-Slave sync)
@@ -63,15 +63,10 @@ return Application::configure(basePath: dirname(__DIR__))
                  ->everyTwoMinutes()
                  ->withoutOverlapping();
 
-        // 👻 Cleanup ghost streams (streams agent reports but DB doesn't expect)
-        $schedule->command('streams:cleanup-ghosts')
-                 ->everyFiveMinutes()
-                 ->withoutOverlapping();
+        // 👻 Cleanup ghost streams - đã tích hợp vào stream:sync
+        // $schedule->command('streams:cleanup-ghosts')->everyFiveMinutes()->withoutOverlapping();
 
-        // 🏥 Monitor stream health and auto-fix issues
-        $schedule->command('streams:monitor-health --auto-fix')
-                 ->everyTenMinutes()
-                 ->withoutOverlapping();
+
 
         // ⏰ Handle STOPPING timeout (every minute - critical for stuck streams)
         $schedule->job(new \App\Jobs\HandleStoppingTimeoutJob())
