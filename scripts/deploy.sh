@@ -610,6 +610,14 @@ php artisan route:cache
 # Skip view:cache for Livewire compatibility
 echo -e "${BLUE}   Skipping view:cache (Livewire compatibility)${NC}"
 
+# Test JAP API configuration after config cache
+echo -e "${BLUE}   Testing JAP API configuration...${NC}"
+if php artisan jap:debug-api-key >/dev/null 2>&1; then
+    echo -e "${GREEN}✅ JAP API configuration test passed${NC}"
+else
+    echo -e "${YELLOW}⚠️ JAP API configuration test failed - check .env file${NC}"
+fi
+
 # Set permissions
 echo -e "${YELLOW}🔐 Setting permissions...${NC}"
 chown -R www-data:www-data $PROJECT_DIR

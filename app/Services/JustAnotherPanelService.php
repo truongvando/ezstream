@@ -13,7 +13,11 @@ class JustAnotherPanelService
 
     public function __construct()
     {
-        $this->apiKey = env('JAP_API_KEY') ?? setting('jap_api_key');
+        $this->apiKey = config('services.jap.api_key') ?? env('JAP_API_KEY') ?? setting('jap_api_key');
+
+        if (!$this->apiKey) {
+            Log::warning('JAP API Key not found in config, env, or settings');
+        }
     }
 
     /**
