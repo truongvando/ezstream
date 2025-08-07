@@ -175,7 +175,7 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         if (!$hasCompleteMessage && !$hasSuccessIndicators) {
             Log::error("❌ [VPS #{$vps->id}] Base provision script failed", [
                 'output' => $result,
-                'script_path' => $remoteScript
+                'script_path' => '/opt/ezstream-agent/provision-vps.sh'
             ]);
 
             // Try to get more detailed error info

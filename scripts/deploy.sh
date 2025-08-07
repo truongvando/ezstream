@@ -909,8 +909,8 @@ else
 fi
 
 # Check queue
-QUEUE_SIZE=$(php artisan queue:size 2>/dev/null || echo "0")
-echo -e "  ✅ Queue: $QUEUE_SIZE jobs pending"
+FAILED_JOBS=$(php artisan queue:failed --format=json 2>/dev/null | jq length 2>/dev/null || echo "0")
+echo -e "  ✅ Queue: $FAILED_JOBS failed jobs"
 
 # Check essential services
 echo -e "  📋 Essential Services:"
