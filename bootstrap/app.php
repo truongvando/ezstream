@@ -34,6 +34,11 @@ return Application::configure(basePath: dirname(__DIR__))
                  ->dailyAt('06:00')
                  ->withoutOverlapping();
 
+        // 🔍 Check YouTube video status (detect dead/removed videos)
+        $schedule->command('youtube:check-video-status --limit=200')
+                 ->everyFourHours()
+                 ->withoutOverlapping();
+
         // 🧹 VPS cleanup
         $schedule->command('vps:cleanup')
                  ->dailyAt('02:00')
@@ -108,6 +113,16 @@ return Application::configure(basePath: dirname(__DIR__))
         // 🔍 Check view order status (sync với JAP)
         $schedule->command('orders:check-status')
                  ->everyFiveMinutes()
+                 ->withoutOverlapping();
+
+        // 🔄 Sync JAP services (cập nhật danh sách services từ nhà cung cấp)
+        $schedule->command('jap:sync-services')
+                 ->dailyAt('03:00')
+                 ->withoutOverlapping();
+
+        // 🔍 Kiểm tra services khả dụng (check service availability)
+        $schedule->command('jap:check-service-availability')
+                 ->everyTwoHours()
                  ->withoutOverlapping();
 
         // 💰 Process pending deposits (check bank transactions)

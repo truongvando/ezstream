@@ -18,7 +18,7 @@ class BunnyWebhookController extends Controller
         try {
             // Verify webhook signature
             if (!$this->verifyWebhookSignature($request)) {
-                Log::warning('Invalid BunnyCDN webhook signature', [
+                Log::warning('Invalid video processing webhook signature', [
                     'ip' => $request->ip(),
                     'headers' => $request->headers->all()
                 ]);
@@ -29,7 +29,7 @@ class BunnyWebhookController extends Controller
             $eventType = $payload['EventType'] ?? null;
             $videoId = $payload['VideoGuid'] ?? null;
 
-            Log::info('BunnyCDN webhook received', [
+            Log::info('Video processing webhook received', [
                 'event_type' => $eventType,
                 'video_id' => $videoId,
                 'payload' => $payload
@@ -66,7 +66,7 @@ class BunnyWebhookController extends Controller
                     break;
 
                 default:
-                    Log::info('Unhandled BunnyCDN webhook event', ['event_type' => $eventType]);
+                    Log::info('Unhandled video processing event', ['event_type' => $eventType]);
             }
 
             // Dispatch Livewire refresh event
@@ -75,7 +75,7 @@ class BunnyWebhookController extends Controller
             return response()->json(['status' => 'success']);
 
         } catch (\Exception $e) {
-            Log::error('BunnyCDN webhook processing failed: ' . $e->getMessage(), [
+            Log::error('Video processing webhook failed: ' . $e->getMessage(), [
                 'exception' => $e,
                 'payload' => $request->all()
             ]);
@@ -90,7 +90,7 @@ class BunnyWebhookController extends Controller
     {
         $webhookSecret = config('bunnycdn.webhook_secret');
         if (!$webhookSecret) {
-            Log::warning('BunnyCDN webhook secret not configured');
+            Log::warning('Video processing webhook secret not configured');
             return true; // Allow if not configured (for development)
         }
 
@@ -177,6 +177,9 @@ class BunnyWebhookController extends Controller
 
         // Check if this file is part of any pending streams
         $this->checkPendingStreams($userFile);
+
+        // Check if this file should be added to any running streams
+        $this->checkRunningStreams($userFile);
     }
 
     /**
@@ -209,10 +212,17 @@ class BunnyWebhookController extends Controller
                         'status_message' => 'All files processed, ready to stream'
                     ]);
 
-                    // Optionally auto-start stream if configured
-                    if ($stream->auto_start_when_ready) {
-                        $this->autoStartStream($stream);
-                    }
+                    // Auto-start stream now that files are ready
+                    Log::info('🚀 Auto-starting stream now that all files are ready', [
+                        'stream_id' => $stream->id
+                    ]);
+
+                    \App\Jobs\StartMultistreamJob::dispatch($stream);
+
+                    $stream->update([
+                        'status' => 'STARTING',
+                        'status_message' => 'Starting stream with processed files'
+                    ]);
                 }
             }
 
@@ -240,6 +250,44 @@ class BunnyWebhookController extends Controller
         }
 
         return true;
+    }
+
+    /**
+     * Check if this file should be added to any running streams
+     */
+    private function checkRunningStreams(UserFile $userFile): void
+    {
+        try {
+            // Find running streams that might want this file
+            $runningStreams = \App\Models\StreamConfiguration::where('user_id', $userFile->user_id)
+                ->where('status', 'STREAMING')
+                ->get();
+
+            foreach ($runningStreams as $stream) {
+                // Check if this file was recently added to the stream's playlist
+                $videoSourcePath = is_string($stream->video_source_path)
+                    ? json_decode($stream->video_source_path, true)
+                    : ($stream->video_source_path ?? []);
+
+                $fileInPlaylist = collect($videoSourcePath)->contains(function($fileInfo) use ($userFile) {
+                    return $fileInfo['file_id'] == $userFile->id;
+                });
+
+                if ($fileInPlaylist) {
+                    Log::info('📹 File ready for running stream, sending update command', [
+                        'stream_id' => $stream->id,
+                        'file_id' => $userFile->id,
+                        'file_name' => $userFile->original_name
+                    ]);
+
+                    // Send update command to agent to refresh playlist
+                    \App\Jobs\UpdateMultistreamJob::dispatch($stream);
+                }
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Failed to check running streams: ' . $e->getMessage());
+        }
     }
 
     /**

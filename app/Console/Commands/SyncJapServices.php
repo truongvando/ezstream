@@ -13,14 +13,14 @@ class SyncJapServices extends Command
      *
      * @var string
      */
-    protected $signature = 'jap:sync-services {--force : Force sync even if recently synced}';
+    protected $signature = 'jap:sync-services {--force : Force sync even if recently synced} {--platform=youtube : Platform to sync (youtube, instagram, tiktok, all)}';
 
     /**
      * The console command description.
      *
      * @var string
      */
-    protected $description = 'Sync YouTube services from JAP API';
+    protected $description = 'Sync services from JAP API (default: YouTube only)';
 
     private $japApiService;
 
@@ -35,11 +35,12 @@ class SyncJapServices extends Command
      */
     public function handle()
     {
-        $this->info('🔄 Starting JAP API sync...');
+        $platform = $this->option('platform');
+        $this->info("🔄 Starting JAP API sync for platform: {$platform}...");
 
         // Get all services from JAP API
         $allServices = $this->japApiService->getAllServices();
-        
+
         if (empty($allServices)) {
             $this->error('❌ Failed to fetch services from JAP API');
             return 1;
@@ -47,23 +48,20 @@ class SyncJapServices extends Command
 
         $this->info('📥 Fetched ' . count($allServices) . ' services from JAP API');
 
-        // Filter YouTube services
-        $youtubeServices = collect($allServices)->filter(function ($service) {
-            return isset($service['category']) && 
-                   stripos($service['category'], 'youtube') !== false;
-        });
+        // Filter services based on platform
+        $filteredServices = $this->filterServicesByPlatform($allServices, $platform);
 
-        $this->info('🎬 Found ' . $youtubeServices->count() . ' YouTube services');
+        $this->info("� Found {$filteredServices->count()} {$platform} services");
 
         // Sync to database
         $created = 0;
         $updated = 0;
         $errors = 0;
 
-        $progressBar = $this->output->createProgressBar($youtubeServices->count());
+        $progressBar = $this->output->createProgressBar($filteredServices->count());
         $progressBar->start();
 
-        foreach ($youtubeServices as $service) {
+        foreach ($filteredServices as $service) {
             try {
                 $apiService = ApiService::updateOrCreate(
                     ['service_id' => $service['service']],
@@ -109,10 +107,37 @@ class SyncJapServices extends Command
                 ['Created', $created],
                 ['Updated', $updated],
                 ['Errors', $errors],
-                ['Total', $youtubeServices->count()]
+                ['Total', $filteredServices->count()]
             ]
         );
 
         return 0;
+    }
+
+    /**
+     * Filter services by platform
+     */
+    private function filterServicesByPlatform($allServices, $platform)
+    {
+        if ($platform === 'all') {
+            return collect($allServices);
+        }
+
+        return collect($allServices)->filter(function ($service) use ($platform) {
+            if (!isset($service['category'])) {
+                return false;
+            }
+
+            $category = strtolower($service['category']);
+
+            return match($platform) {
+                'youtube' => stripos($category, 'youtube') !== false,
+                'instagram' => stripos($category, 'instagram') !== false,
+                'tiktok' => stripos($category, 'tiktok') !== false,
+                'facebook' => stripos($category, 'facebook') !== false,
+                'twitter' => stripos($category, 'twitter') !== false,
+                default => stripos($category, $platform) !== false
+            };
+        });
     }
 }

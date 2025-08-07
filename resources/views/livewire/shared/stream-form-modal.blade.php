@@ -51,20 +51,45 @@
                             <!-- Scrollable file list with fixed height -->
                             <div class="max-h-48 overflow-y-auto">
                                 @foreach($userFiles as $file)
-                                <label class="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors {{ in_array($file->id, $user_file_ids ?? []) ? 'bg-indigo-50 dark:bg-indigo-900/20' : '' }}">
+                                @php
+                                    $isStreamLibrary = $file->disk === 'bunny_stream';
+                                    $processingStatus = $isStreamLibrary ? ($file->stream_metadata['processing_status'] ?? 'processing') : 'ready';
+                                    $canSelect = !$isStreamLibrary || $processingStatus === 'completed';
+                                @endphp
+                                <label class="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700
+                                       {{ $canSelect ? 'cursor-pointer' : 'cursor-not-allowed opacity-50' }}
+                                       border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors
+                                       {{ in_array($file->id, $user_file_ids ?? []) ? 'bg-indigo-50 dark:bg-indigo-900/20' : '' }}">
                                     <input type="checkbox"
                                            wire:model.live="user_file_ids"
                                            value="{{ $file->id }}"
+                                           {{ $canSelect ? '' : 'disabled' }}
                                            {{ in_array($file->id, $user_file_ids ?? []) ? 'checked' : '' }}
                                            class="form-checkbox h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer">
                                     <div class="ml-3 flex-1">
-                                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                            {{ $file->original_name }}
-                                            @if(in_array($file->id, $user_file_ids ?? []))
-                                                <span class="ml-2 text-xs bg-indigo-100 text-indigo-800 dark:bg-indigo-800 dark:text-indigo-200 px-2 py-1 rounded-full">✓ Đã chọn</span>
+                                        <div class="flex items-center justify-between">
+                                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                                {{ $file->original_name }}
+                                                @if(in_array($file->id, $user_file_ids ?? []))
+                                                    <span class="ml-2 text-xs bg-indigo-100 text-indigo-800 dark:bg-indigo-800 dark:text-indigo-200 px-2 py-1 rounded-full">✓ Đã chọn</span>
+                                                @endif
+                                            </p>
+                                            @if($isStreamLibrary && $processingStatus !== 'completed')
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                                    <svg class="animate-spin w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                                    </svg>
+                                                    Đang xử lý
+                                                </span>
+                                            @endif
+                                        </div>
+                                        <p class="text-xs text-gray-500">
+                                            {{ \App\Helpers\SettingsHelper::formatBytes($file->size) }} • {{ $file->created_at->format('d/m/Y') }}
+                                            @if($isStreamLibrary)
+                                                • Stream Library
                                             @endif
                                         </p>
-                                        <p class="text-xs text-gray-500">{{ \App\Helpers\SettingsHelper::formatBytes($file->size) }} • {{ $file->created_at->format('d/m/Y') }}</p>
                                     </div>
                                 </label>
                                 @endforeach
@@ -122,7 +147,7 @@
 
                         <div>
                             <x-input-label for="stream_key" value="Khóa Luồng (Stream Key)" />
-                            <x-text-input wire:model.defer="stream_key" id="stream_key" type="password" class="mt-2 block w-full" placeholder="Nhập stream key từ platform" />
+                            <x-text-input wire:model.defer="stream_key" id="stream_key" type="text" class="mt-2 block w-full" placeholder="Nhập stream key từ platform" />
                             @error('stream_key') <span class="text-red-500 text-xs mt-1">{{ $message }}</span> @enderror
                         </div>
                     </div>

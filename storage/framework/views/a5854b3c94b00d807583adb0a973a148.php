@@ -133,7 +133,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <!-- Stream Key -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Stream Key *</label>
-                                <input type="password" wire:model="quickStreamKey" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Nhập stream key...">
+                                <input type="text" wire:model="quickStreamKey" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Nhập stream key...">
                                 <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['quickStreamKey'];
 $__bag = $errors->getBag($__errorArgs[1] ?? 'default');
 if ($__bag->has($__errorArgs[0])) :
@@ -200,14 +200,39 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                                                 <!-- Scrollable file list with fixed height -->
                                                 <div class="max-h-48 overflow-y-auto">
                                                     <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $userFiles; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $file): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                                    <label wire:key="file-<?php echo e($file->id); ?>" class="quick-stream-file-label flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors">
+                                                    <?php
+                                                        $isStreamLibrary = $file->disk === 'bunny_stream';
+                                                        $processingStatus = $isStreamLibrary ? ($file->stream_metadata['processing_status'] ?? 'processing') : 'ready';
+                                                        $canSelect = !$isStreamLibrary || $processingStatus === 'completed';
+                                                    ?>
+                                                    <label wire:key="file-<?php echo e($file->id); ?>" class="quick-stream-file-label flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700
+                                                           <?php echo e($canSelect ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'); ?> border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors">
                                                         <input type="checkbox"
                                                                wire:click="toggleFileSelection(<?php echo e($file->id); ?>)"
                                                                <?php if(in_array($file->id, $quickSelectedFiles)): ?> checked <?php endif; ?>
+                                                               <?php echo e($canSelect ? '' : 'disabled'); ?>
+
                                                                class="quick-stream-checkbox form-checkbox h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer">
                                                         <div class="ml-3 flex-1">
-                                                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100"><?php echo e($file->original_name); ?></p>
-                                                            <p class="text-xs text-gray-500"><?php echo e(number_format($file->size / 1024 / 1024, 1)); ?>MB • <?php echo e($file->created_at->format('d/m/Y')); ?></p>
+                                                            <div class="flex items-center justify-between">
+                                                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100"><?php echo e($file->original_name); ?></p>
+                                                                <!--[if BLOCK]><![endif]--><?php if($isStreamLibrary && $processingStatus !== 'completed'): ?>
+                                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                                                        <svg class="animate-spin w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                                                        </svg>
+                                                                        Đang xử lý
+                                                                    </span>
+                                                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                                            </div>
+                                                            <p class="text-xs text-gray-500">
+                                                                <?php echo e(number_format($file->size / 1024 / 1024, 1)); ?>MB • <?php echo e($file->created_at->format('d/m/Y')); ?>
+
+                                                                <!--[if BLOCK]><![endif]--><?php if($isStreamLibrary): ?>
+                                                                    • Stream Library
+                                                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                                            </p>
                                                         </div>
                                                     </label>
                                                     <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->

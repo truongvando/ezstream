@@ -34,6 +34,18 @@ class StartMultistreamJob implements ShouldQueue
         try {
             Log::info("▶️ [StartJob] Processing Stream #{$stream->id}");
 
+            // 0. Validate all files are ready for streaming
+            $validationResult = $this->validateStreamFiles($stream);
+            if (!$validationResult['ready']) {
+                // Set stream to waiting status if files not ready
+                $stream->update([
+                    'status' => 'waiting_for_processing',
+                    'status_message' => $validationResult['message']
+                ]);
+                Log::warning("⏸️ [StartJob] Stream #{$stream->id} waiting for file processing: {$validationResult['message']}");
+                return;
+            }
+
             // 1. Allocate a VPS if not already set
             if (!$stream->vps_server_id) {
                 $vps = $streamAllocation->findOptimalVps($stream);
@@ -241,5 +253,54 @@ class StartMultistreamJob implements ShouldQueue
             'error_message' => "Job failed: " . $exception->getMessage(),
         ]);
         StreamProgressService::createStageProgress($this->stream->id, 'error', "Job failed: " . $exception->getMessage());
+    }
+
+    /**
+     * Validate all files in stream are ready for streaming
+     */
+    private function validateStreamFiles(StreamConfiguration $stream): array
+    {
+        $videoSourcePath = is_string($stream->video_source_path)
+            ? json_decode($stream->video_source_path, true)
+            : ($stream->video_source_path ?? []);
+
+        if (empty($videoSourcePath)) {
+            return [
+                'ready' => false,
+                'message' => 'No video files configured for this stream'
+            ];
+        }
+
+        $notReadyFiles = [];
+        $totalFiles = count($videoSourcePath);
+
+        foreach ($videoSourcePath as $fileInfo) {
+            $userFile = \App\Models\UserFile::find($fileInfo['file_id']);
+            if (!$userFile) {
+                $notReadyFiles[] = "File ID {$fileInfo['file_id']} not found";
+                continue;
+            }
+
+            // Check if file is from Stream Library
+            if ($userFile->stream_video_id) {
+                $processingStatus = $userFile->stream_metadata['processing_status'] ?? 'unknown';
+                if ($processingStatus !== 'completed') {
+                    $notReadyFiles[] = "'{$userFile->original_name}' đang xử lý";
+                }
+            }
+            // Regular files are always ready
+        }
+
+        if (!empty($notReadyFiles)) {
+            return [
+                'ready' => false,
+                'message' => 'Một số video đang xử lý: ' . implode(', ', $notReadyFiles)
+            ];
+        }
+
+        return [
+            'ready' => true,
+            'message' => "All {$totalFiles} files are ready for streaming"
+        ];
     }
 }

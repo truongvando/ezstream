@@ -112,7 +112,7 @@
                             <!-- Stream Key -->
                             <div>
                                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Stream Key *</label>
-                                <input type="password" wire:model="quickStreamKey" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Nhập stream key...">
+                                <input type="text" wire:model="quickStreamKey" class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" placeholder="Nhập stream key...">
                                 @error('quickStreamKey') <span class="text-red-500 text-sm">{{ $message }}</span> @enderror
                             </div>
                         </div>
@@ -172,14 +172,37 @@
                                                 <!-- Scrollable file list with fixed height -->
                                                 <div class="max-h-48 overflow-y-auto">
                                                     @foreach($userFiles as $file)
-                                                    <label wire:key="file-{{ $file->id }}" class="quick-stream-file-label flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors">
+                                                    @php
+                                                        $isStreamLibrary = $file->disk === 'bunny_stream';
+                                                        $processingStatus = $isStreamLibrary ? ($file->stream_metadata['processing_status'] ?? 'processing') : 'ready';
+                                                        $canSelect = !$isStreamLibrary || $processingStatus === 'completed';
+                                                    @endphp
+                                                    <label wire:key="file-{{ $file->id }}" class="quick-stream-file-label flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700
+                                                           {{ $canSelect ? 'cursor-pointer' : 'cursor-not-allowed opacity-50' }} border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors">
                                                         <input type="checkbox"
                                                                wire:click="toggleFileSelection({{ $file->id }})"
                                                                @if(in_array($file->id, $quickSelectedFiles)) checked @endif
+                                                               {{ $canSelect ? '' : 'disabled' }}
                                                                class="quick-stream-checkbox form-checkbox h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer">
                                                         <div class="ml-3 flex-1">
-                                                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $file->original_name }}</p>
-                                                            <p class="text-xs text-gray-500">{{ number_format($file->size / 1024 / 1024, 1) }}MB • {{ $file->created_at->format('d/m/Y') }}</p>
+                                                            <div class="flex items-center justify-between">
+                                                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ $file->original_name }}</p>
+                                                                @if($isStreamLibrary && $processingStatus !== 'completed')
+                                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                                                        <svg class="animate-spin w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                                                        </svg>
+                                                                        Đang xử lý
+                                                                    </span>
+                                                                @endif
+                                                            </div>
+                                                            <p class="text-xs text-gray-500">
+                                                                {{ number_format($file->size / 1024 / 1024, 1) }}MB • {{ $file->created_at->format('d/m/Y') }}
+                                                                @if($isStreamLibrary)
+                                                                    • Stream Library
+                                                                @endif
+                                                            </p>
                                                         </div>
                                                     </label>
                                                     @endforeach

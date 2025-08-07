@@ -43,12 +43,12 @@ php artisan migrate
 
 ### Phase 1: Upload & Processing
 ```
-User Upload → Stream Library → BunnyCDN Processing → Webhook → Laravel
+User Upload → Stream Library → Video Processing → Webhook → Laravel
 ```
 
 ### Phase 2: Streaming
 ```
-User Create Stream → Laravel Command → Agent → SRS/FFmpeg → YouTube
+User Create Stream → Laravel Command → Agent → FFmpeg Direct → YouTube
 ```
 
 ## 📊 WEBHOOK SECURITY
@@ -108,17 +108,17 @@ SRS Stream Start → Agent Report → Laravel Update → User UI Refresh
 
 ### File Types Display:
 
-- **🎬 Stream Library Files**: Orange badge, processing status
+- **🎬 Stream Library Files**: Orange badge, đang xử lý
 - **💾 Storage Files**: Blue badge, storage type
 - **Processing Status**: Real-time updates via webhook
 
 ### File Storage Modes:
 
 ```
-🤖 Auto: Stream Library for SRS, CDN for FFmpeg
-💾 Server: Local storage  
-☁️ CDN: BunnyCDN Storage Zone
-🎬 Stream Library: BunnyCDN Stream Library (SRS only)
+🤖 Auto: Stream Library for optimal quality
+💾 Server: Local storage
+☁️ CDN: CDN Storage Zone
+🎬 Stream Library: Stream Library (optimized streaming)
 🔄 Hybrid: Server + CDN backup
 ```
 

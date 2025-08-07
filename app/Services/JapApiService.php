@@ -52,8 +52,8 @@ class JapApiService
     public function getYouTubeServices()
     {
         $cacheKey = 'jap_youtube_services';
-        
-        return Cache::remember($cacheKey, 3600, function () {
+
+        return Cache::remember($cacheKey, 1800, function () { // Giảm từ 3600 (1h) xuống 1800 (30 phút)
             $allServices = $this->getAllServices();
             
             $youtubeServices = collect($allServices)->filter(function ($service) {
@@ -350,10 +350,52 @@ class JapApiService
     }
 
     /**
+     * Get services by platform with caching
+     */
+    public function getServicesByPlatform($platform = 'youtube')
+    {
+        $cacheKey = "jap_{$platform}_services";
+
+        return Cache::remember($cacheKey, 1800, function () use ($platform) {
+            $allServices = $this->getAllServices();
+
+            if ($platform === 'all') {
+                return collect($allServices);
+            }
+
+            return collect($allServices)->filter(function ($service) use ($platform) {
+                if (!isset($service['category'])) {
+                    return false;
+                }
+
+                $category = strtolower($service['category']);
+
+                return match($platform) {
+                    'youtube' => stripos($category, 'youtube') !== false,
+                    'instagram' => stripos($category, 'instagram') !== false,
+                    'tiktok' => stripos($category, 'tiktok') !== false,
+                    'facebook' => stripos($category, 'facebook') !== false,
+                    'twitter' => stripos($category, 'twitter') !== false,
+                    default => stripos($category, $platform) !== false
+                };
+            });
+        });
+    }
+
+    /**
      * Clear cache
      */
-    public function clearCache()
+    public function clearCache($platform = null)
     {
-        Cache::forget('jap_youtube_services');
+        if ($platform) {
+            Cache::forget("jap_{$platform}_services");
+        } else {
+            // Clear all platform caches
+            $platforms = ['youtube', 'instagram', 'tiktok', 'facebook', 'twitter', 'all'];
+            foreach ($platforms as $p) {
+                Cache::forget("jap_{$p}_services");
+            }
+            Cache::forget('jap_youtube_services'); // Legacy cache key
+        }
     }
 }

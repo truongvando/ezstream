@@ -132,22 +132,50 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                             <!-- Scrollable file list with fixed height -->
                             <div class="max-h-48 overflow-y-auto">
                                 <!--[if BLOCK]><![endif]--><?php $__currentLoopData = $userFiles; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $file): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); ?>
-                                <label class="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors <?php echo e(in_array($file->id, $user_file_ids ?? []) ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''); ?>">
+                                <?php
+                                    $isStreamLibrary = $file->disk === 'bunny_stream';
+                                    $processingStatus = $isStreamLibrary ? ($file->stream_metadata['processing_status'] ?? 'processing') : 'ready';
+                                    $canSelect = !$isStreamLibrary || $processingStatus === 'completed';
+                                ?>
+                                <label class="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700
+                                       <?php echo e($canSelect ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'); ?>
+
+                                       border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors
+                                       <?php echo e(in_array($file->id, $user_file_ids ?? []) ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''); ?>">
                                     <input type="checkbox"
                                            wire:model.live="user_file_ids"
                                            value="<?php echo e($file->id); ?>"
+                                           <?php echo e($canSelect ? '' : 'disabled'); ?>
+
                                            <?php echo e(in_array($file->id, $user_file_ids ?? []) ? 'checked' : ''); ?>
 
                                            class="form-checkbox h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer">
                                     <div class="ml-3 flex-1">
-                                        <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
-                                            <?php echo e($file->original_name); ?>
+                                        <div class="flex items-center justify-between">
+                                            <p class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                                <?php echo e($file->original_name); ?>
 
-                                            <!--[if BLOCK]><![endif]--><?php if(in_array($file->id, $user_file_ids ?? [])): ?>
-                                                <span class="ml-2 text-xs bg-indigo-100 text-indigo-800 dark:bg-indigo-800 dark:text-indigo-200 px-2 py-1 rounded-full">✓ Đã chọn</span>
+                                                <!--[if BLOCK]><![endif]--><?php if(in_array($file->id, $user_file_ids ?? [])): ?>
+                                                    <span class="ml-2 text-xs bg-indigo-100 text-indigo-800 dark:bg-indigo-800 dark:text-indigo-200 px-2 py-1 rounded-full">✓ Đã chọn</span>
+                                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                            </p>
+                                            <!--[if BLOCK]><![endif]--><?php if($isStreamLibrary && $processingStatus !== 'completed'): ?>
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                                    <svg class="animate-spin w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                                    </svg>
+                                                    Đang xử lý
+                                                </span>
+                                            <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+                                        </div>
+                                        <p class="text-xs text-gray-500">
+                                            <?php echo e(\App\Helpers\SettingsHelper::formatBytes($file->size)); ?> • <?php echo e($file->created_at->format('d/m/Y')); ?>
+
+                                            <!--[if BLOCK]><![endif]--><?php if($isStreamLibrary): ?>
+                                                • Stream Library
                                             <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                         </p>
-                                        <p class="text-xs text-gray-500"><?php echo e(\App\Helpers\SettingsHelper::formatBytes($file->size)); ?> • <?php echo e($file->created_at->format('d/m/Y')); ?></p>
                                     </div>
                                 </label>
                                 <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?><!--[if ENDBLOCK]><![endif]-->
@@ -285,14 +313,14 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
 <?php endif; ?>
                             <?php if (isset($component)) { $__componentOriginal18c21970322f9e5c938bc954620c12bb = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal18c21970322f9e5c938bc954620c12bb = $attributes; } ?>
-<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.text-input','data' => ['wire:model.defer' => 'stream_key','id' => 'stream_key','type' => 'password','class' => 'mt-2 block w-full','placeholder' => 'Nhập stream key từ platform']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component = Illuminate\View\AnonymousComponent::resolve(['view' => 'components.text-input','data' => ['wire:model.defer' => 'stream_key','id' => 'stream_key','type' => 'text','class' => 'mt-2 block w-full','placeholder' => 'Nhập stream key từ platform']] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName('text-input'); ?>
 <?php if ($component->shouldRender()): ?>
 <?php $__env->startComponent($component->resolveView(), $component->data()); ?>
 <?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
 <?php $attributes = $attributes->except(\Illuminate\View\AnonymousComponent::ignoredParameterNames()); ?>
 <?php endif; ?>
-<?php $component->withAttributes(['wire:model.defer' => 'stream_key','id' => 'stream_key','type' => 'password','class' => 'mt-2 block w-full','placeholder' => 'Nhập stream key từ platform']); ?>
+<?php $component->withAttributes(['wire:model.defer' => 'stream_key','id' => 'stream_key','type' => 'text','class' => 'mt-2 block w-full','placeholder' => 'Nhập stream key từ platform']); ?>
 <?php echo $__env->renderComponent(); ?>
 <?php endif; ?>
 <?php if (isset($__attributesOriginal18c21970322f9e5c938bc954620c12bb)): ?>

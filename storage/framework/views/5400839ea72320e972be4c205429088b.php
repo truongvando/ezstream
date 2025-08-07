@@ -159,13 +159,20 @@
                     if (!confirmResponse.ok) throw new Error((await confirmResponse.json()).message || 'Không thể xác nhận upload.');
                     const confirmData = await confirmResponse.json();
 
-                    this.updateStatus('🎉 Upload hoàn tất!', 100);
-                    
+                    // Check if this is Stream Library upload (needs processing)
+                    if (confirmData.file.disk === 'bunny_stream') {
+                        this.updateStatus('🔄 Đang xử lý video...', 100);
+                    } else {
+                        this.updateStatus('🎉 Upload hoàn tất!', 100);
+                    }
+
                     // Lưu thông tin file vào state của Alpine
                     this.selectedFileDetails = {
                         id: confirmData.file.id,
                         name: confirmData.file.name, // Sửa từ file_name thành name
-                        size: confirmData.file.size
+                        size: confirmData.file.size,
+                        disk: confirmData.file.disk,
+                        processing_status: confirmData.file.disk === 'bunny_stream' ? 'processing' : 'ready'
                     };
 
                     setTimeout(() => {

@@ -214,7 +214,7 @@ class PlaylistCommandService
                 return ['success' => false, 'error' => 'Stream is not currently running'];
             }
 
-            // Validate files
+            // Validate files - enhanced for Stream Library
             $files = UserFile::whereIn('id', $fileIds)
                 ->where('user_id', $stream->user_id)
                 ->where('status', 'COMPLETED')
@@ -222,6 +222,24 @@ class PlaylistCommandService
 
             if ($files->count() !== count($fileIds)) {
                 return ['success' => false, 'error' => 'Some files not found or not accessible'];
+            }
+
+            // Additional validation for Stream Library files
+            $notReadyFiles = [];
+            foreach ($files as $file) {
+                if ($file->stream_video_id) {
+                    $processingStatus = $file->stream_metadata['processing_status'] ?? 'unknown';
+                    if ($processingStatus !== 'completed') {
+                        $notReadyFiles[] = "'{$file->original_name}' đang xử lý";
+                    }
+                }
+            }
+
+            if (!empty($notReadyFiles)) {
+                return [
+                    'success' => false,
+                    'error' => 'Không thể thêm video đang xử lý: ' . implode(', ', $notReadyFiles)
+                ];
             }
 
             // Get current playlist and add new files
