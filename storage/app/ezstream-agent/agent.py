@@ -21,11 +21,15 @@ from command_handler import init_command_handler
 
 
 # Logging setup - Linux focused
+# Create logs directory if it doesn't exist
+log_dir = os.path.join(os.path.dirname(__file__), 'logs')
+os.makedirs(log_dir, exist_ok=True)
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(os.path.join(os.path.dirname(__file__), 'logs', 'ezstream-agent.log')),
+        logging.FileHandler(os.path.join(log_dir, 'ezstream-agent.log')),
         logging.StreamHandler()
     ]
 )

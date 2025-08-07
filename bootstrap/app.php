@@ -132,6 +132,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('deposits:process-pending')
                  ->everyMinute()
                  ->withoutOverlapping();
+
+        // 💾 Daily database backup at 2 AM
+        $schedule->command('backup:database --compress')
+                 ->dailyAt('02:00')
+                 ->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->use([

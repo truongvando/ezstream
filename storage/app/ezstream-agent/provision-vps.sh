@@ -42,12 +42,11 @@ apt-get update -y
 apt-get install -y \
     curl wget jq ffmpeg \
     python3 python3-pip \
-    htop iotop supervisor \
+    htop supervisor \
     redis-tools \
-    git build-essential \
-    unzip automake cmake pkg-config
-    # SRS dependencies - cần thiết cho build SRS từ source
-    # nginx removed - conflicts with SRS port 8080
+    git unzip
+    # Removed: iotop, build-essential, automake, cmake, pkg-config (not needed for Agent v7.0)
+    # Removed: nginx (Agent v7.0 uses direct FFmpeg streaming)
 
 # Cài đặt thư viện Python cần thiết cho EZStream Agent v7.0
 echo "Installing Python packages for EZStream Agent v7.0..."
@@ -231,74 +230,10 @@ echo "Skipping nginx health check (nginx disabled)..."
 
 echo "✅ Base system ready (nginx disabled, direct FFmpeg streaming)"
 
-# Install Docker for container support (optional)
+# Docker not needed for Agent v7.0 (Direct FFmpeg Streaming)
 echo ""
-echo "=== INSTALLING DOCKER FOR CONTAINER SUPPORT ==="
-echo "Installing Docker for optional container support..."
-
-# Check if Docker is already installed
-if command -v docker &> /dev/null; then
-    echo "✅ Docker is already installed"
-    docker --version
-else
-    echo "📦 Installing Docker..."
-
-    # Update package index
-    apt-get update
-
-    # Install required packages
-    apt-get install -y \
-        ca-certificates \
-        curl \
-        gnupg \
-        lsb-release
-
-    # Add Docker's official GPG key
-    mkdir -p /etc/apt/keyrings
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-    chmod a+r /etc/apt/keyrings/docker.gpg
-
-    # Set up the repository
-    echo \
-      "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-      $(lsb_release -cs) stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-    # Update package index again
-    apt-get update
-
-    # Install Docker Engine
-    if apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin; then
-        echo "✅ Docker packages installed successfully"
-    else
-        echo "⚠️ Docker installation had issues, but continuing..."
-    fi
-
-    # Start and enable Docker
-    systemctl start docker
-    systemctl enable docker
-
-    # Wait for Docker to start
-    sleep 3
-
-    # Add current user to docker group (if not root)
-    if [ "$USER" != "root" ]; then
-        usermod -aG docker $USER
-    fi
-
-    echo "✅ Docker installed successfully"
-    docker --version
-fi
-
-# Verify Docker is working
-echo "🔍 Verifying Docker installation..."
-# Use timeout to prevent hanging
-if timeout 30 docker run --rm hello-world > /dev/null 2>&1; then
-    echo "✅ Docker is working correctly"
-else
-    echo "⚠️ Docker test failed or timed out, but continuing..."
-    # Try to start docker service if it's not running
-    systemctl start docker 2>/dev/null || true
-fi
+echo "=== SKIPPING DOCKER INSTALLATION ==="
+echo "✅ Docker not needed for Agent v7.0 - using direct FFmpeg streaming"
 
 # 8. STREAMING DEPENDENCIES SETUP
 echo "8. Setting up streaming dependencies..."

@@ -262,6 +262,27 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
             throw new \Exception("Agent.py has syntax errors: {$syntaxTest}");
         }
 
+        // Test Python dependencies
+        $depTest = $sshService->execute('python3 -c "import redis, requests, psutil; print(\'DEPS_OK\')" 2>&1 || echo "DEPS_MISSING"');
+        if (strpos($depTest, 'DEPS_OK') === false) {
+            Log::error("❌ [VPS #{$vps->id}] Python dependencies missing: {$depTest}");
+            // Try to install missing dependencies
+            $sshService->execute('pip3 install redis requests psutil');
+            Log::info("🔧 [VPS #{$vps->id}] Attempted to install missing Python dependencies");
+        }
+
+        // Test Redis connection before starting agent
+        $redisTestCmd = $redisPassword ?
+            "redis-cli -h {$redisHost} -p {$redisPort} -a '{$redisPassword}' ping" :
+            "redis-cli -h {$redisHost} -p {$redisPort} ping";
+
+        $redisTest = $sshService->execute("{$redisTestCmd} 2>&1 || echo 'REDIS_FAIL'");
+        if (strpos($redisTest, 'PONG') === false) {
+            Log::error("❌ [VPS #{$vps->id}] Redis connection failed: {$redisTest}");
+            throw new \Exception("Cannot connect to Redis server at {$redisHost}:{$redisPort}");
+        }
+        Log::info("✅ [VPS #{$vps->id}] Redis connection test passed");
+
         // 6. Enable and start the service
         Log::info("🔄 [VPS #{$vps->id}] Reloading systemd and enabling service...");
         $sshService->execute('systemctl daemon-reload');
@@ -296,11 +317,17 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         $serviceLog = $sshService->execute("journalctl -u {$serviceName} --no-pager -n 50");
         $agentDirListing = $sshService->execute("ls -la {$remoteDir}/");
 
+        // Test agent manually to see exact error
+        $manualTest = $sshService->execute("cd {$remoteDir} && timeout 10 python3 agent.py --vps-id {$vps->id} --redis-host {$redisHost} --redis-port {$redisPort} 2>&1 || echo 'MANUAL_TEST_FAILED'");
+
         Log::error("❌ [VPS #{$vps->id}] EZStream Agent service failed to start", [
             'final_status' => trim($status),
             'service_status' => $serviceStatus,
             'service_log' => $serviceLog,
-            'agent_directory' => $agentDirListing
+            'agent_directory' => $agentDirListing,
+            'manual_test' => $manualTest,
+            'redis_host' => $redisHost,
+            'redis_port' => $redisPort
         ]);
 
         throw new \Exception('EZStream Agent service failed to start. Check journalctl logs on the VPS.');
