@@ -3,7 +3,12 @@
     <div class="bg-white border border-gray-200 dark:bg-gray-800 dark:border-gray-700 rounded-lg p-6 mb-6">
         <div class="flex items-center justify-between">
             <div>
-                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">💰 Quản lý số dư</h2>
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+                    <svg class="w-8 h-8 mr-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Quản lý số dư
+                </h2>
                 <p class="text-gray-600 dark:text-gray-400">Điều chỉnh số dư user và xem thống kê bonus</p>
             </div>
         </div>
@@ -88,8 +93,11 @@
                             </td>
                             <td class="px-6 py-4">
                                 <button wire:click="openAdjustmentModal({{ $user->id }})"
-                                        class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm">
-                                    💰 Điều chỉnh
+                                        class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm flex items-center">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                    </svg>
+                                    Điều chỉnh
                                 </button>
                             </td>
                         </tr>

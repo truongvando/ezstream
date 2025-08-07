@@ -17,7 +17,7 @@
                 </div>
                 <div class="ml-4">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Tổng Tools</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ $stats['total_tools'] }}</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white"><?php echo e($stats['total_tools']); ?></p>
                 </div>
             </div>
         </div>
@@ -31,7 +31,7 @@
                 </div>
                 <div class="ml-4">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Tools Hoạt động</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ $stats['active_tools'] }}</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white"><?php echo e($stats['active_tools']); ?></p>
                 </div>
             </div>
         </div>
@@ -45,7 +45,7 @@
                 </div>
                 <div class="ml-4">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Tools Nổi bật</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ $stats['featured_tools'] }}</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white"><?php echo e($stats['featured_tools']); ?></p>
                 </div>
             </div>
         </div>
@@ -59,7 +59,7 @@
                 </div>
                 <div class="ml-4">
                     <p class="text-sm font-medium text-gray-600 dark:text-gray-400">Tổng Đơn hàng</p>
-                    <p class="text-2xl font-bold text-gray-900 dark:text-white">{{ $stats['total_orders'] }}</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white"><?php echo e($stats['total_orders']); ?></p>
                 </div>
             </div>
         </div>
@@ -88,7 +88,7 @@
 
                 <div class="flex gap-2">
                     <!-- New approach: Direct link to create page -->
-                    <a href="{{ route('admin.tools.create') }}"
+                    <a href="<?php echo e(route('admin.tools.create')); ?>"
                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors duration-200 flex items-center">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
@@ -96,7 +96,14 @@
                         Thêm Tool Mới
                     </a>
 
-
+                    <!-- Old modal approach (for comparison) -->
+                    <button wire:click="showCreateModal"
+                            class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors duration-200 flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+                        </svg>
+                        Modal (Debug)
+                    </button>
                 </div>
             </div>
         </div>
@@ -114,55 +121,57 @@
                     </tr>
                 </thead>
                 <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    @forelse($tools as $tool)
+                    <!--[if BLOCK]><![endif]--><?php $__empty_1 = true; $__currentLoopData = $tools; $__env->addLoop($__currentLoopData); foreach($__currentLoopData as $tool): $__env->incrementLoopIndices(); $loop = $__env->getLastLoop(); $__empty_1 = false; ?>
                         <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="flex items-center">
-                                    <img class="h-12 w-12 rounded-lg object-cover" src="{{ $tool->image }}" alt="{{ $tool->name }}">
+                                    <img class="h-12 w-12 rounded-lg object-cover" src="<?php echo e($tool->image); ?>" alt="<?php echo e($tool->name); ?>">
                                     <div class="ml-4">
-                                        <div class="text-sm font-medium text-gray-900 dark:text-white">{{ $tool->name }}</div>
-                                        <div class="text-sm text-gray-500 dark:text-gray-400">{{ Str::limit($tool->short_description, 50) }}</div>
-                                        @if($tool->is_featured)
+                                        <div class="text-sm font-medium text-gray-900 dark:text-white"><?php echo e($tool->name); ?></div>
+                                        <div class="text-sm text-gray-500 dark:text-gray-400"><?php echo e(Str::limit($tool->short_description, 50)); ?></div>
+                                        <!--[if BLOCK]><![endif]--><?php if($tool->is_featured): ?>
                                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
                                                 ⭐ Nổi bật
                                             </span>
-                                        @endif
+                                        <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                     </div>
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
                                 <div class="text-sm text-gray-900 dark:text-white">
-                                    @if($tool->sale_price)
-                                        <span class="line-through text-gray-500">${{ number_format($tool->price, 2) }}</span>
-                                        <span class="text-red-600 font-medium">${{ number_format($tool->sale_price, 2) }}</span>
-                                    @else
-                                        <span class="font-medium">${{ number_format($tool->price, 2) }}</span>
-                                    @endif
+                                    <!--[if BLOCK]><![endif]--><?php if($tool->sale_price): ?>
+                                        <span class="line-through text-gray-500">$<?php echo e(number_format($tool->price, 2)); ?></span>
+                                        <span class="text-red-600 font-medium">$<?php echo e(number_format($tool->sale_price, 2)); ?></span>
+                                    <?php else: ?>
+                                        <span class="font-medium">$<?php echo e(number_format($tool->price, 2)); ?></span>
+                                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                 </div>
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                                {{ $tool->tool_orders_count }}
+                                <?php echo e($tool->tool_orders_count); ?>
+
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap">
-                                @if($tool->is_active)
+                                <!--[if BLOCK]><![endif]--><?php if($tool->is_active): ?>
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                                         Hoạt động
                                     </span>
-                                @else
+                                <?php else: ?>
                                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
                                         Tạm dừng
                                     </span>
-                                @endif
+                                <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                 <div class="flex items-center space-x-2">
-                                    <button wire:click="showEditModal({{ $tool->id }})" class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
+                                    <button wire:click="showEditModal(<?php echo e($tool->id); ?>)" class="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300">
                                         Sửa
                                     </button>
-                                    <button wire:click="toggleStatus({{ $tool->id }})" class="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-300">
-                                        {{ $tool->is_active ? 'Tắt' : 'Bật' }}
+                                    <button wire:click="toggleStatus(<?php echo e($tool->id); ?>)" class="text-yellow-600 hover:text-yellow-900 dark:text-yellow-400 dark:hover:text-yellow-300">
+                                        <?php echo e($tool->is_active ? 'Tắt' : 'Bật'); ?>
+
                                     </button>
-                                    <button wire:click="deleteTool({{ $tool->id }})" 
+                                    <button wire:click="deleteTool(<?php echo e($tool->id); ?>)" 
                                             onclick="return confirm('Bạn có chắc muốn xóa tool này?')"
                                             class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300">
                                         Xóa
@@ -170,27 +179,28 @@
                                 </div>
                             </td>
                         </tr>
-                    @empty
+                    <?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); if ($__empty_1): ?>
                         <tr>
                             <td colspan="5" class="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                                 Không có tools nào
                             </td>
                         </tr>
-                    @endforelse
+                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                 </tbody>
             </table>
         </div>
 
         <!-- Pagination -->
         <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700">
-            {{ $tools->links() }}
+            <?php echo e($tools->links()); ?>
+
         </div>
     </div>
 
 
 
     <!-- SIMPLE WORKING MODAL -->
-    @if($showCreateModal)
+    <!--[if BLOCK]><![endif]--><?php if($showCreateModal): ?>
         <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999999; display: flex; align-items: center; justify-content: center;"
              wire:click="closeModals">
             <div style="background: white; padding: 30px; border-radius: 8px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;"
@@ -200,7 +210,8 @@
                 <!-- Header -->
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid #e5e7eb; padding-bottom: 15px;">
                     <h2 style="font-size: 24px; font-weight: bold; color: #111827; margin: 0;" class="dark:text-white">
-                        {{ $showCreateModal ? '🛠️ Thêm Tool Mới' : '✏️ Sửa Tool' }}
+                        <?php echo e($showCreateModal ? '🛠️ Thêm Tool Mới' : '✏️ Sửa Tool'); ?>
+
                     </h2>
                     <button wire:click="closeModals"
                             style="background: none; border: none; color: #6b7280; cursor: pointer; padding: 5px;">
@@ -209,14 +220,21 @@
                 </div>
 
                 <!-- Simple Form -->
-                <form wire:submit="{{ $showCreateModal ? 'createTool' : 'updateTool' }}">
+                <form wire:submit="<?php echo e($showCreateModal ? 'createTool' : 'updateTool'); ?>">
                     <div style="margin-bottom: 15px;">
                         <label style="display: block; margin-bottom: 5px; font-weight: 500;" class="dark:text-gray-300">Tên Tool:</label>
                         <input type="text" wire:model="name"
                                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;"
                                class="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                required>
-                        @error('name') <span style="color: red; font-size: 12px;">{{ $message }}</span> @enderror
+                        <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['name'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> <span style="color: red; font-size: 12px;"><?php echo e($message); ?></span> <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                     </div>
 
                     <div style="margin-bottom: 15px;">
@@ -225,7 +243,14 @@
                                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;"
                                class="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                required>
-                        @error('slug') <span style="color: red; font-size: 12px;">{{ $message }}</span> @enderror
+                        <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['slug'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> <span style="color: red; font-size: 12px;"><?php echo e($message); ?></span> <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                     </div>
 
                     <div style="margin-bottom: 15px;">
@@ -234,7 +259,14 @@
                                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;"
                                class="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                required>
-                        @error('price') <span style="color: red; font-size: 12px;">{{ $message }}</span> @enderror
+                        <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['price'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> <span style="color: red; font-size: 12px;"><?php echo e($message); ?></span> <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                     </div>
 
                     <div style="margin-bottom: 15px;">
@@ -243,7 +275,14 @@
                                   style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; resize: vertical;"
                                   class="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                   required></textarea>
-                        @error('short_description') <span style="color: red; font-size: 12px;">{{ $message }}</span> @enderror
+                        <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['short_description'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> <span style="color: red; font-size: 12px;"><?php echo e($message); ?></span> <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                     </div>
 
                     <div style="margin-bottom: 15px;">
@@ -252,7 +291,14 @@
                                   style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; resize: vertical;"
                                   class="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                   required></textarea>
-                        @error('description') <span style="color: red; font-size: 12px;">{{ $message }}</span> @enderror
+                        <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['description'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> <span style="color: red; font-size: 12px;"><?php echo e($message); ?></span> <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                     </div>
 
                     <div style="margin-bottom: 15px;">
@@ -261,7 +307,14 @@
                                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;"
                                class="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                required>
-                        @error('image') <span style="color: red; font-size: 12px;">{{ $message }}</span> @enderror
+                        <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['image'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> <span style="color: red; font-size: 12px;"><?php echo e($message); ?></span> <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                     </div>
 
                     <div style="margin-bottom: 15px;">
@@ -270,7 +323,14 @@
                                style="width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px;"
                                class="dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                                required>
-                        @error('download_url') <span style="color: red; font-size: 12px;">{{ $message }}</span> @enderror
+                        <!--[if BLOCK]><![endif]--><?php $__errorArgs = ['download_url'];
+$__bag = $errors->getBag($__errorArgs[1] ?? 'default');
+if ($__bag->has($__errorArgs[0])) :
+if (isset($message)) { $__messageOriginal = $message; }
+$message = $__bag->first($__errorArgs[0]); ?> <span style="color: red; font-size: 12px;"><?php echo e($message); ?></span> <?php unset($message);
+if (isset($__messageOriginal)) { $message = $__messageOriginal; }
+endif;
+unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                     </div>
 
                     <div style="margin-bottom: 20px;">
@@ -288,26 +348,30 @@
                         </button>
                         <button type="submit"
                                 style="padding: 10px 20px; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer;">
-                            {{ $showCreateModal ? 'Tạo Tool' : 'Cập nhật' }}
+                            <?php echo e($showCreateModal ? 'Tạo Tool' : 'Cập nhật'); ?>
+
                         </button>
                     </div>
                 </form>
             </div>
         </div>
-    @endif
+    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 
 
 
     <!-- Flash Messages -->
-    @if (session()->has('success'))
+    <!--[if BLOCK]><![endif]--><?php if(session()->has('success')): ?>
         <div class="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
-            {{ session('success') }}
-        </div>
-    @endif
+            <?php echo e(session('success')); ?>
 
-    @if (session()->has('error'))
-        <div class="fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
-            {{ session('error') }}
         </div>
-    @endif
+    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
+
+    <?php if(session()->has('error')): ?>
+        <div class="fixed top-4 right-4 bg-red-500 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+            <?php echo e(session('error')); ?>
+
+        </div>
+    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
 </div>
+<?php /**PATH D:\laragon\www\ezstream\resources\views/livewire/admin/tool-manager.blade.php ENDPATH**/ ?>

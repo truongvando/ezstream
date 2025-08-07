@@ -1,6 +1,11 @@
 <div class="p-6">
     <div class="mb-6">
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white">💰 Nạp tiền vào tài khoản</h1>
+        <h1 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+            <svg class="w-8 h-8 mr-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Nạp tiền vào tài khoản
+        </h1>
         <p class="text-gray-600 dark:text-gray-400">Nạp tiền để sử dụng các dịch vụ trên EzStream</p>
     </div>
 
@@ -13,8 +18,10 @@
                     <h2 class="text-lg font-medium opacity-90">Số dư hiện tại</h2>
                     <p class="text-3xl font-bold">${{ number_format(auth()->user()->balance, 2) }}</p>
                 </div>
-                <div class="text-6xl opacity-20">
-                    💳
+                <div class="opacity-20">
+                    <svg class="w-16 h-16" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M20 4H4c-1.11 0-1.99.89-1.99 2L2 18c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V6c0-1.11-.89-2-2-2zm0 14H4v-6h16v6zm0-10H4V6h16v2z"/>
+                    </svg>
                 </div>
             </div>
         </div>
@@ -26,8 +33,10 @@
                     <h2 class="text-lg font-medium opacity-90">Tổng đã nạp</h2>
                     <p class="text-3xl font-bold">${{ number_format($totalDeposits, 2) }}</p>
                 </div>
-                <div class="text-6xl opacity-20">
-                    📈
+                <div class="opacity-20">
+                    <svg class="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                    </svg>
                 </div>
             </div>
         </div>

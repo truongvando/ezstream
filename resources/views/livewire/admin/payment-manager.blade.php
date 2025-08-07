@@ -3,12 +3,20 @@
     <div class="bg-white border border-gray-200 dark:bg-gray-800 dark:border-gray-700 rounded-lg p-6 mb-6">
         <div class="flex items-center justify-between">
             <div>
-                <h2 class="text-2xl font-bold text-gray-900 dark:text-white">💳 Quản lý Payment</h2>
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+                    <svg class="w-8 h-8 mr-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                    </svg>
+                    Quản lý Payment
+                </h2>
                 <p class="text-gray-600 dark:text-gray-400">Toàn quyền kiểm soát hệ thống thanh toán</p>
             </div>
             <button wire:click="openManualModal"
-                    class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium">
-                ➕ Tạo giao dịch manual
+                    class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium flex items-center">
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
+                Tạo giao dịch manual
             </button>
         </div>
     </div>
@@ -152,13 +160,20 @@
                             <td class="px-6 py-4">
                                 <div class="flex gap-2">
                                     <button wire:click="openTransactionModal({{ $transaction->id }})"
-                                            class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs">
-                                        👁️ Xem
+                                            class="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs flex items-center">
+                                        <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                        </svg>
+                                        Xem
                                     </button>
                                     @if($transaction->status === 'COMPLETED' && !isset($transaction->api_response['refunded']))
                                         <button wire:click="openRefundModal({{ $transaction->id }})"
-                                                class="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs">
-                                            💸 Refund
+                                                class="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs flex items-center">
+                                            <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z"></path>
+                                            </svg>
+                                            Refund
                                         </button>
                                     @endif
                                 </div>
@@ -273,12 +288,18 @@
 
                 <div class="flex gap-3 mt-6">
                     <button wire:click="processRefund"
-                            class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">
-                        ✅ Xác nhận refund
+                            class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded flex items-center justify-center">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                        </svg>
+                        Xác nhận refund
                     </button>
                     <button wire:click="closeRefundModal"
-                            class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded">
-                        ❌ Hủy
+                            class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded flex items-center justify-center">
+                        <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                        </svg>
+                        Hủy
                     </button>
                 </div>
             </div>
@@ -289,7 +310,12 @@
     @if($showManualModal)
         <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
-                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4">➕ Tạo giao dịch manual</h3>
+                <h3 class="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center">
+                    <svg class="w-6 h-6 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                    Tạo giao dịch manual
+                </h3>
 
                 <div class="space-y-4">
                     <div>

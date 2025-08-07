@@ -116,4 +116,9 @@ return [
         'cdn_url' => env('BUNNY_CDN_URL', 'https://ezstream.b-cdn.net'),
     ],
 
+    'jap' => [
+        'api_key' => env('JAP_API_KEY'),
+        'api_url' => env('JAP_API_URL', 'https://justanotherpanel.com/api/v2'),
+    ],
+
 ];

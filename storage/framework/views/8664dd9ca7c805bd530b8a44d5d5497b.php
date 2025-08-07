@@ -139,10 +139,12 @@
                 <div class="p-6">
                     <div class="flex justify-between items-center mb-6">
                         <h2 class="text-xl font-bold text-gray-900 dark:text-white">
-                            <?php echo \App\Helpers\SvgHelper::emoji('money'); ?> Chọn phương thức thanh toán
+                            💳 Chọn phương thức thanh toán
                         </h2>
                         <button wire:click="closePaymentModal" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-                            <?php echo \App\Helpers\SvgHelper::icon('close', 'w-6 h-6'); ?>
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
                         </button>
                     </div>
 
@@ -168,13 +170,15 @@
                                           ? 'border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer'
                                           : 'border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 cursor-not-allowed opacity-60'); ?>">
                                 <div class="flex items-center">
-                                    <span class="text-2xl mr-3"><?php echo e($option['icon']); ?></span>
+                                    <div class="text-gray-600 dark:text-gray-400 mr-3"><?php echo $option['icon']; ?></div>
                                     <div class="flex-1">
                                         <div class="font-medium text-gray-900 dark:text-white"><?php echo e($option['name']); ?></div>
                                         <div class="text-sm text-gray-500 dark:text-gray-400"><?php echo e($option['description']); ?></div>
                                     </div>
                                     <!--[if BLOCK]><![endif]--><?php if($option['available']): ?>
-                                        <?php echo \App\Helpers\SvgHelper::icon('check', 'w-5 h-5 text-green-500'); ?>
+                                        <svg class="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                        </svg>
                                     <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                 </div>
                             </button>

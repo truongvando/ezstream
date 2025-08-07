@@ -45,4 +45,22 @@ class ServicePackage extends Model
         // Placeholder - yearly pricing not implemented yet
         return 0;
     }
+
+    /**
+     * Get video resolution based on max_video_height
+     */
+    public function getVideoResolutionAttribute(): string
+    {
+        if (!$this->max_video_height) {
+            return '1080';
+        }
+
+        return match($this->max_video_height) {
+            720 => '720',
+            1080 => '1080',
+            1440 => '1440',
+            2160 => '4K',
+            default => (string) $this->max_video_height
+        };
+    }
 }

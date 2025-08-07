@@ -14,7 +14,11 @@ class JapApiService
     public function __construct()
     {
         $this->apiUrl = 'https://justanotherpanel.com/api/v2';
-        $this->apiKey = env('JAP_API_KEY');
+        $this->apiKey = config('services.jap.api_key') ?? env('JAP_API_KEY');
+
+        if (!$this->apiKey) {
+            Log::warning('JAP API Key not found in config or env');
+        }
     }
 
     /**
@@ -23,6 +27,11 @@ class JapApiService
     public function getAllServices()
     {
         try {
+            if (!$this->apiKey) {
+                Log::error('JAP API Error: API key not configured');
+                return [];
+            }
+
             $response = Http::timeout(30)->post($this->apiUrl, [
                 'key' => $this->apiKey,
                 'action' => 'services'
@@ -32,9 +41,9 @@ class JapApiService
                 return $response->json();
             }
 
-            Log::error('JAP API Error', [
+            Log::error('JAP API Error: Failed to fetch services', [
                 'status' => $response->status(),
-                'body' => $response->body()
+                'response' => $response->body()
             ]);
 
             return [];
