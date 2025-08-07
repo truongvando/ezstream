@@ -461,6 +461,9 @@
         <!-- TUS Resumable Upload Library -->
         <script src="https://cdn.jsdelivr.net/npm/tus-js-client@3.1.1/dist/tus.min.js" defer></script>
 
+        <!-- File Upload Script with TUS functions -->
+        <script src="{{ asset('js/file-upload.js') }}" defer></script>
+
 
 
         <!-- Mobile menu toggle script -->

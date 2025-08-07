@@ -196,32 +196,92 @@ class BunnyStreamService
     }
 
     /**
-     * Delete video from Stream Library
+     * Delete video from Stream Library with retry mechanism
      */
-    public function deleteVideo($videoId)
+    public function deleteVideo($videoId, int $maxRetries = 3)
     {
-        try {
-            $response = Http::withHeaders([
-                'AccessKey' => $this->apiKey
-            ])->delete("{$this->apiUrl}/library/{$this->videoLibraryId}/videos/{$videoId}");
+        $attempt = 0;
 
-            if ($response->successful()) {
-                return [
-                    'success' => true
-                ];
-            } else {
+        while ($attempt < $maxRetries) {
+            try {
+                $attempt++;
+
+                Log::info("🗑️ [BunnyStream] Attempting to delete video {$videoId} (attempt {$attempt}/{$maxRetries})");
+
+                $response = Http::timeout(30)
+                    ->withHeaders([
+                        'AccessKey' => $this->apiKey
+                    ])
+                    ->delete("{$this->apiUrl}/library/{$this->videoLibraryId}/videos/{$videoId}");
+
+                if ($response->successful()) {
+                    Log::info("✅ [BunnyStream] Successfully deleted video {$videoId}");
+                    return [
+                        'success' => true,
+                        'attempt' => $attempt
+                    ];
+                }
+
+                // Handle specific HTTP status codes
+                $statusCode = $response->status();
+                $responseBody = $response->body();
+
+                if ($statusCode === 404) {
+                    // Video already deleted or doesn't exist
+                    Log::info("ℹ️ [BunnyStream] Video {$videoId} not found (already deleted)");
+                    return [
+                        'success' => true,
+                        'message' => 'Video already deleted or not found',
+                        'attempt' => $attempt
+                    ];
+                }
+
+                if ($statusCode === 429) {
+                    // Rate limited - wait longer before retry
+                    $waitTime = min(60, $attempt * 10); // Max 60 seconds
+                    Log::warning("⏳ [BunnyStream] Rate limited, waiting {$waitTime}s before retry");
+                    sleep($waitTime);
+                    continue;
+                }
+
+                if ($statusCode >= 500) {
+                    // Server error - retry
+                    $waitTime = $attempt * 2; // Exponential backoff
+                    Log::warning("⚠️ [BunnyStream] Server error {$statusCode}, retrying in {$waitTime}s");
+                    sleep($waitTime);
+                    continue;
+                }
+
+                // Client error (4xx) - don't retry
+                Log::error("❌ [BunnyStream] Client error deleting video {$videoId}: HTTP {$statusCode}");
                 return [
                     'success' => false,
-                    'error' => "HTTP {$response->status()}: " . $response->body()
+                    'error' => "HTTP {$statusCode}: {$responseBody}",
+                    'retry_attempted' => $attempt > 1
                 ];
-            }
 
-        } catch (Exception $e) {
-            return [
-                'success' => false,
-                'error' => $e->getMessage()
-            ];
+            } catch (Exception $e) {
+                Log::error("❌ [BunnyStream] Exception deleting video {$videoId} (attempt {$attempt}): {$e->getMessage()}");
+
+                if ($attempt >= $maxRetries) {
+                    return [
+                        'success' => false,
+                        'error' => $e->getMessage(),
+                        'attempts' => $attempt
+                    ];
+                }
+
+                // Wait before retry
+                $waitTime = $attempt * 2;
+                sleep($waitTime);
+            }
         }
+
+        return [
+            'success' => false,
+            'error' => "Failed after {$maxRetries} attempts",
+            'attempts' => $maxRetries
+        ];
     }
 
     /**

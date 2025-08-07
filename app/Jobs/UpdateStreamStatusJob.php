@@ -125,9 +125,9 @@ class UpdateStreamStatusJob implements ShouldQueue
     private function handleStoppedStatus(StreamConfiguration $stream, $message): void
     {
         Log::info("📨 [UpdateStreamStatus] Stream #{$stream->id} status: {$stream->status} → INACTIVE (STOPPED)");
-        
+
         $originalVpsId = $stream->vps_server_id;
-        
+
         $stream->update([
             'status' => 'INACTIVE',
             'last_stopped_at' => now(),
@@ -143,6 +143,9 @@ class UpdateStreamStatusJob implements ShouldQueue
         }
 
         StreamProgressService::createStageProgress($stream->id, 'stopped', $message ?: 'Stream đã dừng');
+
+        // 🗑️ AUTO-DELETE: Check if stream has auto-delete enabled
+        $this->handleAutoDeleteFiles($stream);
 
         // 🗑️ QUICK STREAM AUTO-DELETE: Trigger VIDEO FILE deletion after stream stops
         // ⚠️ IMPORTANT: This ONLY deletes video files, NOT the stream configuration
@@ -298,4 +301,57 @@ class UpdateStreamStatusJob implements ShouldQueue
             'trace' => $exception->getTraceAsString()
         ]);
     }
-}
+
+    /**
+     * Handle auto-delete files when stream stops
+     */
+    private function handleAutoDeleteFiles(StreamConfiguration $stream): void
+    {
+        try {
+            // Check if auto-delete is enabled
+            if (!$stream->auto_delete_from_cdn) {
+                Log::debug("🗑️ [AutoDelete] Stream #{$stream->id} auto-delete disabled, skipping");
+                return;
+            }
+
+            Log::info("🗑️ [AutoDelete] Processing auto-delete for Stream #{$stream->id}");
+
+            // Get all files associated with this stream
+            $videoFiles = $this->getStreamVideoFiles($stream);
+
+            if (empty($videoFiles)) {
+                Log::info("🗑️ [AutoDelete] No files found for Stream #{$stream->id}");
+                return;
+            }
+
+            Log::info("🗑️ [AutoDelete] Found " . count($videoFiles) . " files to delete for Stream #{$stream->id}", [
+                'count' => count($videoFiles),
+                'files' => array_map(fn($f) => $f['original_name'] ?? $f['id'], $videoFiles)
+            ]);
+
+            // Dispatch delete jobs for each file
+            foreach ($videoFiles as $fileData) {
+                // Add delay to avoid overwhelming Bunny API
+                $delay = now()->addSeconds(rand(5, 30));
+
+                \App\Jobs\DeleteFileJob::dispatch($fileData)->delay($delay);
+
+                Log::info("🗑️ [AutoDelete] Scheduled deletion for file", [
+                    'file_id' => $fileData['id'],
+                    'file_name' => $fileData['original_name'] ?? 'Unknown',
+                    'disk' => $fileData['disk'],
+                    'delay_seconds' => $delay->diffInSeconds(now())
+                ]);
+            }
+
+            Log::info("✅ [AutoDelete] Scheduled deletion of " . count($videoFiles) . " files for Stream #{$stream->id}", [
+                'count' => count($videoFiles)
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error("❌ [AutoDelete] Failed to process auto-delete for Stream #{$stream->id}", [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
+    }

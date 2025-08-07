@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\StreamConfiguration;
 use App\Models\UserFile;
 use App\Services\BunnyStorageService;
+use App\Services\AutoDeleteVideoService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -26,7 +27,7 @@ class AutoDeleteStreamFilesJob implements ShouldQueue
         $this->stream = $stream;
     }
 
-    public function handle(BunnyStorageService $bunnyService): void
+    public function handle(AutoDeleteVideoService $autoDeleteService): void
     {
         Log::info("🗑️ [AutoDeleteStreamFiles] Starting VIDEO FILE auto-deletion for stream #{$this->stream->id}");
 
@@ -50,74 +51,33 @@ class AutoDeleteStreamFilesJob implements ShouldQueue
             // The stream record will remain intact for history/analytics purposes
             Log::info("📝 [Stream #{$this->stream->id}] This job will ONLY delete video files, stream configuration will be preserved");
 
-            $deletedFiles = 0;
-            $failedFiles = 0;
-            $videoSourcePath = $this->stream->video_source_path ?? [];
+            // Use the new AutoDeleteVideoService to schedule video deletion
+            $result = $autoDeleteService->scheduleVideoDeletion($this->stream, 5);
 
-            foreach ($videoSourcePath as $fileInfo) {
-                $userFile = UserFile::find($fileInfo['file_id']);
-                if (!$userFile) {
-                    Log::warning("📁 [Stream #{$this->stream->id}] File not found: {$fileInfo['file_id']}");
-                    continue;
+            if ($result['success']) {
+                $scheduledCount = count($result['scheduled_files']);
+                $errorCount = count($result['errors']);
+
+                Log::info("🎉 [AutoDeleteStreamFiles] Scheduled {$scheduledCount} files for deletion", [
+                    'stream_id' => $this->stream->id,
+                    'scheduled_files' => $scheduledCount,
+                    'errors' => $errorCount
+                ]);
+
+                if (!empty($result['errors'])) {
+                    Log::warning("⚠️ [AutoDeleteStreamFiles] Some errors occurred:", $result['errors']);
                 }
 
-                // Only delete files marked for auto-deletion
-                if (!$userFile->auto_delete_after_stream) {
-                    Log::info("📁 [Stream #{$this->stream->id}] File {$userFile->id} not marked for auto-deletion, skipping");
-                    continue;
-                }
+                // Update stream status
+                $this->stream->update([
+                    'auto_delete_from_cdn' => false, // Mark as processed
+                    'status' => 'COMPLETED', // Mark stream as completed
+                    'error_message' => null // Clear any error messages
+                ]);
 
-                try {
-                    $fileName = $userFile->original_name;
-                    $fileSize = $userFile->size;
-
-                    // 1. Delete from BunnyCDN
-                    if ($userFile->disk === 'bunny_cdn' && $userFile->path) {
-                        $result = $bunnyService->deleteFile($userFile->path);
-                        if ($result['success']) {
-                            Log::info("✅ [Stream #{$this->stream->id}] Deleted from CDN: {$userFile->path}");
-                        } else {
-                            Log::warning("⚠️ [Stream #{$this->stream->id}] Failed to delete from CDN: {$result['error']}");
-                        }
-                    }
-
-                    // 2. Delete from VPS Agent (if stream was running)
-                    if ($this->stream->vps_server_id) {
-                        $this->deleteFileFromVpsAgent($userFile, $this->stream->vps_server_id);
-                    }
-
-                    // 3. Soft delete database record (mark as deleted but keep reference)
-                    $userFile->update([
-                        'status' => 'DELETED',
-                        'deleted_at' => now(),
-                        'auto_delete_after_stream' => false // Prevent re-deletion
-                    ]);
-
-                    $deletedFiles++;
-                    Log::info("🗑️ [Stream #{$this->stream->id}] Deleted VIDEO FILE completely: {$fileName} ({$fileSize} bytes)");
-
-                } catch (\Exception $e) {
-                    $failedFiles++;
-                    Log::error("❌ [Stream #{$this->stream->id}] Failed to delete video file {$userFile->id}: {$e->getMessage()}");
-                }
-            }
-
-            // ✅ IMPORTANT: Only update the auto-delete flag, DO NOT delete the stream configuration
-            // The stream record remains intact for history and analytics
-            $this->stream->update([
-                'auto_delete_from_cdn' => false, // Mark video files as processed
-                'status' => 'COMPLETED', // Mark stream as completed instead of ERROR
-                'error_message' => null // Clear any error messages
-            ]);
-
-            // Set scheduled deletion for files that should be auto-deleted
-            foreach ($videoSourcePath as $fileInfo) {
-                $userFile = UserFile::find($fileInfo['file_id']);
-                if ($userFile && $userFile->auto_delete_after_stream) {
-                    $userFile->update([
-                        'scheduled_deletion_at' => now()->addMinutes(5) // Delete after 5 minutes
-                    ]);
-                }
+            } else {
+                Log::error("❌ [AutoDeleteStreamFiles] Failed to schedule deletion: {$result['error']}");
+                throw new \Exception("Failed to schedule video deletion: {$result['error']}");
             }
 
             // 🔒 SAFETY CHECK: Verify stream configuration still exists after operation

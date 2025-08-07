@@ -8,6 +8,8 @@ use App\Http\Controllers\Api\DirectUploadController;
 use App\Http\Controllers\Api\WebhookController;
 use App\Http\Controllers\FileUploadController;
 use App\Http\Controllers\Api\AgentReportController;
+use App\Http\Controllers\Api\AutoDeleteController;
+use App\Http\Controllers\Api\PlaylistController;
 
 /*
 |--------------------------------------------------------------------------
@@ -42,8 +44,8 @@ Route::middleware(['web', 'auth'])->group(function () {
 
     // Settings API
     Route::get('/settings/streaming-method', function() {
-        $streamingMethod = \App\Models\Setting::where('key', 'streaming_method')->value('value') ?? 'ffmpeg_copy';
-        return response()->json(['streaming_method' => $streamingMethod]);
+        // Always return FFmpeg as the only supported method
+        return response()->json(['streaming_method' => 'ffmpeg']);
     });
 
     Route::get('/settings/storage-mode', function() {
@@ -174,5 +176,30 @@ Route::prefix('license')->middleware('throttle:60,1')->group(function () {
     Route::post('/verify', [\App\Http\Controllers\Api\LicenseController::class, 'verify']);
     Route::post('/check-status', [\App\Http\Controllers\Api\LicenseController::class, 'checkStatus']);
     Route::post('/deactivate', [\App\Http\Controllers\Api\LicenseController::class, 'deactivate']);
+});
+
+// Auto-delete API endpoints (admin only)
+Route::prefix('auto-delete')->middleware(['web', 'auth', 'role:admin'])->group(function () {
+    Route::get('/dashboard', [AutoDeleteController::class, 'dashboard']);
+    Route::get('/health', [AutoDeleteController::class, 'health']);
+    Route::get('/statistics', [AutoDeleteController::class, 'statistics']);
+    Route::get('/scheduled', [AutoDeleteController::class, 'scheduled']);
+
+    Route::post('/process-scheduled', [AutoDeleteController::class, 'processScheduled']);
+    Route::post('/schedule-stream', [AutoDeleteController::class, 'scheduleStream']);
+    Route::post('/cancel-scheduled', [AutoDeleteController::class, 'cancelScheduled']);
+    Route::post('/force-delete', [AutoDeleteController::class, 'forceDelete']);
+    Route::post('/bulk-operation', [AutoDeleteController::class, 'bulkOperation']);
+    Route::post('/clear-cache', [AutoDeleteController::class, 'clearCache']);
+});
+
+// Dynamic Playlist Management API (authenticated users)
+Route::prefix('playlist')->middleware(['web', 'auth'])->group(function () {
+    Route::get('/stream/{streamId}', [PlaylistController::class, 'getPlaylist']);
+    Route::post('/stream/{streamId}/add-videos', [PlaylistController::class, 'addVideos']);
+    Route::post('/stream/{streamId}/remove-videos', [PlaylistController::class, 'removeVideos']);
+    Route::post('/stream/{streamId}/set-loop', [PlaylistController::class, 'setLoopMode']);
+    Route::post('/stream/{streamId}/set-order', [PlaylistController::class, 'setPlaybackOrder']);
+    Route::get('/stream/{streamId}/status', [PlaylistController::class, 'getStatus']);
 });
 

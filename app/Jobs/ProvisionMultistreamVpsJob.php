@@ -82,14 +82,11 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
 
             // Check if SRS is installed
             $srsInstalled = $this->isSrsInstalled($sshService);
-            $capabilities = ['srs-streaming', 'youtube-streaming', 'redis-agent', 'process-manager'];
-            $statusMessage = 'Provisioned with EZStream Agent v6.0 (SRS-Only Streaming)';
+            $capabilities = ['ffmpeg-streaming', 'youtube-streaming', 'redis-agent', 'process-manager'];
+            $statusMessage = 'Provisioned with EZStream Agent v7.0 (Simple FFmpeg Streaming)';
 
-            if ($srsInstalled) {
-                $statusMessage = 'Provisioned with EZStream Agent v6.0 + SRS Server';
-            } else {
-                Log::warning("⚠️ [VPS #{$vps->id}] SRS Server not installed - agent may not function properly");
-            }
+            // No longer need SRS - using direct FFmpeg
+            Log::info("✅ [VPS #{$vps->id}] Using simple FFmpeg streaming (no SRS required)");
 
             $vps->update([
                 'status' => 'ACTIVE',
@@ -353,7 +350,7 @@ class ProvisionMultistreamVpsJob implements ShouldQueue
         // Extract agent
         $sshService->execute("cd /tmp && sudo tar -xzf ezstream-agent-latest.tar.gz -C {$remoteDir}");
         $sshService->execute("sudo chmod +x {$remoteDir}/agent.py");
-        $sshService->execute("sudo chmod +x {$remoteDir}/setup-srs.sh");
+        $sshService->execute("sudo chmod +x {$remoteDir}/*.py");
 
         Log::info("✅ [VPS #{$vps->id}] Agent downloaded and extracted from Redis");
     }
@@ -444,21 +441,23 @@ WantedBy=multi-user.target";
 
     private function verifyBaseServices(SshService $sshService, VpsServer $vps): void
     {
-        Log::info("🔍 [VPS #{$vps->id}] Verifying base services (SRS ready) - Agent v6.0");
+        Log::info("🔍 [VPS #{$vps->id}] Verifying base services (FFmpeg ready) - Agent v7.0");
 
-        // Check SRS Docker container (provision script uses Docker, not binary)
-        $srsDockerCheck = $sshService->execute("docker ps --filter 'name=ezstream-srs' --format '{{.Status}}' 2>/dev/null || echo 'NOT_RUNNING'");
+        // Check FFmpeg installation
+        $ffmpegCheck = $sshService->execute("ffmpeg -version 2>/dev/null | head -1 || echo 'NOT_INSTALLED'");
 
-        if (strpos($srsDockerCheck, 'Up') !== false) {
-            Log::info("✅ [VPS #{$vps->id}] SRS Docker container is running: " . trim($srsDockerCheck));
+        if (strpos($ffmpegCheck, 'NOT_INSTALLED') === false) {
+            Log::info("✅ [VPS #{$vps->id}] FFmpeg is installed: " . trim($ffmpegCheck));
         } else {
-            // Fallback: Check if SRS binary exists (for older installations)
-            $srsExists = $sshService->execute('ls -la /usr/local/srs/objs/srs 2>/dev/null || echo "NOT_FOUND"');
-            if (strpos($srsExists, 'NOT_FOUND') !== false) {
-                Log::warning("⚠️ [VPS #{$vps->id}] Neither SRS Docker container nor binary found - SRS may not be available");
-                // Don't throw exception - SRS is optional for some streaming methods
+            Log::warning("⚠️ [VPS #{$vps->id}] FFmpeg not found - installing...");
+            $sshService->execute("sudo apt-get update && sudo apt-get install -y ffmpeg");
+
+            // Verify installation
+            $ffmpegRecheck = $sshService->execute("ffmpeg -version 2>/dev/null | head -1 || echo 'INSTALL_FAILED'");
+            if (strpos($ffmpegRecheck, 'INSTALL_FAILED') === false) {
+                Log::info("✅ [VPS #{$vps->id}] FFmpeg installed successfully");
             } else {
-                Log::info("✅ [VPS #{$vps->id}] SRS binary found (legacy installation)");
+                Log::error("❌ [VPS #{$vps->id}] FFmpeg installation failed");
             }
         }
 
@@ -582,45 +581,39 @@ WantedBy=multi-user.target";
     }
 
     /**
-     * Setup SRS Server for streaming
+     * Setup streaming dependencies (FFmpeg)
      */
-    private function setupSrsServer(SshService $sshService, VpsServer $vps): void
+    private function setupStreamingDependencies(SshService $sshService, VpsServer $vps): void
     {
         try {
-            Log::info("🎬 [VPS #{$vps->id}] Setting up SRS Server...");
+            Log::info("🎬 [VPS #{$vps->id}] Setting up streaming dependencies...");
 
-            // Check if SRS should be installed (based on settings)
-            $streamingMethod = \App\Models\Setting::where('key', 'streaming_method')->value('value') ?? 'ffmpeg_copy';
+            $vps->update(['status_message' => 'Installing FFmpeg and dependencies...']);
 
-            if ($streamingMethod !== 'srs') {
-                Log::info("🔧 [VPS #{$vps->id}] SRS not enabled in settings, skipping installation");
-                return;
-            }
+            // Install FFmpeg and required packages
+            $result = $sshService->execute("sudo apt-get update && sudo apt-get install -y ffmpeg python3-psutil", 300);
 
-            $vps->update(['status_message' => 'Installing SRS Server...']);
-
-            // Run SRS setup script
-            $agentDir = '/opt/ezstream-agent';
-            $setupScript = "{$agentDir}/setup-srs.sh";
-
-            // Make setup script executable
-            $sshService->execute("chmod +x {$setupScript}");
-
-            // Run SRS setup
-            $result = $sshService->execute("{$setupScript} setup", 300); // 5 minute timeout
-
-            if (strpos($result, 'SRS Server setup completed successfully') !== false) {
-                Log::info("✅ [VPS #{$vps->id}] SRS Server installed successfully");
-
-                // Verify SRS is running
-                $this->verifySrsInstallation($sshService, $vps);
+            // Verify FFmpeg installation
+            $ffmpegVersion = $sshService->execute("ffmpeg -version | head -1 2>/dev/null || echo 'FAILED'");
+            if (strpos($ffmpegVersion, 'FAILED') === false) {
+                Log::info("✅ [VPS #{$vps->id}] FFmpeg installed: " . trim($ffmpegVersion));
             } else {
-                Log::warning("⚠️ [VPS #{$vps->id}] SRS setup may have failed, output: {$result}");
+                throw new \Exception("FFmpeg installation failed");
             }
+
+            // Verify psutil installation
+            $psutilCheck = $sshService->execute("python3 -c 'import psutil; print(psutil.__version__)' 2>/dev/null || echo 'FAILED'");
+            if (strpos($psutilCheck, 'FAILED') === false) {
+                Log::info("✅ [VPS #{$vps->id}] Python psutil installed: " . trim($psutilCheck));
+            } else {
+                Log::warning("⚠️ [VPS #{$vps->id}] Python psutil installation may have failed");
+            }
+
+            Log::info("✅ [VPS #{$vps->id}] Streaming dependencies setup completed");
 
         } catch (\Exception $e) {
-            Log::error("❌ [VPS #{$vps->id}] Failed to setup SRS Server: " . $e->getMessage());
-            // Don't throw - SRS is optional, continue with FFmpeg fallback
+            Log::error("❌ [VPS #{$vps->id}] Failed to setup streaming dependencies: " . $e->getMessage());
+            throw $e; // FFmpeg is required, so throw exception
         }
     }
 

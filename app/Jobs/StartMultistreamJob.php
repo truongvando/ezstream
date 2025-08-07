@@ -118,11 +118,9 @@ class StartMultistreamJob implements ShouldQueue
     {
         $stream->load('userFile'); // Eager load relations
 
-        // Get streaming method from settings
-        $streamingMethod = \App\Models\Setting::where('key', 'streaming_method')->value('value') ?? 'ffmpeg_copy';
-
-        // Determine if we should use SRS
-        $useSrs = $streamingMethod === 'srs';
+        // Always use FFmpeg (only supported method)
+        $streamingMethod = 'ffmpeg';
+        $useFFmpeg = true;
 
         return [
             'command' => 'START_STREAM',  // ← FIX: Agent cần biết command

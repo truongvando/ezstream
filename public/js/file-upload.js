@@ -642,7 +642,7 @@ function initializeFileUpload() {
     /**
      * Upload file using TUS Resumable Upload to Stream Library
      */
-    async function uploadWithTUS(file, uploadData) {
+    async function uploadWithTUS(file, uploadData, progressCallback = null) {
         return new Promise(async (resolve, reject) => {
 
             // Ensure TUS library is loaded
@@ -698,7 +698,11 @@ function initializeFileUpload() {
                 },
                 onProgress: function(bytesUploaded, bytesTotal) {
                     const percentComplete = Math.round((bytesUploaded / bytesTotal) * 80) + 10; // 10-90%
-                    updateProgress(`📤 Uploading to Stream Library... ${formatFileSize(bytesUploaded)}/${formatFileSize(bytesTotal)}`, percentComplete);
+                    if (progressCallback) {
+                        progressCallback(bytesUploaded, bytesTotal);
+                    } else if (typeof updateProgress === 'function') {
+                        updateProgress(`📤 Uploading to Stream Library... ${formatFileSize(bytesUploaded)}/${formatFileSize(bytesTotal)}`, percentComplete);
+                    }
                 },
                 onSuccess: function() {
                     console.log('✅ [TUS] Upload completed successfully');
@@ -876,6 +880,8 @@ function initializeFileUpload() {
     // Expose functions globally
     window.handleFileUpload = handleFileUpload;
     window.formatDetailKey = formatDetailKey;
+    window.uploadWithTUS = uploadWithTUS;
+    window.ensureTUSLibrary = ensureTUSLibrary;
 
 
 }

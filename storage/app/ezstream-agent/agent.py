@@ -1,32 +1,31 @@
 #!/usr/bin/env python3
 """
-EZStream Agent v6.0 - SRS-Only Streaming Architecture
-Clean, simple SRS-based streaming without FFmpeg complexity
+EZStream Agent v7.0 - Simple FFmpeg Direct Streaming
+Clean, simple FFmpeg-based streaming without SRS complexity
 """
 
 import sys
 import signal
 import logging
 import time
+import os
 from typing import Optional
 
 # Import components
 from config import init_config
 from status_reporter import init_status_reporter
 from file_manager import init_file_manager
-from stream_manager import init_stream_manager
+# Legacy stream_manager removed - using simple_stream_manager
 from command_handler import init_command_handler
 
-# Import robust streaming components
-from stream_integration import init_stream_integration
-from srs_config_manager import init_srs_config_manager
+
 
 # Logging setup - Linux focused
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('/var/log/ezstream-agent.log'),
+        logging.FileHandler(os.path.join(os.path.dirname(__file__), 'logs', 'ezstream-agent.log')),
         logging.StreamHandler()
     ]
 )
@@ -44,19 +43,18 @@ class EZStreamAgent:
         # Components
         self.status_reporter = None
         self.file_manager = None
-        self.stream_manager = None
+        # Legacy stream_manager removed
         self.command_handler = None
 
-        # Robust streaming components
-        self.stream_integration = None
-        self.srs_config_manager = None
+        # Simple streaming components
+        self.simple_stream_manager = None
 
-        logging.info(f"EZStream Agent v6.0 (SRS-Only Streaming) initialized for VPS {vps_id}")
+        logging.info(f"EZStream Agent v7.0 (Simple FFmpeg Streaming) initialized for VPS {vps_id}")
     
     def start(self):
         """Start agent"""
         try:
-            logging.info("Starting EZStream Agent v6.0 with SRS-Only Streaming...")
+            logging.info("Starting EZStream Agent v7.0 with Simple FFmpeg Streaming...")
             self.running = True
 
             # Config is already loaded in __init__, no need to fetch from Laravel
@@ -70,7 +68,7 @@ class EZStreamAgent:
             init_process_manager()
             logging.info("✅ Process manager initialized")
 
-            self.stream_manager = init_stream_manager()  # Stream management with playlist support
+            # Legacy stream_manager removed - using simple_stream_manager only
             self.command_handler = init_command_handler()
 
             # Initialize SRS managers (main streaming method)
@@ -81,14 +79,13 @@ class EZStreamAgent:
             except Exception as e:
                 logging.error(f"❌ Failed to initialize SRS managers: {e}")
 
-            # Initialize robust streaming components
+            # Initialize simple streaming components
             try:
-                self.srs_config_manager = init_srs_config_manager()
-                self.stream_integration = init_stream_integration()
-                logging.info("✅ Robust streaming components initialized successfully")
+                from simple_stream_manager import init_simple_stream_manager
+                self.simple_stream_manager = init_simple_stream_manager()
+                logging.info("✅ Simple streaming components initialized successfully")
             except Exception as e:
-                logging.error(f"❌ Failed to initialize robust streaming components: {e}")
-                # Continue with legacy streaming if robust components fail
+                logging.error(f"❌ Failed to initialize simple streaming components: {e}")
                 raise
 
             # Start services
@@ -101,7 +98,7 @@ class EZStreamAgent:
             if self.command_handler:
                 self.command_handler.start()
 
-            logging.info("EZStream Agent v6.0 (SRS-Only Streaming) started successfully!")
+            logging.info("EZStream Agent v7.0 (Simple FFmpeg Streaming) started successfully!")
             self._main_loop()
             
         except Exception as e:
@@ -112,7 +109,7 @@ class EZStreamAgent:
     def stop(self):
         """Stop agent"""
         try:
-            logging.info("Shutting down EZStream Agent v6.0...")
+            logging.info("Shutting down EZStream Agent v7.0...")
             self.running = False
 
             if self.command_handler:
@@ -122,12 +119,15 @@ class EZStreamAgent:
                 except Exception as e:
                     logging.error(f"Error stopping command handler: {e}")
 
-            if self.stream_manager:
+            # Legacy stream_manager removed
+
+            # Stop simple stream manager
+            if self.simple_stream_manager:
                 try:
-                    self.stream_manager.stop_all()
-                    logging.info("Stream manager stopped")
+                    self.simple_stream_manager.shutdown()
+                    logging.info("Simple stream manager stopped")
                 except Exception as e:
-                    logging.error(f"Error stopping stream manager: {e}")
+                    logging.error(f"Error stopping simple stream manager: {e}")
 
             if self.file_manager:
                 try:
@@ -143,7 +143,7 @@ class EZStreamAgent:
                 except Exception as e:
                     logging.error(f"Error stopping status reporter: {e}")
 
-            logging.info("EZStream Agent v6.0 shutdown complete")
+            logging.info("EZStream Agent v7.0 shutdown complete")
 
         except Exception as e:
             logging.error(f"Error during shutdown: {e}")
@@ -179,7 +179,7 @@ def main():
     """Main entry point"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='EZStream Agent v6.0 - SRS-Only Streaming')
+    parser = argparse.ArgumentParser(description='EZStream Agent v7.0 - Simple FFmpeg Streaming')
     parser.add_argument('--vps-id', type=int, required=True, help='VPS ID')
     parser.add_argument('--redis-host', type=str, default='127.0.0.1', help='Redis host')
     parser.add_argument('--redis-port', type=int, default=6379, help='Redis port')

@@ -44,14 +44,8 @@ class StreamLibraryController extends Controller
                 ], 401);
             }
 
-            // Check if SRS streaming is enabled
-            $streamingMethod = Setting::where('key', 'streaming_method')->value('value') ?? 'ffmpeg_copy';
-            if ($streamingMethod !== 'srs') {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'Stream Library upload only available when SRS streaming is enabled'
-                ], 400);
-            }
+            // SRS streaming is always enabled (only option)
+            $streamingMethod = 'srs';
 
             $fileName = $request->input('filename');
             $fileSize = $request->input('size');

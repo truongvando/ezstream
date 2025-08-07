@@ -300,102 +300,40 @@ else
     systemctl start docker 2>/dev/null || true
 fi
 
-# 8. SRS STREAMING SERVER SETUP
-echo "8. Setting up SRS (Simple Realtime Server)..."
+# 8. STREAMING DEPENDENCIES SETUP
+echo "8. Setting up streaming dependencies..."
 
-# Use Docker SRS instead of building from source (faster and more reliable)
-echo "🐳 Setting up SRS via Docker..."
+# Install FFmpeg and required packages
+echo "🎬 Installing FFmpeg and streaming dependencies..."
 
-# Create SRS config directory
-mkdir -p /opt/srs-config
+# Install FFmpeg
+apt-get update
+apt-get install -y ffmpeg python3-psutil
 
-# Create SRS configuration file
-cat > /opt/srs-config/srs.conf << 'EOF'
-# SRS Configuration for EZStream
-listen              1935;
-max_connections     1000;
-daemon              off;
-srs_log_tank        console;
+# Test FFmpeg installation
+echo "🧪 Testing FFmpeg installation..."
+FFMPEG_VERSION=$(ffmpeg -version | head -1 2>/dev/null || echo "FAILED")
 
-http_server {
-    enabled         on;
-    listen          8080;
-    dir             ./objs/nginx/html;
-}
-
-http_api {
-    enabled         on;
-    listen          1985;
-}
-
-rtc_server {
-    enabled         on;
-    listen          8000;
-}
-
-vhost __defaultVhost__ {
-    hls {
-        enabled         on;
-        hls_path        ./objs/nginx/html;
-        hls_fragment    10;
-        hls_window      60;
-    }
-
-    http_remux {
-        enabled     on;
-        mount       [vhost]/[app]/[stream].flv;
-    }
-
-    dvr {
-        enabled      off;
-    }
-}
-EOF
-
-echo "✅ SRS configuration created"
-
-# Pull SRS Docker image
-echo "📥 Pulling SRS Docker image..."
-docker pull ossrs/srs:5
-
-# Create SRS Docker container
-echo "🚀 Creating SRS Docker container..."
-docker run -d \
-    --name ezstream-srs \
-    --restart unless-stopped \
-    -p 1935:1935 \
-    -p 1985:1985 \
-    -p 8080:8080 \
-    -p 8000:8000/udp \
-    -v /opt/srs-config:/usr/local/srs/conf \
-    ossrs/srs:5 \
-    ./objs/srs -c /usr/local/srs/conf/srs.conf
-
-# Wait for SRS to start
-echo "⏳ Waiting for SRS to start..."
-sleep 10
-
-# Verify SRS is running
-if docker ps | grep -q "ezstream-srs"; then
-    echo "✅ SRS Docker container is running"
-
-    # Test SRS API
-    if curl -s http://localhost:1985/api/v1/versions > /dev/null; then
-        echo "✅ SRS API is responding"
-    else
-        echo "⚠️ SRS API not responding yet (may need more time)"
-    fi
+if [[ "$FFMPEG_VERSION" != "FAILED" ]]; then
+    echo "✅ FFmpeg installed successfully: $FFMPEG_VERSION"
 else
-    echo "❌ SRS Docker container failed to start!"
-    docker logs ezstream-srs
+    echo "❌ FFmpeg installation failed"
     exit 1
+fi
+
+# Test psutil installation
+PSUTIL_VERSION=$(python3 -c 'import psutil; print(psutil.__version__)' 2>/dev/null || echo "FAILED")
+
+if [[ "$PSUTIL_VERSION" != "FAILED" ]]; then
+    echo "✅ Python psutil installed: $PSUTIL_VERSION"
+else
+    echo "⚠️ Python psutil installation may have failed"
 fi
 
 echo ""
 echo "=== VPS BASE PROVISION COMPLETE ==="
-echo "✅ Base system is ready for EZStream Agent v6.0 deployment from Laravel."
-echo "📋 Architecture: Stream Manager + Process Manager + File Manager + SRS Docker"
-echo "🐳 SRS Server running in Docker container (ossrs/srs:5)"
-echo "🔗 SRS Ports: RTMP(1935), API(1985), HTTP(8080), WebRTC(8000)"
+echo "✅ Base system is ready for EZStream Agent v7.0 deployment from Laravel."
+echo "📋 Architecture: Simple Stream Manager + Process Manager + File Manager + FFmpeg Direct"
+echo "🎬 FFmpeg installed for direct streaming (no SRS required)"
 echo "🕐 Provision completed at: $(date)"
 echo ""

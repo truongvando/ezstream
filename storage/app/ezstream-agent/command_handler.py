@@ -18,8 +18,7 @@ import redis
 from config import get_config
 from utils import safe_json_loads, PerformanceTimer
 from status_reporter import get_status_reporter
-from srs_manager import init_srs_manager, get_srs_manager
-from stream_manager import init_srs_stream_manager, get_srs_stream_manager
+# Simple streaming - no SRS dependencies
 
 
 class CommandStatus(Enum):
@@ -222,210 +221,172 @@ class CommandHandler:
                 self.active_commands.pop(execution.command_key, None)
 
     def _handle_start_stream(self, stream_id: int, config: Dict[str, Any], command_data: Dict[str, Any]) -> bool:
-        """Handle START_STREAM command - Robust streaming with fallback"""
+        """Handle START_STREAM command - Simple FFmpeg Direct"""
         try:
-            logging.info(f"🚀 [COMMAND] Starting robust stream {stream_id}")
+            logging.info(f"🚀 [COMMAND] Starting simple stream {stream_id}")
 
-            # Try robust streaming first
-            success = self._start_stream_robust(stream_id, config)
+            # Use simple stream manager (FFmpeg direct)
+            success = self._start_stream_simple(stream_id, config)
 
             if success:
-                logging.info(f"✅ [COMMAND] Robust stream {stream_id} started successfully")
+                logging.info(f"✅ [COMMAND] Simple stream {stream_id} started successfully")
                 return True
             else:
-                logging.warning(f"⚠️ [COMMAND] Robust streaming failed, falling back to legacy SRS")
-                # Fallback to legacy SRS streaming
-                return self._start_stream_srs(stream_id, config)
+                logging.error(f"❌ [COMMAND] Simple streaming failed for stream {stream_id}")
+                return False
 
         except Exception as e:
             logging.error(f"❌ Error in start_stream handler: {e}")
             return False
 
-    def _start_stream_robust(self, stream_id: int, config: Dict[str, Any]) -> bool:
-        """Start stream using robust stream manager"""
+    def _start_stream_simple(self, stream_id: int, config: Dict[str, Any]) -> bool:
+        """Start stream using simple FFmpeg direct"""
         try:
-            # Try to get stream integration
-            from stream_integration import get_stream_integration
-            stream_integration = get_stream_integration()
-
-            if not stream_integration:
-                logging.warning(f"⚠️ [COMMAND] Stream integration not available")
-                return False
+            # Get simple stream manager
+            from simple_stream_manager import get_simple_stream_manager, StreamConfig
+            stream_manager = get_simple_stream_manager()
 
             # Extract video files from config
             video_files = config.get('video_files', [])
             if not video_files:
-                logging.error(f"❌ [COMMAND] No video files provided for stream {stream_id}")
+                logging.error(f"❌ [SIMPLE] No video files provided for stream {stream_id}")
+                return False
+
+            # Extract all input URLs
+            input_urls = []
+            for video_file in video_files:
+                if isinstance(video_file, dict):
+                    url = video_file.get('download_url', '')
+                    if url:
+                        input_urls.append(url)
+                else:
+                    input_urls.append(str(video_file))
+
+            if not input_urls:
+                logging.error(f"❌ [SIMPLE] No input URLs found for stream {stream_id}")
                 return False
 
             # Extract RTMP endpoint
-            rtmp_endpoint = None
+            output_url = None
             if config.get('rtmp_url'):
-                rtmp_endpoint = config['rtmp_url']
+                output_url = config['rtmp_url']
             elif config.get('stream_key'):
-                rtmp_endpoint = f"rtmp://a.rtmp.youtube.com/live2/{config['stream_key']}"
+                output_url = f"rtmp://a.rtmp.youtube.com/live2/{config['stream_key']}"
 
-            if not rtmp_endpoint:
-                logging.error(f"❌ [COMMAND] No RTMP endpoint found for stream {stream_id}")
+            if not output_url:
+                logging.error(f"❌ [SIMPLE] No RTMP endpoint found for stream {stream_id}")
                 return False
 
-            logging.info(f"🎬 [ROBUST] Starting robust stream {stream_id}")
-            logging.info(f"   - Video files: {video_files}")
-            logging.info(f"   - RTMP endpoint: {rtmp_endpoint}")
+            logging.info(f"🎬 [SIMPLE] Starting stream {stream_id}")
+            logging.info(f"   - Input URLs: {input_urls}")
+            logging.info(f"   - Output: {output_url}")
 
-            # Start stream with robust manager
-            success = stream_integration.start_stream(
+            # Create stream config
+            stream_config = StreamConfig(
                 stream_id=stream_id,
-                video_files=video_files,
-                stream_config=config,
-                rtmp_endpoint=rtmp_endpoint
+                input_urls=input_urls,
+                output_url=output_url,
+                loop_enabled=config.get('loop', True),
+                playback_mode=config.get('playback_mode', 'sequential'),
+                max_retries=5,
+                restart_delay=10,
+                health_check_interval=30
             )
+
+            # Start stream
+            success = stream_manager.start_stream(stream_config)
 
             if success:
-                logging.info(f"✅ [ROBUST] Stream {stream_id} started successfully")
+                logging.info(f"✅ [SIMPLE] Stream {stream_id} started successfully")
+
+                # Report status to Laravel
+                if self.status_reporter:
+                    logging.info(f"📤 [SIMPLE] Sending STREAMING status to Laravel for stream {stream_id}")
+                    self.status_reporter.publish_stream_status(
+                        stream_id, 'STREAMING', 'Simple FFmpeg stream started successfully'
+                    )
+                else:
+                    logging.warning(f"⚠️ [SIMPLE] Status reporter not available for stream {stream_id}")
+
                 return True
             else:
-                logging.error(f"❌ [ROBUST] Failed to start stream {stream_id}")
-                return False
+                logging.error(f"❌ [SIMPLE] Failed to start stream {stream_id}")
 
-        except Exception as e:
-            logging.error(f"❌ [ROBUST] Error starting robust stream {stream_id}: {e}")
-            return False
-
-    def _start_stream_srs(self, stream_id: int, config: Dict[str, Any]) -> bool:
-        """Start stream using SRS"""
-        try:
-            logging.info(f"🎬 [SRS] Starting stream {stream_id}")
-
-            # Get SRS stream manager
-            srs_stream_manager = get_srs_stream_manager()
-            if not srs_stream_manager:
-                logging.error("❌ SRS stream manager not available")
-                if self.status_reporter:
-                    self.status_reporter.publish_stream_status(
-                        stream_id, 'ERROR', 'SRS stream manager not available'
-                    )
-                return False
-
-            # Convert config to SRS format
-            video_files = []
-            for video_file in config.get('video_files', []):
-                if isinstance(video_file, dict):
-                    file_path = video_file.get('download_url') or video_file.get('url') or video_file.get('path', '')
-                    video_files.append(file_path)
-                else:
-                    video_files.append(str(video_file))
-
-            if not video_files:
-                logging.error(f"No video files provided for stream {stream_id}")
-                return False
-
-            stream_config = {
-                'loop': config.get('loop', True),
-                'rtmp_url': config.get('rtmp_url', ''),
-                'stream_key': config.get('stream_key', '')
-            }
-
-            # Start SRS stream
-            result = srs_stream_manager.start_stream(
-                stream_id=stream_id,
-                video_files=video_files,
-                stream_config=stream_config
-            )
-
-            if result:
-                logging.info(f"✅ [SRS] Stream {stream_id} started successfully")
-            else:
-                logging.error(f"❌ [SRS] Failed to start stream {stream_id}")
-                
                 # Report error to Laravel
                 if self.status_reporter:
                     self.status_reporter.publish_stream_status(
-                        stream_id, 'ERROR', 'SRS stream failed to start'
+                        stream_id, 'ERROR', 'Failed to start simple FFmpeg stream'
                     )
 
-            return result
+                return False
 
         except Exception as e:
-            logging.error(f"❌ [SRS] Error starting stream: {e}")
-
-            # Report error to Laravel
-            if self.status_reporter:
-                self.status_reporter.publish_stream_status(
-                    stream_id, 'ERROR', f'SRS stream error: {str(e)}'
-                )
-            
+            logging.error(f"❌ [SIMPLE] Error starting simple stream {stream_id}: {e}")
             return False
 
+
+
+
+
     def _handle_stop_stream(self, stream_id: int, config: Dict[str, Any], command_data: Dict[str, Any]) -> bool:
-        """Handle STOP_STREAM command - Robust streaming with fallback"""
+        """Handle STOP_STREAM command - Simple FFmpeg Direct"""
         try:
             logging.info(f"🛑 [COMMAND] Stopping stream {stream_id}")
 
-            # Try robust streaming first
-            success = self._stop_stream_robust(stream_id)
+            # Use simple stream manager
+            success = self._stop_stream_simple(stream_id)
 
             if success:
-                logging.info(f"✅ [COMMAND] Robust stream {stream_id} stopped successfully")
+                logging.info(f"✅ [COMMAND] Simple stream {stream_id} stopped successfully")
                 return True
             else:
-                logging.warning(f"⚠️ [COMMAND] Robust stop failed, trying legacy SRS")
-                # Fallback to legacy SRS streaming
-                return self._stop_stream_srs(stream_id)
+                logging.error(f"❌ [COMMAND] Failed to stop simple stream {stream_id}")
+                return False
 
         except Exception as e:
             logging.error(f"❌ Error in stop_stream handler: {e}")
             return False
 
-    def _stop_stream_robust(self, stream_id: int) -> bool:
-        """Stop stream using robust stream manager"""
+    def _stop_stream_simple(self, stream_id: int) -> bool:
+        """Stop stream using simple stream manager"""
         try:
-            # Try to get stream integration
-            from stream_integration import get_stream_integration
-            stream_integration = get_stream_integration()
+            # Get simple stream manager
+            from simple_stream_manager import get_simple_stream_manager
+            stream_manager = get_simple_stream_manager()
 
-            if not stream_integration:
-                logging.warning(f"⚠️ [COMMAND] Stream integration not available")
-                return False
-
-            logging.info(f"🛑 [ROBUST] Stopping robust stream {stream_id}")
-
-            # Stop stream with robust manager
-            success = stream_integration.stop_stream(stream_id)
-
-            if success:
-                logging.info(f"✅ [ROBUST] Stream {stream_id} stopped successfully")
-                return True
-            else:
-                logging.error(f"❌ [ROBUST] Failed to stop stream {stream_id}")
-                return False
-
-        except Exception as e:
-            logging.error(f"❌ [ROBUST] Error stopping robust stream {stream_id}: {e}")
-            return False
-
-    def _stop_stream_srs(self, stream_id: int) -> bool:
-        """Stop stream using legacy SRS manager"""
-        try:
-            # Get SRS stream manager
-            srs_stream_manager = get_srs_stream_manager()
-            if not srs_stream_manager:
-                logging.warning("SRS stream manager not available")
-                return True
+            logging.info(f"🛑 [SIMPLE] Stopping stream {stream_id}")
 
             # Stop stream
-            result = srs_stream_manager.stop_stream(stream_id)
+            success = stream_manager.stop_stream(stream_id)
 
-            if result:
-                logging.info(f"✅ Stream {stream_id} stopped successfully")
+            if success:
+                logging.info(f"✅ [SIMPLE] Stream {stream_id} stopped successfully")
+
+                # Report status to Laravel
+                if self.status_reporter:
+                    self.status_reporter.publish_stream_status(
+                        stream_id, 'STOPPED', 'Simple FFmpeg stream stopped successfully'
+                    )
+
+                return True
             else:
-                logging.error(f"❌ Failed to stop stream {stream_id}")
+                logging.error(f"❌ [SIMPLE] Failed to stop stream {stream_id}")
 
-            return result
+                # Report error to Laravel
+                if self.status_reporter:
+                    self.status_reporter.publish_stream_status(
+                        stream_id, 'ERROR', 'Failed to stop simple FFmpeg stream'
+                    )
+
+                return False
 
         except Exception as e:
-            logging.error(f"❌ Error in stop_stream handler: {e}")
+            logging.error(f"❌ [SIMPLE] Error stopping simple stream {stream_id}: {e}")
             return False
+
+
+
+
 
     def _handle_update_stream(self, stream_id: int, config: Dict[str, Any], command_data: Dict[str, Any]) -> bool:
         """Handle UPDATE_STREAM command - simplified for SRS"""
@@ -451,23 +412,21 @@ class CommandHandler:
         try:
             logging.info(f"🔄 [SYNC] Received SYNC_STATE command from Laravel")
 
-            # Get SRS stream manager
-            srs_stream_manager = get_srs_stream_manager()
-            if not srs_stream_manager:
-                logging.warning("SRS stream manager not available for sync")
-                return True
+            # Get simple stream manager
+            from simple_stream_manager import get_simple_stream_manager
+            stream_manager = get_simple_stream_manager()
 
             # Get active streams
-            active_streams = srs_stream_manager.get_active_streams()
-            
+            active_streams = stream_manager.get_all_streams_status()
+
             # Report current state to Laravel
             if self.status_reporter:
-                for active_stream_id in active_streams:
-                    status = srs_stream_manager.get_stream_status(active_stream_id)
-                    if status:
-                        self.status_reporter.publish_stream_status(
-                            active_stream_id, status['state'], 'Stream sync update'
-                        )
+                for stream_status in active_streams:
+                    stream_id = stream_status['stream_id']
+                    status = 'STREAMING' if stream_status['status'] == 'running' else 'STOPPED'
+                    self.status_reporter.publish_stream_status(
+                        stream_id, status, 'Stream sync update'
+                    )
 
             logging.info(f"✅ [SYNC] Synced {len(active_streams)} active streams")
             return True

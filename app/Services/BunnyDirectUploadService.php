@@ -36,8 +36,14 @@ class BunnyDirectUploadService
             $uploadToken = Str::random(32);
             $expiresAt = now()->addHours(2); // 2 hour expiry
 
-            // Get storage mode from admin settings
-            $storageMode = \App\Models\Setting::where('key', 'storage_mode')->value('value') ?? 'server';
+            // Always use Stream Library for uploads
+            $storageMode = 'stream_library';
+
+            // Check if Stream Library is configured
+            $streamService = app(\App\Services\BunnyStreamService::class);
+            if (!$streamService->isConfigured()) {
+                throw new Exception('BunnyCDN Stream Library must be configured for file uploads');
+            }
 
             // Store upload metadata in cache (use timestamps for better serialization)
             $cacheData = [
@@ -60,34 +66,14 @@ class BunnyDirectUploadService
                 'storage_mode' => $storageMode
             ];
 
-            switch ($storageMode) {
-                case 'server':
-                    // Upload to server endpoint
-                    $result['upload_url'] = config('app.url') . "/api/server-upload/{$uploadToken}";
-                    $result['method'] = 'POST'; // Use POST for server upload
-                    break;
-
-                case 'cdn':
-                    // Direct upload to Bunny CDN
-                    $result['upload_url'] = "{$this->baseUrl}/{$remotePath}";
-                    $result['access_key'] = $this->accessKey;
-                    $result['method'] = 'PUT'; // Use PUT for CDN upload
-                    break;
-
-                case 'hybrid':
-                    // Upload to server first, then sync to CDN
-                    $result['upload_url'] = config('app.url') . "/api/server-upload/{$uploadToken}";
-                    $result['method'] = 'POST';
-                    $result['sync_to_cdn'] = true;
-                    break;
-
-                case 'stream_library':
-                    // Direct upload to Stream Library using TUS
-                    $streamService = app(\App\Services\BunnyStreamService::class);
-                    if (!$streamService->isConfigured()) {
-                        \Log::error('Stream Library not configured');
-                        throw new Exception('Stream Library not configured');
-                    }
+            // Only Stream Library is supported
+            if ($storageMode === 'stream_library') {
+                // Direct upload to Stream Library using TUS
+                $streamService = app(\App\Services\BunnyStreamService::class);
+                if (!$streamService->isConfigured()) {
+                    \Log::error('Stream Library not configured');
+                    throw new Exception('Stream Library not configured');
+                }
 
                     // Create video object first
                     \Log::info('Creating video in Stream Library', ['file_name' => $fileName]);
@@ -136,89 +122,17 @@ class BunnyDirectUploadService
                         'has_api_key' => !empty($streamApiKey)
                     ]);
 
-                    // TUS endpoint without library/video ID in URL - they go in headers
+                    // TUS upload endpoint for Stream Library (correct endpoint)
                     $result['upload_url'] = "https://video.bunnycdn.com/tusupload";
                     $result['method'] = 'TUS';
                     $result['video_id'] = $videoId;
                     $result['library_id'] = $libraryId;
-                    $result['auth_signature'] = $signature;
-                    $result['auth_expire'] = $expireTime;
+                    $result['auth_signature'] = $signature; // SHA256 signature (match existing TUS function)
+                    $result['auth_expire'] = $expireTime; // UNIX timestamp (match existing TUS function)
+                    $result['stream_api_key'] = $streamApiKey; // For reference
                     $result['upload_token'] = $uploadToken; // Add upload token for confirmation
-                    break;
-
-                case 'auto':
-                    // Auto mode: choose best storage based on file size and type
-                    $fileSize = $maxFileSize ?: 0;
-                    $isVideoFile = in_array(strtolower(pathinfo($fileName, PATHINFO_EXTENSION)),
-                        ['mp4', 'avi', 'mov', 'wmv', 'flv', 'webm', 'mkv']);
-
-                    if ($isVideoFile && $fileSize > 100 * 1024 * 1024) { // > 100MB video files
-                        // Use stream library for large video files
-                        $streamService = app(\App\Services\BunnyStreamService::class);
-                        if ($streamService->isConfigured()) {
-                            $videoResult = $streamService->createVideo($fileName);
-                            if ($videoResult['success']) {
-                                $libraryId = config('bunnycdn.video_library_id');
-                                $videoId = $videoResult['video_id'];
-                                $streamApiKey = config('bunnycdn.stream_api_key');
-
-                                // Generate upload token for TUS upload
-                                $uploadToken = Str::random(32);
-                                $expiresAt = now()->addHours(2);
-
-                                // Generate proper signature for TUS upload
-                                $expireTime = time() + 7200; // 2 hours from now
-                                $signature = hash('sha256', $libraryId . $streamApiKey . $expireTime . $videoId);
-
-                                // Store upload metadata in cache for confirmation later
-                                $cacheData = [
-                                    'user_id' => $userId,
-                                    'file_name' => $fileName,
-                                    'remote_path' => "stream_library/{$videoId}",
-                                    'max_file_size' => $maxFileSize ?: 10 * 1024 * 1024 * 1024,
-                                    'expires_at' => $expiresAt->toISOString(),
-                                    'created_at' => now()->toISOString(),
-                                    'storage_mode' => 'stream_library',
-                                    'video_id' => $videoId,
-                                    'library_id' => $libraryId,
-                                    'method' => 'TUS'
-                                ];
-
-                                cache()->put("upload_token_{$uploadToken}", $cacheData, $expiresAt);
-
-                                // TUS endpoint without library/video ID in URL
-                                $result['upload_url'] = "https://video.bunnycdn.com/tusupload";
-                                $result['method'] = 'TUS';
-                                $result['video_id'] = $videoId;
-                                $result['library_id'] = $libraryId;
-                                $result['auth_signature'] = $signature;
-                                $result['auth_expire'] = $expireTime;
-                                $result['upload_token'] = $uploadToken; // Add upload token for confirmation
-                                $result['auto_selected'] = 'stream_library';
-                                break;
-                            }
-                        }
-                        // Fallback to CDN if stream library fails
-                        $result['upload_url'] = "{$this->baseUrl}/{$remotePath}";
-                        $result['access_key'] = $this->accessKey;
-                        $result['method'] = 'PUT';
-                        $result['auto_selected'] = 'cdn';
-                    } elseif ($fileSize > 50 * 1024 * 1024) { // > 50MB files
-                        // Use CDN for large files
-                        $result['upload_url'] = "{$this->baseUrl}/{$remotePath}";
-                        $result['access_key'] = $this->accessKey;
-                        $result['method'] = 'PUT';
-                        $result['auto_selected'] = 'cdn';
-                    } else {
-                        // Use server for small files
-                        $result['upload_url'] = config('app.url') . "/api/server-upload/{$uploadToken}";
-                        $result['method'] = 'POST';
-                        $result['auto_selected'] = 'server';
-                    }
-                    break;
-
-                default:
-                    throw new Exception("Invalid storage mode: {$storageMode}");
+            } else {
+                throw new Exception("Only Stream Library storage is supported");
             }
 
             // Add auto_selected and video_id to cache data if they exist
@@ -304,7 +218,7 @@ class BunnyDirectUploadService
                 'original_name' => $uploadData['file_name'],
                 'mime_type' => $mimeType,
                 'size' => $actualFileSize,
-                'status' => 'ready',
+                'status' => $actualStorageMode === 'stream_library' ? 'PROCESSING' : 'ready', // Stream Library needs processing time
                 'auto_delete_after_stream' => $autoDeleteAfterStream,
                 'scheduled_deletion_at' => $autoDeleteAfterStream ? now()->addDays(1) : null
             ];

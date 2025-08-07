@@ -236,14 +236,19 @@ class StatusReporter:
 
         while self.running:
             try:
-                # Get active streams from SRS stream manager
+                # Get active streams from simple stream manager
                 active_stream_ids = []
 
-                # SRS streams (main and only stream manager)
-                from stream_manager import get_stream_manager
-                stream_manager = get_stream_manager()
-                if stream_manager:
-                    active_stream_ids = stream_manager.get_active_streams()
+                # Simple streams (FFmpeg direct)
+                try:
+                    from simple_stream_manager import get_simple_stream_manager
+                    stream_manager = get_simple_stream_manager()
+                    if stream_manager:
+                        active_streams = stream_manager.get_all_streams_status()
+                        active_stream_ids = [s['stream_id'] for s in active_streams if s['status'] == 'running']
+                except Exception as e:
+                    logging.debug(f"Could not get simple stream manager: {e}")
+                    active_stream_ids = []
 
                 heartbeat_payload = {
                     'type': 'HEARTBEAT',
@@ -307,9 +312,16 @@ class StatusReporter:
             network_recv_mb = network.bytes_recv / (1024**2)
             
             # Active streams count
-            from stream_manager import get_stream_manager
-            stream_manager = get_stream_manager()
-            active_streams = len(stream_manager.get_active_streams()) if stream_manager else 0
+            active_streams = 0
+            try:
+                from simple_stream_manager import get_simple_stream_manager
+                stream_manager = get_simple_stream_manager()
+                if stream_manager:
+                    active_streams_status = stream_manager.get_all_streams_status()
+                    active_streams = len([s for s in active_streams_status if s['status'] == 'running'])
+            except Exception as e:
+                logging.debug(f"Could not get simple stream manager for stats: {e}")
+                active_streams = 0
             
             stats = {
                 'vps_id': self.config.vps_id,

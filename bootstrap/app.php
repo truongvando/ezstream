@@ -92,7 +92,12 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // 🗑️ Process scheduled file deletions (Quick Stream auto-delete)
         $schedule->job(new \App\Jobs\ProcessScheduledDeletionsJob())
-                 ->hourly()
+                 ->everyThirtyMinutes()
+                 ->withoutOverlapping();
+
+        // 🗑️ Manual auto-delete command (can be triggered manually)
+        $schedule->command('videos:auto-delete --process-scheduled')
+                 ->everyFifteenMinutes()
                  ->withoutOverlapping();
 
         // 📋 Process scheduled orders (hẹn giờ đặt hàng)

@@ -416,12 +416,13 @@ abstract class BaseStreamManager extends Component
         $this->reset([
             'quickTitle', 'quickDescription', 'quickPlatform', 'quickRtmpUrl', 'quickStreamKey',
             'quickLoop', 'quickPlaylistOrder', 'quickEnableSchedule', 'quickScheduledAt', 'quickScheduledEnd',
-            'quickSelectedFiles', 'video_source_id'
+            'quickSelectedFiles', 'video_source_id', 'quickAutoDelete'
         ]);
 
         $this->quickPlatform = 'youtube';
         $this->quickPlaylistOrder = 'sequential';
         $this->quickSelectedFiles = [];
+        $this->quickAutoDelete = true; // Default to auto-delete enabled
 
         $this->showQuickStreamModal = true;
         
@@ -664,7 +665,11 @@ abstract class BaseStreamManager extends Component
                 'user_file_id' => !empty($fileIds) ? $fileIds[0] : null, // Set primary file
             ]);
 
-            // Files are already included in video_source_path field
+            // Set auto-delete flag for selected files if enabled
+            if ($this->quickAutoDelete && !empty($fileIds)) {
+                UserFile::whereIn('id', $fileIds)->update(['auto_delete_after_stream' => true]);
+                Log::info('✅ Auto-delete enabled for files', ['file_ids' => $fileIds]);
+            }
 
             // Start stream immediately with a small delay to avoid race conditions
             StartMultistreamJob::dispatch($stream)->delay(now()->addSeconds(2));

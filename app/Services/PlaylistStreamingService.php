@@ -70,9 +70,9 @@ class PlaylistStreamingService
     }
 
     /**
-     * Generate SRS playlist configuration
+     * Generate FFmpeg playlist configuration
      */
-    public function generateSrsPlaylistConfig(StreamConfiguration $stream): array
+    public function generateFFmpegPlaylistConfig(StreamConfiguration $stream): array
     {
         try {
             $videoFiles = $stream->videoFiles()->orderBy('playlist_order')->get();

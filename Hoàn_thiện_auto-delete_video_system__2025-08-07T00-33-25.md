@@ -1,0 +1,12 @@
+[ ] NAME:Current Task List DESCRIPTION:Root task for conversation __NEW_AGENT__
+-[x] NAME:Tạo auto-delete video system DESCRIPTION:Implement tính năng tự động xóa video files từ Bunny Stream sau khi stream xong, integration với Bunny CDN API
+-[/] NAME:Cập nhật Quick Stream Modal UI DESCRIPTION:Thêm options: Loop 24/7 toggle, Auto-delete videos toggle, Multiple video selection, Playback mode (sequential/random)
+-[ ] NAME:Enhance Redis command protocol DESCRIPTION:Mở rộng Redis commands để support: UPDATE_PLAYLIST, SET_LOOP_MODE, SET_PLAYBACK_ORDER, DELETE_VIDEOS
+-[ ] NAME:Upgrade Simple Stream Manager DESCRIPTION:Enhance simple_stream_manager.py để handle multiple videos, playlist management, loop detection, quality monitoring
+-[x] NAME:Implement stream health monitoring DESCRIPTION:Tạo system monitor stream health, detect disconnections, auto-recovery, report status về Laravel real-time
+-[ ] NAME:Create dynamic playlist update system DESCRIPTION:Cho phép user add/remove videos trong stream đang chạy, update playlist without interrupting stream
+-[ ] NAME:Build comprehensive logging và debugging DESCRIPTION:Enhance logging cho playlist changes, stream health, bitrate monitoring, error tracking và debugging tools
+-[ ] NAME:Testing và optimization DESCRIPTION:Test toàn bộ system với multiple scenarios: long-running streams, playlist updates, auto-delete, error recovery
+-[ ] NAME:dọn dẹp sạch File Storage Mode , dùng mặc định BunnyCDN Stream DESCRIPTION:dọn dẹp luôn các code liên quan tới upload đi , k cần tới bunny cdn , server storage nữa , nói chung xoá hết, code backend xoá luôn , mặc định dùng Stream Library
+-[ ] NAME:xoá hết Streaming Method vì giờ chỉ còn 1 phương thức DESCRIPTION:cái gì liên quan dọn luôn
+-[ ] NAME:quick-upload-area.blade , sửa để nó up lên bunny stream DESCRIPTION:đây là upload nhanh , sửa để nó upload lên stream bunny nhé

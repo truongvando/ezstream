@@ -136,9 +136,10 @@ class UpdateAgentJob implements ShouldQueue
         // Create target directory first
         $sshService->execute('sudo mkdir -p /opt/ezstream-agent');
 
-        // Download and extract ezstream-agent directory from GitHub
-        $downloadCmd = 'cd /tmp && curl -sSL https://github.com/truongvando/ezstream/archive/master.tar.gz -o ezstream-master.tar.gz';
-        $extractCmd = 'cd /tmp && tar -xzf ezstream-master.tar.gz && sudo cp -r ezstream-master/storage/app/ezstream-agent/* /opt/ezstream-agent/';
+        // Download and extract ezstream-agent directory from GitHub (force fresh download)
+        $timestamp = time();
+        $downloadCmd = "cd /tmp && rm -f ezstream-master.tar.gz && curl -sSL 'https://github.com/truongvando/ezstream/archive/master.tar.gz?t={$timestamp}' -o ezstream-master.tar.gz";
+        $extractCmd = 'cd /tmp && rm -rf ezstream-master && tar -xzf ezstream-master.tar.gz && sudo cp -r ezstream-master/storage/app/ezstream-agent/* /opt/ezstream-agent/';
 
         $downloadResult = $sshService->execute($downloadCmd);
         Log::info("📦 [UpdateAgent] Download result", ['output' => $downloadResult]);
@@ -271,6 +272,7 @@ RestartSec=10
 StandardOutput=journal
 StandardError=journal
 Environment=PYTHONPATH={$agentPath}
+Environment=STREAMING_METHOD=simple
 WorkingDirectory={$agentPath}
 
 [Install]

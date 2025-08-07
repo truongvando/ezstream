@@ -6,10 +6,10 @@
             // và tính toán kích thước file một lần duy nhất.
             if (value) {
                 $wire.set('video_source_id', value.id, false);
-                this.formattedFileSize = this.formatFileSize(value.size);
+                formattedFileSize = formatFileSize(value.size);
             } else {
                 $wire.set('video_source_id', null, false);
-                this.formattedFileSize = '';
+                formattedFileSize = '';
             }
         });
     "
@@ -43,7 +43,9 @@
                         <span x-show="!isUploading">Chọn file video hoặc kéo thả vào đây</span>
                         <span x-show="isUploading" x-cloak>Đang xử lý, vui lòng chờ...</span>
                     </p>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">Hỗ trợ: MP4 - H.264 - AAC AUDIO</p>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                        Hỗ trợ: MP4 - H.264 - AAC AUDIO<br>
+                    </p>
                 </div>
             </div>
         </div>
@@ -176,32 +178,94 @@
                     setTimeout(() => this.reset(), 4000); // Reset hoàn toàn nếu có lỗi
                 }
             },
-            uploadToBunny(file, uploadData) {
-                return new Promise((resolve, reject) => {
-                    const xhr = new XMLHttpRequest();
-                    xhr.upload.addEventListener('progress', e => {
-                        if (e.lengthComputable) {
-                            const percent = 10 + Math.round((e.loaded / e.total) * 85);
-                            this.updateStatus(`📤 Đang upload... ${this.formatFileSize(e.loaded)}/${this.formatFileSize(e.total)}`, percent);
-                        }
-                    });
-                    xhr.addEventListener('load', () => (xhr.status >= 200 && xhr.status < 300) ? resolve() : reject(new Error(`Lỗi upload: ${xhr.statusText}`)));
-                    xhr.addEventListener('error', () => reject(new Error('Lỗi mạng.')));
+            async uploadToBunny(file, uploadData) {
+                // Only Stream Library is supported - use TUS protocol
+                if (uploadData.storage_mode === 'stream_library') {
+                    return await this.uploadWithTUSLocal(file, uploadData);
+                } else {
+                    throw new Error('Only Stream Library uploads are supported');
+                }
+            },
 
-                    // Check storage mode and use appropriate method
-                    if (uploadData.storage_mode === 'server' || uploadData.storage_mode === 'hybrid') {
-                        // Server upload - use POST with FormData
-                        const formData = new FormData();
-                        formData.append('file', file);
-                        xhr.open('POST', uploadData.upload_url);
-                        xhr.send(formData);
-                    } else {
-                        // CDN upload - use PUT with file directly
-                        xhr.open('PUT', uploadData.upload_url);
-                        xhr.setRequestHeader('AccessKey', uploadData.access_key);
-                        xhr.setRequestHeader('Content-Type', file.type);
-                        xhr.send(file);
+            async uploadWithTUSLocal(file, uploadData) {
+                return new Promise(async (resolve, reject) => {
+                    try {
+                        // Ensure TUS library is loaded
+                        await this.ensureTUSLibrary();
+
+                        if (typeof tus === 'undefined') {
+                            reject(new Error('TUS library không khả dụng. Vui lòng thử lại.'));
+                            return;
+                        }
+
+                        console.log('🔍 [TUS] Upload data:', {
+                            endpoint: uploadData.upload_url,
+                            video_id: uploadData.video_id,
+                            library_id: uploadData.library_id,
+                            auth_signature: uploadData.auth_signature ? 'present' : 'missing',
+                            auth_expire: uploadData.auth_expire
+                        });
+
+                        const upload = new tus.Upload(file, {
+                            endpoint: uploadData.upload_url,
+                            retryDelays: [0, 3000, 5000, 10000, 20000, 60000],
+                            removeFingerprintOnSuccess: true,
+                            storeFingerprintForResuming: false,
+                            headers: {
+                                'AuthorizationSignature': uploadData.auth_signature,
+                                'AuthorizationExpire': uploadData.auth_expire.toString(),
+                                'VideoId': uploadData.video_id,
+                                'LibraryId': uploadData.library_id.toString(),
+                            },
+                            metadata: {
+                                filetype: file.type,
+                                title: file.name
+                            },
+                            onError: (error) => {
+                                console.error('❌ [TUS] Upload error:', error);
+                                reject(new Error('TUS upload failed: ' + error.message));
+                            },
+                            onProgress: (bytesUploaded, bytesTotal) => {
+                                const percent = 10 + Math.round((bytesUploaded / bytesTotal) * 85);
+                                this.updateStatus(`📤 Đang upload... ${this.formatFileSize(bytesUploaded)}/${this.formatFileSize(bytesTotal)}`, percent);
+                            },
+                            onSuccess: () => {
+                                console.log('✅ [TUS] Upload completed successfully');
+                                resolve();
+                            }
+                        });
+
+                        console.log('🚀 [TUS] Starting upload to Bunny Stream...');
+                        upload.start();
+
+                    } catch (error) {
+                        console.error('TUS setup error:', error);
+                        reject(error);
                     }
+                });
+            },
+
+            async ensureTUSLibrary() {
+                return new Promise((resolve) => {
+                    if (typeof tus !== 'undefined') {
+                        resolve(true);
+                        return;
+                    }
+
+                    // Check if script already exists
+                    const existingScript = document.querySelector('script[src*="tus-js-client"]');
+                    if (existingScript) {
+                        existingScript.onload = () => resolve(true);
+                        existingScript.onerror = () => resolve(false);
+                        return;
+                    }
+
+                    // Load TUS library
+                    const script = document.createElement('script');
+                    script.src = 'https://cdn.jsdelivr.net/npm/tus-js-client@3.1.1/dist/tus.min.js';
+                    script.onload = () => resolve(true);
+                    script.onerror = () => resolve(false);
+                    document.head.appendChild(script);
                 });
             },
             validateFile(file) {
