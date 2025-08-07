@@ -8,7 +8,7 @@
         </div>
 
         <!-- Stat Widgets -->
-        <div class="p-6 lg:p-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-6">
+        <div class="p-6 lg:p-8 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
             <!-- Helper function to create stat cards -->
             @php
             function renderStatCard($title, $value, $icon, $color, $link = '#', $tooltip = '') {
@@ -16,15 +16,17 @@
                 $bgColor = "bg-{$color}-100 dark:bg-{$color}-900/50";
                 $ringColor = "ring-{$color}-500";
                 return <<<HTML
-                <a href="{$link}" class="bg-white dark:bg-gray-800 p-5 rounded-xl shadow-md flex items-center space-x-4 hover:shadow-lg transition-shadow duration-300 relative group" title="{$tooltip}">
-                    <div class="{$bgColor} p-3 rounded-full">
-                        <svg class="w-6 h-6 {$baseColor}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            {$icon}
-                        </svg>
-                    </div>
-                    <div>
-                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">{$title}</p>
-                        <p class="text-2xl font-bold text-gray-900 dark:text-white">{$value}</p>
+                <a href="{$link}" class="bg-white dark:bg-gray-800 p-4 rounded-xl shadow-md hover:shadow-lg transition-shadow duration-300 relative group" title="{$tooltip}">
+                    <div class="flex items-center space-x-3">
+                        <div class="{$bgColor} p-2 rounded-full flex-shrink-0">
+                            <svg class="w-5 h-5 {$baseColor}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                {$icon}
+                            </svg>
+                        </div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 truncate">{$title}</p>
+                            <p class="text-lg font-bold text-gray-900 dark:text-white truncate">{$value}</p>
+                        </div>
                     </div>
                 </a>
 HTML;
@@ -60,14 +62,14 @@ HTML;
                         <a href="{{ route('admin.transactions') }}" class="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:underline">Xem tất cả</a>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="min-w-full">
+                        <table class="min-w-full table-fixed">
                             <thead class="border-b border-gray-200 dark:border-gray-700">
                                 <tr>
-                                    <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-3 px-4">User</th>
-                                    <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-3 px-4">Số tiền</th>
-                                    <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-3 px-4">Gói</th>
-                                    <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-3 px-4">Trạng Thái</th>
-                                    <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-3 px-4">Thời gian</th>
+                                    <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-3 px-4 w-1/4">User</th>
+                                    <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-3 px-4 w-1/6">Số tiền</th>
+                                    <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-3 px-4 w-1/5">Gói</th>
+                                    <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-3 px-4 w-1/6">Trạng Thái</th>
+                                    <th class="text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider py-3 px-4 w-1/5">Thời gian</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -82,8 +84,12 @@ HTML;
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">${{ number_format($transaction->amount, 2) }}</td>
-                                    <td class="py-3 px-4 text-sm text-gray-500 dark:text-gray-300">{{ optional($transaction->servicePackage)->name ?? 'N/A' }}</td>
+                                    <td class="py-3 px-4 text-sm font-medium text-gray-900 dark:text-white">
+                                        <span class="truncate block max-w-20">${{ number_format($transaction->amount, 2) }}</span>
+                                    </td>
+                                    <td class="py-3 px-4 text-sm text-gray-500 dark:text-gray-300">
+                                        <span class="truncate block">{{ optional($transaction->servicePackage)->name ?? 'N/A' }}</span>
+                                    </td>
                                     <td class="py-3 px-4">
                                         <x-dynamic-component :component="'transaction-status-badge'" :status="$transaction->status" />
                                     </td>
@@ -144,7 +150,7 @@ HTML;
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-    document.addEventListener('livewire:load', function () {
+    document.addEventListener('DOMContentLoaded', function () {
         const ctx = document.getElementById('revenueChart').getContext('2d');
         let chart;
 
@@ -223,10 +229,22 @@ HTML;
             chart = new Chart(ctx, chartConfig);
         }
         
-        renderChart(@json($chartData));
+        // Debug chart data
+        const chartData = @json($chartData);
+        console.log('Chart Data:', chartData);
 
-        Livewire.on('refresh', data => {
-            renderChart(data.chartData);
+        if (!chartData || !chartData.labels || chartData.labels.length === 0) {
+            console.warn('No chart data available');
+            document.getElementById('revenueChart').parentElement.innerHTML =
+                '<div class="flex items-center justify-center h-full text-gray-500"><p>Không có dữ liệu doanh thu trong 30 ngày qua</p></div>';
+            return;
+        }
+
+        renderChart(chartData);
+
+        // Livewire 3 event listener
+        document.addEventListener('livewire:navigated', function () {
+            renderChart(chartData);
         });
     });
     </script>
