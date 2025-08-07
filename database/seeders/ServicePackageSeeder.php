@@ -17,8 +17,8 @@ class ServicePackageSeeder extends Seeder
             [
                 'name' => 'Gói Cơ Bản',
                 'description' => 'Gói livestream cơ bản cho người mới bắt đầu',
-                'price' => 199000, // 199k VND
-                'max_streams' => 2,
+                'price' => 7.65, // ~199k VND (199000/26000)
+                'max_streams' => 3,
                 'max_video_width' => 1280,
                 'max_video_height' => 720,
                 'storage_limit_gb' => 5, // 5GB
@@ -34,7 +34,7 @@ class ServicePackageSeeder extends Seeder
             [
                 'name' => 'Gói Chuyên Nghiệp',
                 'description' => 'Gói livestream cho streamer chuyên nghiệp',
-                'price' => 399000, // 399k VND
+                'price' => 15.35, // ~399k VND (399000/26000)
                 'max_streams' => 5,
                 'max_video_width' => 1920,
                 'max_video_height' => 1080,
@@ -52,7 +52,7 @@ class ServicePackageSeeder extends Seeder
             [
                 'name' => 'Gói Doanh Nghiệp',
                 'description' => 'Gói livestream cho doanh nghiệp và tổ chức lớn',
-                'price' => 999000, // 999k VND
+                'price' => 38.42, // ~999k VND (999000/26000)
                 'max_streams' => 20,
                 'max_video_width' => 3840,
                 'max_video_height' => 2160,

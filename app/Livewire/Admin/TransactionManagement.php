@@ -129,10 +129,24 @@ class TransactionManagement extends Component
     }
 
     /**
-     * ✅ THÊM HELPER METHOD FORMAT TIỀN VNĐ
+     * ✅ HELPER METHODS FORMAT TIỀN TỆ
      */
     public function formatVND($amount)
     {
-        return number_format($amount, 0, ',', '.') . ' VNĐ';
+        return number_format($amount, 0, ',', '.') . ' VND';
+    }
+
+    public function formatUSD($amount)
+    {
+        return '$' . number_format($amount, 2);
+    }
+
+    public function formatCurrency($amount, $currency = 'USD')
+    {
+        return match(strtoupper($currency)) {
+            'VND' => $this->formatVND($amount),
+            'USD' => $this->formatUSD($amount),
+            default => $this->formatUSD($amount)
+        };
     }
 }

@@ -641,6 +641,7 @@ Route::middleware(['auth', 'locale'])->group(function () {
 
     // Service Manager - Trang gói dịch vụ tổng hợp
     Route::get('/services', ServiceManager::class)->name('services');
+    Route::get('/service-manager', ServiceManager::class)->name('service-manager');
 
     // Alias routes để tương thích với code cũ
     Route::get('/billing', ServiceManager::class)->name('billing.manager');

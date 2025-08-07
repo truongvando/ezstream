@@ -125,6 +125,14 @@ return Application::configure(basePath: dirname(__DIR__))
                  ->everyTwoHours()
                  ->withoutOverlapping();
 
+        // 💱 Cập nhật tỷ giá USD/VND (update exchange rate) - ĐÃ CÓ SẴN TRONG AppServiceProvider
+        // $schedule->command('exchange-rate update')->hourly()->withoutOverlapping();
+
+        // 🔍 Kiểm tra currency consistency
+        $schedule->command('currency:check-consistency')
+                 ->dailyAt('04:00')
+                 ->withoutOverlapping();
+
         // 💰 Process pending deposits (check bank transactions)
         $schedule->command('deposits:process-pending')
                  ->everyMinute()

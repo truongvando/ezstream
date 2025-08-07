@@ -58,8 +58,15 @@
                             <h3 class="text-xl font-bold text-gray-900 dark:text-white">{{ $package->name }}</h3>
                             <p class="mt-2 text-gray-600 dark:text-gray-300 h-12">{{ $package->description }}</p>
                             <div class="mt-4">
-                                <span class="text-4xl font-extrabold text-gray-900 dark:text-white">{{ number_format($package->price, 0, ',', '.') }}</span>
-                                <span class="text-base font-medium text-gray-500 dark:text-gray-400">VNĐ/tháng</span>
+                                @php
+                                    $exchangeService = new \App\Services\ExchangeRateService();
+                                    $vndAmount = $exchangeService->convertUsdToVnd($package->price);
+                                @endphp
+                                <span class="text-4xl font-extrabold text-green-600 dark:text-green-400">${{ number_format($package->price, 2) }}</span>
+                                <span class="text-base font-medium text-gray-500 dark:text-gray-400">/tháng</span>
+                                <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                    ≈ {{ number_format($vndAmount, 0, ',', '.') }} VND
+                                </div>
                             </div>
                             <ul class="mt-6 space-y-4">
                                 <li class="flex items-center">
@@ -143,6 +150,11 @@
                     <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 mb-6">
                         <h3 class="font-semibold text-gray-900 dark:text-white">{{ $selectedPackage->name }}</h3>
                         <p class="text-2xl font-bold text-blue-600 dark:text-blue-400">${{ number_format($selectedPackage->price, 2) }}</p>
+                        @php
+                            $exchangeService = new \App\Services\ExchangeRateService();
+                            $vndAmount = $exchangeService->convertUsdToVnd($selectedPackage->price);
+                        @endphp
+                        <p class="text-sm text-gray-500 dark:text-gray-400">≈ {{ number_format($vndAmount, 0, ',', '.') }} VND</p>
                     </div>
 
                     <!-- Payment Options -->

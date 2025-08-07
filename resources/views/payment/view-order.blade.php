@@ -43,7 +43,11 @@
                             <span class="text-blue-600 dark:text-blue-400">${{ number_format($viewOrder->total_amount, 2) }}</span>
                         </div>
                         <div class="text-sm text-gray-600 dark:text-gray-400 text-right">
-                            ≈ {{ number_format($viewOrder->total_amount * 24000) }} VND
+                            @php
+                                $exchangeService = new \App\Services\ExchangeRateService();
+                                $vndAmount = $exchangeService->convertUsdToVnd($viewOrder->total_amount);
+                            @endphp
+                            ≈ {{ number_format($vndAmount, 0, ',', '.') }} VND
                         </div>
                     </div>
                 </div>
@@ -77,8 +81,13 @@
                                 $bankId = '970436'; // Vietcombank
                                 $accountNo = '0971000032314';
                                 $accountName = 'TRUONG VAN DO';
+
+                                // Sử dụng ExchangeRateService thay vì hardcode
+                                $exchangeService = new \App\Services\ExchangeRateService();
+                                $vndAmount = $exchangeService->convertUsdToVnd($transaction->amount);
+
                                 $qrUrl = "https://img.vietqr.io/image/{$bankId}-{$accountNo}-compact2.png?" . http_build_query([
-                                    'amount' => $transaction->amount * 24000, // Convert to VND
+                                    'amount' => round($vndAmount), // Convert to VND using real rate
                                     'addInfo' => $transaction->payment_code,
                                     'accountName' => $accountName,
                                 ]);
@@ -121,7 +130,7 @@
                     <div class="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
                         <h4 class="font-medium text-yellow-900 dark:text-yellow-100 mb-2">⚠️ Lưu ý quan trọng</h4>
                         <ul class="text-sm text-yellow-800 dark:text-yellow-200 space-y-1">
-                            <li>• Chuyển khoản đúng số tiền: <strong>{{ number_format($transaction->amount * 24000) }} VND</strong></li>
+                            <li>• Chuyển khoản đúng số tiền: <strong>{{ number_format($vndAmount, 0, ',', '.') }} VND</strong></li>
                             <li>• Ghi đúng nội dung: <strong>{{ $transaction->payment_code }}</strong></li>
                             <li>• Đơn hàng sẽ tự động xử lý sau khi nhận được thanh toán</li>
                             <li>• Thời gian xử lý: 1-5 phút</li>
