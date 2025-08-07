@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-EZStream Agent Configuration
-SRS-only streaming configuration
+EZStream Agent Configuration v7.0
+Simple FFmpeg Direct Streaming Configuration
 """
 
 import os
@@ -12,14 +12,14 @@ from typing import Optional
 
 @dataclass
 class Config:
-    """Agent configuration for SRS streaming"""
+    """Agent configuration for Simple FFmpeg Direct Streaming"""
 
     # VPS ID - REQUIRED! Must be first (no default value)
     vps_id: int
 
     # Agent identification (with defaults)
     agent_id: str = "ezstream-agent"
-    agent_version: str = "6.0-srs-only"
+    agent_version: str = "7.0-simple-ffmpeg"
     
     # Redis connection
     redis_host: str = "localhost"
@@ -42,23 +42,28 @@ class Config:
     heartbeat_interval: int = 5           # 5 seconds
     progress_throttle_interval: int = 2   # 2 seconds
     
-    # SRS Server settings - MAIN STREAMING METHOD
-    srs_host: str = 'localhost'                     # SRS server host
-    srs_port: int = 1985                            # SRS HTTP API port
-    srs_rtmp_port: int = 1935                       # SRS RTMP port
-    srs_ingest_timeout: int = 30                    # SRS ingest start timeout (seconds)
-    srs_health_check_interval: int = 10             # SRS health check interval (seconds)
+    # Simple FFmpeg Direct Streaming settings
+    ffmpeg_reconnect_delay: int = 5                 # FFmpeg reconnect delay (seconds)
+    ffmpeg_health_check_interval: int = 30          # FFmpeg health check interval (seconds)
+    ffmpeg_max_retries: int = 5                     # Max restart attempts per stream
+    ffmpeg_restart_delay: int = 10                  # Delay between restart attempts (seconds)
 
     def update_from_laravel_settings(self, settings: dict):
         """Update config from Laravel settings"""
         updated_settings = []
 
-        # SRS settings
-        if 'srs_host' in settings:
-            old_host = self.srs_host
-            self.srs_host = settings['srs_host']
-            if old_host != self.srs_host:
-                updated_settings.append(f"srs_host: {old_host} → {self.srs_host}")
+        # FFmpeg settings
+        if 'ffmpeg_reconnect_delay' in settings:
+            old_delay = self.ffmpeg_reconnect_delay
+            self.ffmpeg_reconnect_delay = int(settings['ffmpeg_reconnect_delay'])
+            if old_delay != self.ffmpeg_reconnect_delay:
+                updated_settings.append(f"ffmpeg_reconnect_delay: {old_delay} → {self.ffmpeg_reconnect_delay}")
+
+        if 'ffmpeg_max_retries' in settings:
+            old_retries = self.ffmpeg_max_retries
+            self.ffmpeg_max_retries = int(settings['ffmpeg_max_retries'])
+            if old_retries != self.ffmpeg_max_retries:
+                updated_settings.append(f"ffmpeg_max_retries: {old_retries} → {self.ffmpeg_max_retries}")
 
         # Heartbeat interval
         if 'heartbeat_interval' in settings:
@@ -71,7 +76,7 @@ class Config:
         if updated_settings:
             logging.info(f"🔧 Settings updated from Laravel: {', '.join(updated_settings)}")
             return updated_settings
-        
+
         return []
 
     def get_redis_config(self) -> dict:
@@ -91,14 +96,13 @@ class Config:
         """Get download directory for a specific stream"""
         return os.path.join(self.base_download_dir, f"stream_{stream_id}")
 
-    def get_srs_config(self) -> dict:
-        """Get SRS configuration"""
+    def get_ffmpeg_config(self) -> dict:
+        """Get FFmpeg configuration"""
         return {
-            'host': self.srs_host,
-            'port': self.srs_port,
-            'rtmp_port': self.srs_rtmp_port,
-            'ingest_timeout': self.srs_ingest_timeout,
-            'health_check_interval': self.srs_health_check_interval
+            'reconnect_delay': self.ffmpeg_reconnect_delay,
+            'health_check_interval': self.ffmpeg_health_check_interval,
+            'max_retries': self.ffmpeg_max_retries,
+            'restart_delay': self.ffmpeg_restart_delay
         }
 
     def get_laravel_config(self) -> dict:
@@ -117,13 +121,13 @@ class Config:
                 os.makedirs(self.base_download_dir, exist_ok=True)
                 logging.info(f"📁 Created download directory: {self.base_download_dir}")
 
-            # Validate SRS settings
-            if not self.srs_host:
-                logging.error("❌ SRS host is required")
+            # Validate FFmpeg settings
+            if self.ffmpeg_max_retries <= 0:
+                logging.error(f"❌ Invalid FFmpeg max retries: {self.ffmpeg_max_retries}")
                 return False
 
-            if self.srs_port <= 0 or self.srs_port > 65535:
-                logging.error(f"❌ Invalid SRS port: {self.srs_port}")
+            if self.ffmpeg_restart_delay <= 0:
+                logging.error(f"❌ Invalid FFmpeg restart delay: {self.ffmpeg_restart_delay}")
                 return False
 
             logging.info("✅ Configuration validated successfully")
@@ -144,10 +148,10 @@ class Config:
         self.laravel_base_url = os.getenv('LARAVEL_BASE_URL', self.laravel_base_url)
         self.laravel_api_token = os.getenv('LARAVEL_API_TOKEN', self.laravel_api_token)
 
-        # SRS settings
-        self.srs_host = os.getenv('SRS_HOST', self.srs_host)
-        self.srs_port = int(os.getenv('SRS_PORT', self.srs_port))
-        self.srs_rtmp_port = int(os.getenv('SRS_RTMP_PORT', self.srs_rtmp_port))
+        # FFmpeg settings
+        self.ffmpeg_reconnect_delay = int(os.getenv('FFMPEG_RECONNECT_DELAY', self.ffmpeg_reconnect_delay))
+        self.ffmpeg_max_retries = int(os.getenv('FFMPEG_MAX_RETRIES', self.ffmpeg_max_retries))
+        self.ffmpeg_restart_delay = int(os.getenv('FFMPEG_RESTART_DELAY', self.ffmpeg_restart_delay))
 
         # File management
         self.base_download_dir = os.getenv('DOWNLOAD_DIR', self.base_download_dir)

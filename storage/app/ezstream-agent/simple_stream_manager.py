@@ -76,7 +76,7 @@ class SimpleStreamManager:
             }
             
             logging.info(f"🚀 Starting stream {stream_id}")
-            logging.info(f"   Input: {config.input_url}")
+            logging.info(f"   Input URLs: {config.input_urls}")
             logging.info(f"   Output: {config.output_url}")
             
             # Start monitoring thread
@@ -257,7 +257,21 @@ class SimpleStreamManager:
                 # Process died or unhealthy
                 if stream['status'] != StreamStatus.STOPPED:
                     health = self._check_stream_health(stream_id)
-                    logging.warning(f"⚠️ Stream {stream_id} process died ({health}), restarting...")
+
+                    # Get exit code and stderr for debugging
+                    process = stream.get('process')
+                    exit_code = process.poll() if process else None
+                    stderr_output = ""
+
+                    if process and process.stderr:
+                        try:
+                            stderr_output = process.stderr.read().decode('utf-8', errors='ignore').strip()
+                        except:
+                            pass
+
+                    logging.warning(f"⚠️ Stream {stream_id} process died ({health}), exit_code: {exit_code}")
+                    if stderr_output:
+                        logging.error(f"🔍 [FFMPEG-{stream_id}] Final stderr: {stderr_output}")
 
                     # Report disconnect to Laravel
                     self._report_stream_disconnect(stream_id, health)
@@ -319,21 +333,25 @@ class SimpleStreamManager:
             # Build FFmpeg command with quality optimization
             cmd = ['ffmpeg', '-re']  # Read input at native frame rate
 
+            # Add loop if enabled (MUST be before -i input)
+            if config.loop_enabled:
+                cmd.extend(['-stream_loop', '-1'])
+
             # Add input format if needed (for playlist)
             cmd.extend(input_format)
 
             # Add input source
             cmd.extend(['-i', input_source])
 
-            # Add loop if enabled
-            if config.loop_enabled:
-                cmd.extend(['-stream_loop', '-1'])
-
             cmd.extend([
                 # Reconnection options
                 '-reconnect', '1',
                 '-reconnect_streamed', '1',
                 '-reconnect_delay_max', '5',
+
+                # Stream selection - pick best quality consistently
+                '-map', '0:v:0',  # Select first video stream (usually highest quality)
+                '-map', '0:a:0',  # Select first audio stream
 
                 # Simple copy mode - preserve original quality
                 '-c', 'copy',
@@ -345,9 +363,9 @@ class SimpleStreamManager:
                 '-avoid_negative_ts', 'make_zero',
                 '-fflags', '+genpts',
 
-                # Logging
-                '-loglevel', 'info',
-                '-stats',
+                # Logging - reduced verbosity for long-term stability
+                '-loglevel', 'warning',  # Only warnings and errors
+                '-nostats',              # Disable stats to reduce log spam
 
                 config.output_url
             ])
@@ -362,11 +380,27 @@ class SimpleStreamManager:
                 stderr=subprocess.PIPE,
                 stdin=subprocess.PIPE
             )
-            
+
             stream['process'] = process
             stream['status'] = StreamStatus.RUNNING
-            
+
             logging.info(f"✅ FFmpeg started for stream {stream_id} (PID: {process.pid})")
+
+            # Start thread to monitor FFmpeg stderr for errors
+            import threading
+            def monitor_ffmpeg_stderr():
+                try:
+                    for line in iter(process.stderr.readline, b''):
+                        if line:
+                            error_msg = line.decode('utf-8', errors='ignore').strip()
+                            if error_msg:
+                                logging.warning(f"🔍 [FFMPEG-{stream_id}] {error_msg}")
+                except Exception as e:
+                    logging.error(f"❌ Error monitoring FFmpeg stderr for stream {stream_id}: {e}")
+
+            stderr_thread = threading.Thread(target=monitor_ffmpeg_stderr, daemon=True)
+            stderr_thread.start()
+
             return True
             
         except Exception as e:

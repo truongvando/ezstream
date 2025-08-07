@@ -1,14 +1,14 @@
 #!/bin/bash
 # ==============================================================================
-# EZSTREAM BASE PROVISION SCRIPT v5.0 (for Stream Manager + Process Manager)
+# EZSTREAM BASE PROVISION SCRIPT v7.0 (Simple FFmpeg Direct Streaming)
 # ==============================================================================
 #
 # MÔ TẢ:
-# Script này chuẩn bị một VPS mới để chạy EZStream Agent v5.0 với kiến trúc mới:
-# - Stream Manager: Quản lý streams và playlists
+# Script này chuẩn bị một VPS mới để chạy EZStream Agent v7.0 với kiến trúc đơn giản:
+# - Simple Stream Manager: FFmpeg direct streaming không cần SRS
 # - Process Manager: Quản lý FFmpeg processes với auto reconnect
 # - File Manager: Download và validate files
-# - Direct FFmpeg to YouTube (không cần HLS pipeline)
+# - Direct FFmpeg to YouTube/RTMP (không cần HLS pipeline hoặc SRS)
 #
 # ==============================================================================
 
@@ -49,8 +49,8 @@ apt-get install -y \
     # SRS dependencies - cần thiết cho build SRS từ source
     # nginx removed - conflicts with SRS port 8080
 
-# Cài đặt thư viện Python cần thiết cho EZStream Agent v5.0
-echo "Installing Python packages for EZStream Agent v5.0..."
+# Cài đặt thư viện Python cần thiết cho EZStream Agent v7.0
+echo "Installing Python packages for EZStream Agent v7.0..."
 pip3 install redis psutil requests --break-system-packages || {
     echo "pip3 direct install failed. Trying via apt..."
     apt-get install -y python3-redis python3-psutil python3-requests
@@ -61,9 +61,9 @@ timedatectl set-timezone Asia/Ho_Chi_Minh
 export TZ=Asia/Ho_Chi_Minh
 
 
-# 2. NGINX CONFIGURATION - DISABLED (conflicts with SRS port 8080)
-echo "2. Skipping Nginx configuration (not needed for SRS streaming)..."
-# EZStream Agent v6.0 uses SRS for streaming, nginx not needed
+# 2. NGINX CONFIGURATION - DISABLED (not needed for direct FFmpeg streaming)
+echo "2. Skipping Nginx configuration (not needed for direct FFmpeg streaming)..."
+# EZStream Agent v7.0 uses direct FFmpeg streaming, nginx not needed
 # cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup
 # cat > /etc/nginx/nginx.conf << 'EOF'
 # user www-data;
@@ -76,7 +76,7 @@ echo "2. Skipping Nginx configuration (not needed for SRS streaming)..."
 #     multi_accept on;
 # }
 #
-# # HTTP Configuration - No RTMP/HLS needed for EZStream Agent v5.0
+# # HTTP Configuration - No RTMP/HLS needed for EZStream Agent v7.0
 # http {
 #     sendfile on;
 #     tcp_nopush on;
@@ -99,13 +99,13 @@ echo "2. Skipping Nginx configuration (not needed for SRS streaming)..."
 #
 #         # Health check endpoint
 #         location /health {
-#             return 200 "EZStream Agent v5.0 Ready";
+#             return 200 "EZStream Agent v7.0 Ready";
 #             add_header Content-Type text/plain;
 #         }
 #
 #         # Agent status endpoint (for monitoring)
 #         location /agent-status {
-#             return 200 "EZStream Agent v5.0 - Stream Manager + Process Manager";
+#             return 200 "EZStream Agent v7.0 - Simple FFmpeg Direct Streaming";
 #             add_header Content-Type text/plain;
 #         }
 #     }
@@ -121,7 +121,7 @@ mkdir -p /opt/ezstream-downloads
 #     echo "ERROR: Nginx configuration test failed"
 #     exit 1
 # fi
-echo "✅ Nginx disabled - SRS will handle HTTP endpoints"
+echo "✅ Nginx disabled - Direct FFmpeg streaming (no HTTP endpoints needed)"
 
 
 # 3. CREATE AGENT DIRECTORY & LOG FILE
@@ -162,7 +162,7 @@ ufw --force enable
 
 
 # 6. START SERVICES - NGINX DISABLED
-echo "6. Skipping nginx services (SRS will handle HTTP)..."
+echo "6. Skipping nginx services (Direct FFmpeg streaming - no HTTP needed)..."
 systemctl daemon-reload
 # systemctl enable nginx
 # systemctl restart nginx
@@ -174,7 +174,7 @@ systemctl daemon-reload
 #     exit 1
 # fi
 
-echo "✅ Base services ready (nginx disabled)"
+echo "✅ Base services ready (nginx disabled - direct FFmpeg streaming)"
 
 # 6.5. PREPARE FOR EZSTREAM AGENT (files already downloaded from GitHub)
 echo "6.5. Preparing for EZStream Agent..."
@@ -214,7 +214,7 @@ echo "Skipping nginx tests (nginx disabled)..."
 #     exit 1
 # fi
 # Check HTTP port for health endpoint - DISABLED
-echo "Skipping port 8080 check (will be used by SRS)..."
+echo "Skipping port 8080 check (not needed for direct FFmpeg streaming)..."
 # if ! ss -tulpn | grep -q ":8080"; then
 #     echo "ERROR: HTTP port 8080 not listening"
 #     ss -tulpn | grep nginx || echo "No nginx processes found"
@@ -229,12 +229,12 @@ echo "Skipping nginx health check (nginx disabled)..."
 #     echo "Continuing anyway as HTTP port is working..."
 # fi
 
-echo "✅ Base system ready (nginx disabled, SRS will handle HTTP)"
+echo "✅ Base system ready (nginx disabled, direct FFmpeg streaming)"
 
-# Install Docker for SRS support
+# Install Docker for container support (optional)
 echo ""
-echo "=== INSTALLING DOCKER FOR SRS SUPPORT ==="
-echo "Installing Docker to support SRS streaming server..."
+echo "=== INSTALLING DOCKER FOR CONTAINER SUPPORT ==="
+echo "Installing Docker for optional container support..."
 
 # Check if Docker is already installed
 if command -v docker &> /dev/null; then
@@ -333,7 +333,7 @@ fi
 echo ""
 echo "=== VPS BASE PROVISION COMPLETE ==="
 echo "✅ Base system is ready for EZStream Agent v7.0 deployment from Laravel."
-echo "📋 Architecture: Simple Stream Manager + Process Manager + File Manager + FFmpeg Direct"
-echo "🎬 FFmpeg installed for direct streaming (no SRS required)"
+echo "📋 Architecture: Simple FFmpeg Direct Streaming (no SRS, no HLS pipeline)"
+echo "🎬 FFmpeg installed for direct RTMP streaming to YouTube/platforms"
 echo "🕐 Provision completed at: $(date)"
 echo ""

@@ -71,13 +71,7 @@ class EZStreamAgent:
             # Legacy stream_manager removed - using simple_stream_manager only
             self.command_handler = init_command_handler()
 
-            # Initialize SRS managers (main streaming method)
-            try:
-                from srs_manager import init_srs_manager
-                init_srs_manager()
-                logging.info("✅ SRS managers initialized successfully")
-            except Exception as e:
-                logging.error(f"❌ Failed to initialize SRS managers: {e}")
+            # SRS managers removed - using FFmpeg direct streaming only
 
             # Initialize simple streaming components
             try:

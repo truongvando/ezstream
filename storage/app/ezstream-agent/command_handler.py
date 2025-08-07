@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-EZStream Agent Command Handler
-SRS-only command processing
+EZStream Agent Command Handler v7.0
+Simple FFmpeg Direct Streaming command processing
 """
 
 import json
@@ -42,7 +42,7 @@ class CommandExecution:
 
 
 class CommandHandler:
-    """SRS-only command handler"""
+    """Simple FFmpeg Direct Streaming command handler"""
     
     def __init__(self):
         self.config = get_config()
@@ -69,7 +69,7 @@ class CommandHandler:
             'UPDATE_AGENT': self._handle_update_agent
         }
         
-        logging.info("🎛️ SRS Command Handler initialized")
+        logging.info("🎛️ Simple FFmpeg Command Handler initialized")
 
     def start(self):
         """Start command processing"""
@@ -125,9 +125,11 @@ class CommandHandler:
             try:
                 # Get message with timeout
                 message = self.pubsub.get_message(timeout=1.0)
-                if message and message['type'] == 'message':
-                    self._handle_command_message(message['data'])
-                    
+                if message:
+                    logging.info(f"[DEBUG] Received message: {message}")
+                    if message['type'] == 'message':
+                        self._handle_command_message(message['data'])
+
             except Exception as e:
                 if self.running:
                     logging.error(f"❌ Error in command processing loop: {e}")

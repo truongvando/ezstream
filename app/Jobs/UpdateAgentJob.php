@@ -193,7 +193,7 @@ class UpdateAgentJob implements ShouldQueue
         // Extract agent from Redis (overwrite GitHub version with latest)
         $sshService->execute("cd /tmp && sudo tar -xzf ezstream-agent-latest.tar.gz -C {$remoteDir}");
         $sshService->execute("sudo chmod +x {$remoteDir}/agent.py");
-        $sshService->execute("sudo chmod +x {$remoteDir}/setup-srs.sh");
+        // setup-srs.sh no longer needed for v7.0 (direct FFmpeg streaming)
 
         Log::info("✅ [UpdateAgent] Agent downloaded and extracted from Redis");
     }
@@ -250,7 +250,7 @@ PYTHON;
     {
         $pythonCmd = "/usr/bin/python3";
 
-        // Build the command arguments dynamically (v6.0 uses named arguments).
+        // Build the command arguments dynamically (v7.0 uses named arguments).
         $commandArgs = "--vps-id {$vps->id} --redis-host {$redisHost} --redis-port {$redisPort}";
         if ($redisPassword) {
             $commandArgs .= " --redis-password '{$redisPassword}'"; // Append password only if it exists
@@ -259,9 +259,8 @@ PYTHON;
         $command = "{$pythonCmd} {$agentPath}/agent.py {$commandArgs}";
 
         return "[Unit]
-Description=EZStream Agent v6.0 (SRS-Only Streaming)
+Description=EZStream Agent v7.0 (Simple FFmpeg Direct Streaming)
 After=network.target
-Wants=nginx.service
 
 [Service]
 Type=simple

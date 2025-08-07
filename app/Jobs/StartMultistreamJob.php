@@ -127,25 +127,29 @@ class StartMultistreamJob implements ShouldQueue
             'config' => [
                 'id' => $stream->id,
                 'stream_key' => $stream->stream_key,
-                'video_files' => $this->prepareVideoFiles($stream, $useSrs),
+                'video_files' => $this->prepareVideoFiles($stream, $useFFmpeg),
                 'rtmp_url' => $stream->rtmp_url . '/' . $stream->stream_key,
                 'push_urls' => $stream->push_urls ?? [],
                 'loop' => $stream->loop ?? true,
                 'keep_files_on_agent' => $stream->keep_files_on_agent ?? false,
-                'use_srs' => $useSrs,  // NEW: Tell agent to use SRS
+                'use_ffmpeg' => $useFFmpeg,  // Tell agent to use FFmpeg
                 'streaming_method' => $streamingMethod,  // NEW: Pass streaming method
             ]
         ];
     }
 
-    private function prepareVideoFiles(StreamConfiguration $stream, bool $useSrs = false): array
+    private function prepareVideoFiles(StreamConfiguration $stream, bool $useFFmpeg = true): array
     {
         $videoFiles = [];
-        foreach (($stream->video_source_path ?? []) as $fileInfo) {
+        $videoSourcePath = is_string($stream->video_source_path)
+            ? json_decode($stream->video_source_path, true)
+            : ($stream->video_source_path ?? []);
+
+        foreach ($videoSourcePath as $fileInfo) {
             $userFile = \App\Models\UserFile::find($fileInfo['file_id']);
             if (!$userFile) continue;
 
-            $downloadUrl = $this->getDownloadUrl($userFile, $useSrs);
+            $downloadUrl = $this->getDownloadUrl($userFile, $useFFmpeg);
             if ($downloadUrl) {
                 $videoFiles[] = [
                     'file_id' => $userFile->id,
@@ -153,17 +157,17 @@ class StartMultistreamJob implements ShouldQueue
                     'download_url' => $downloadUrl,
                     'size' => $userFile->size,
                     'disk' => $userFile->disk,
-                    'use_srs' => $useSrs,  // NEW: Pass SRS flag to agent
+                    'use_ffmpeg' => $useFFmpeg,  // Pass FFmpeg flag to agent
                 ];
             }
         }
         return $videoFiles;
     }
 
-    private function getDownloadUrl(\App\Models\UserFile $userFile, bool $useSrs = false): ?string
+    private function getDownloadUrl(\App\Models\UserFile $userFile, bool $useFFmpeg = true): ?string
     {
         try {
-            // For SRS streaming with bunny_stream files, use HLS URL directly
+            // For FFmpeg streaming with bunny_stream files, use HLS URL directly
             // We've disabled Bunny Stream access restrictions, so VPS can access HLS URLs
 
             if ($userFile->disk === 'bunny_stream' && $userFile->stream_video_id) {

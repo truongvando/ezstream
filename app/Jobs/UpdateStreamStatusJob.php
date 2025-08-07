@@ -355,3 +355,27 @@ class UpdateStreamStatusJob implements ShouldQueue
             ]);
         }
     }
+
+    /**
+     * Get video files associated with stream
+     */
+    private function getStreamVideoFiles(StreamConfiguration $stream): array
+    {
+        $videoFiles = [];
+
+        foreach (($stream->video_source_path ?? []) as $fileInfo) {
+            $userFile = \App\Models\UserFile::find($fileInfo['file_id']);
+            if ($userFile) {
+                $videoFiles[] = [
+                    'id' => $userFile->id,
+                    'original_name' => $userFile->original_name,
+                    'disk' => $userFile->disk,
+                    'path' => $userFile->path,
+                    'stream_video_id' => $userFile->stream_video_id
+                ];
+            }
+        }
+
+        return $videoFiles;
+    }
+}
