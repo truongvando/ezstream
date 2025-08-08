@@ -315,13 +315,32 @@ class BunnyStreamService
     {
         $result = $this->getVideo($videoId);
         if ($result['success']) {
+            $numericStatus = $result['data']['status'] ?? 0;
+            $statusString = $this->mapBunnyStatus($numericStatus);
+
             return [
                 'success' => true,
-                'status' => $result['data']['status'] ?? 'unknown',
+                'status' => $statusString,
+                'numeric_status' => $numericStatus,
                 'encoding_progress' => $result['data']['encodeProgress'] ?? 0
             ];
         }
         return $result;
+    }
+
+    /**
+     * Map Bunny numeric status to string
+     */
+    private function mapBunnyStatus($numericStatus): string
+    {
+        return match($numericStatus) {
+            0 => 'created',      // Video created, no file uploaded yet
+            1 => 'processing',   // Video is being processed/encoded
+            2 => 'error',        // Processing failed
+            3 => 'finished',     // Processing completed successfully
+            4 => 'finished',     // Processing completed successfully (alternative)
+            default => 'unknown'
+        };
     }
 
     /**
@@ -339,7 +358,7 @@ class BunnyStreamService
             }
 
             $videoStatus = $status['status'];
-            
+
             if ($videoStatus === 'finished') {
                 return [
                     'success' => true,

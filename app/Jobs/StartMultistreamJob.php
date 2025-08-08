@@ -284,8 +284,13 @@ class StartMultistreamJob implements ShouldQueue
             // Check if file is from Stream Library
             if ($userFile->stream_video_id) {
                 $processingStatus = $userFile->stream_metadata['processing_status'] ?? 'unknown';
-                if ($processingStatus !== 'completed') {
-                    $notReadyFiles[] = "'{$userFile->original_name}' đang xử lý";
+                $fileStatus = $userFile->status ?? 'unknown';
+
+                // Check both processing status and file status
+                // Bunny API returns: 'finished', Webhook returns: 'completed'
+                if (!in_array($processingStatus, ['finished', 'completed', 'ready']) &&
+                    !in_array($fileStatus, ['ready', 'uploaded'])) {
+                    $notReadyFiles[] = "'{$userFile->original_name}' đang xử lý (status: {$processingStatus})";
                 }
             }
             // Regular files are always ready

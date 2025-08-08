@@ -242,7 +242,8 @@ class BunnyWebhookController extends Controller
             if ($file->stream_video_id) {
                 // Stream Library file - check processing status
                 $processingStatus = $file->stream_metadata['processing_status'] ?? 'unknown';
-                if ($processingStatus !== 'completed') {
+                // Bunny API returns: 'finished', Webhook returns: 'completed'
+                if (!in_array($processingStatus, ['finished', 'completed', 'ready'])) {
                     return false;
                 }
             }

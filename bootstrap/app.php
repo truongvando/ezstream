@@ -137,6 +137,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('backup:database --compress')
                  ->dailyAt('02:00')
                  ->withoutOverlapping();
+
+        // 🎬 Check video processing status every minute
+        $schedule->command('queue:work --queue=video-processing --once')
+                 ->everyMinute()
+                 ->withoutOverlapping();
     })
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->use([

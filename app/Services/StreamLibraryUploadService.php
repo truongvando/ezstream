@@ -130,16 +130,20 @@ class StreamLibraryUploadService
                 'size' => $actualFileSize,
                 'mime_type' => $uploadData['mime_type'],
                 'disk' => 'bunny_stream',
-                'status' => 'uploaded',
+                'status' => 'processing',
                 'stream_video_id' => $streamResult['video_id'],
                 'stream_metadata' => [
                     'hls_url' => $streamResult['hls_url'],
                     'mp4_url' => $streamResult['mp4_url'],
                     'thumbnail_url' => $streamResult['thumbnail_url'],
                     'uploaded_at' => now()->toISOString(),
-                    'processing_status' => 'pending'
+                    'processing_status' => 'processing'
                 ],
             ]);
+
+            // Start video processing check job
+            \App\Jobs\CheckVideoProcessingJob::dispatch($userFile->id)
+                ->delay(now()->addSeconds(10)); // Start checking after 10 seconds
 
             // Clean up cache
             Cache::forget("stream_upload_token_{$uploadToken}");
