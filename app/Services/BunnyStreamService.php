@@ -171,23 +171,70 @@ class BunnyStreamService
     public function getVideo($videoId)
     {
         try {
+            $url = "{$this->apiUrl}/library/{$this->videoLibraryId}/videos/{$videoId}";
+
+            // Log API call details
+            Log::info("🌐 [BunnyAPI] Making API call", [
+                'url' => $url,
+                'video_id' => $videoId,
+                'library_id' => $this->videoLibraryId,
+                'api_key_prefix' => substr($this->apiKey, 0, 8) . '...',
+                'method' => 'GET'
+            ]);
+
             $response = Http::withHeaders([
-                'AccessKey' => $this->apiKey
-            ])->get("{$this->apiUrl}/library/{$this->videoLibraryId}/videos/{$videoId}");
+                'AccessKey' => $this->apiKey,
+                'Accept' => 'application/json'
+            ])->get($url);
+
+            // Log response details
+            Log::info("📥 [BunnyAPI] Response received", [
+                'video_id' => $videoId,
+                'status_code' => $response->status(),
+                'successful' => $response->successful(),
+                'response_size' => strlen($response->body()),
+                'headers' => $response->headers()
+            ]);
 
             if ($response->successful()) {
+                $data = $response->json();
+
+                // Log parsed data
+                Log::info("📊 [BunnyAPI] Parsed response data", [
+                    'video_id' => $videoId,
+                    'status' => $data['status'] ?? 'N/A',
+                    'encode_progress' => $data['encodeProgress'] ?? 'N/A',
+                    'title' => $data['title'] ?? 'N/A',
+                    'length' => $data['length'] ?? 'N/A',
+                    'date_uploaded' => $data['dateUploaded'] ?? 'N/A',
+                    'all_fields' => array_keys($data)
+                ]);
+
                 return [
                     'success' => true,
-                    'data' => $response->json()
+                    'data' => $data
                 ];
             } else {
+                $errorBody = $response->body();
+                Log::error("❌ [BunnyAPI] API error response", [
+                    'video_id' => $videoId,
+                    'status_code' => $response->status(),
+                    'error_body' => $errorBody
+                ]);
+
                 return [
                     'success' => false,
-                    'error' => "HTTP {$response->status()}: " . $response->body()
+                    'error' => "HTTP {$response->status()}: " . $errorBody
                 ];
             }
 
         } catch (Exception $e) {
+            Log::error("💥 [BunnyAPI] Exception during API call", [
+                'video_id' => $videoId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return [
                 'success' => false,
                 'error' => $e->getMessage()
@@ -313,18 +360,41 @@ class BunnyStreamService
      */
     public function getVideoStatus($videoId)
     {
+        Log::info("🔍 [BunnyAPI] Getting video status", ['video_id' => $videoId]);
+
         $result = $this->getVideo($videoId);
         if ($result['success']) {
             $numericStatus = $result['data']['status'] ?? 0;
             $statusString = $this->mapBunnyStatus($numericStatus);
+            $encodingProgress = $result['data']['encodeProgress'] ?? 0;
+
+            Log::info("🎯 [BunnyAPI] Status mapping result", [
+                'video_id' => $videoId,
+                'numeric_status' => $numericStatus,
+                'string_status' => $statusString,
+                'encoding_progress' => $encodingProgress,
+                'mapping' => [
+                    '0' => 'created',
+                    '1' => 'processing',
+                    '2' => 'error',
+                    '3' => 'finished',
+                    '4' => 'finished'
+                ]
+            ]);
 
             return [
                 'success' => true,
                 'status' => $statusString,
                 'numeric_status' => $numericStatus,
-                'encoding_progress' => $result['data']['encodeProgress'] ?? 0
+                'encoding_progress' => $encodingProgress
             ];
         }
+
+        Log::error("❌ [BunnyAPI] Failed to get video status", [
+            'video_id' => $videoId,
+            'error' => $result['error'] ?? 'Unknown error'
+        ]);
+
         return $result;
     }
 

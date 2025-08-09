@@ -237,6 +237,17 @@ class BunnyDirectUploadService
 
             $userFile = $user->files()->create($fileData);
 
+            // Start video processing check job for Stream Library uploads
+            if ($actualStorageMode === 'stream_library' && isset($uploadData['video_id'])) {
+                Log::info("Dispatching CheckVideoProcessingJob for Stream Library upload", [
+                    'user_file_id' => $userFile->id,
+                    'video_id' => $uploadData['video_id']
+                ]);
+
+                \App\Jobs\CheckVideoProcessingJob::dispatch($userFile->id)
+                    ->delay(now()->addSeconds(10)); // Start checking after 10 seconds
+            }
+
             // Clean up upload token
             cache()->forget("upload_token_{$uploadToken}");
 
@@ -244,7 +255,9 @@ class BunnyDirectUploadService
                 'user_file_id' => $userFile->id,
                 'user_id' => $uploadData['user_id'],
                 'file_name' => $uploadData['file_name'],
-                'file_size' => $actualFileSize
+                'file_size' => $actualFileSize,
+                'storage_mode' => $actualStorageMode,
+                'job_dispatched' => $actualStorageMode === 'stream_library'
             ]);
 
             // Generate appropriate URL based on actual storage mode used

@@ -310,8 +310,8 @@ create_basic_supervisor_config() {
 programs=ezstream-queue_00,ezstream-queue_01
 
 [program:ezstream-queue_00]
-process_name=%(program_name)s
-command=php $PROJECT_DIR/artisan queue:work --sleep=3 --tries=3 --max-time=3600
+process_name=%(program_name)s_%(process_num)02d
+command=php $PROJECT_DIR/artisan queue:work --queue=video-processing,default --sleep=3 --tries=3 --max-time=3600
 directory=$PROJECT_DIR
 autostart=true
 autorestart=true
@@ -320,12 +320,12 @@ killasgroup=true
 user=www-data
 numprocs=1
 redirect_stderr=true
-stdout_logfile=$PROJECT_DIR/storage/logs/queue.log
+stdout_logfile=$PROJECT_DIR/storage/logs/queue-00.log
 stopwaitsecs=60
 
 [program:ezstream-queue_01]
-process_name=%(program_name)s
-command=php $PROJECT_DIR/artisan queue:work --sleep=3 --tries=3 --max-time=3600
+process_name=%(program_name)s_%(process_num)02d
+command=php $PROJECT_DIR/artisan queue:work --queue=default --sleep=3 --tries=3 --max-time=3600
 directory=$PROJECT_DIR
 autostart=true
 autorestart=true
@@ -334,7 +334,7 @@ killasgroup=true
 user=www-data
 numprocs=1
 redirect_stderr=true
-stdout_logfile=$PROJECT_DIR/storage/logs/queue.log
+stdout_logfile=$PROJECT_DIR/storage/logs/queue-01.log
 stopwaitsecs=60
 EOF
 
@@ -428,7 +428,7 @@ EOF
 
     # Create log files
     mkdir -p $PROJECT_DIR/storage/logs
-    touch $PROJECT_DIR/storage/logs/{queue,vps-queue,agent,redis,schedule,stream-listener}.log
+    touch $PROJECT_DIR/storage/logs/{queue-00,queue-01,vps-queue,agent,redis,schedule,stream-listener}.log
     chown -R www-data:www-data $PROJECT_DIR/storage/logs
 
     # Reload Supervisor

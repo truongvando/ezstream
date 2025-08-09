@@ -482,7 +482,7 @@ class UserStreamManager extends BaseStreamManager
         // This method should ONLY create new streams
         // Edit functionality is handled by updateQuickStream() method
 
-        Log::info(' [QuickStream] Starting createQuickStream', [
+        Log::info('🎬 [QuickStream] Starting createQuickStream', [
             'quickTitle' => $this->quickTitle,
             'quickPlatform' => $this->quickPlatform,
             'quickSelectedFiles' => $this->quickSelectedFiles,

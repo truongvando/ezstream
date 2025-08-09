@@ -138,8 +138,8 @@ return Application::configure(basePath: dirname(__DIR__))
                  ->dailyAt('02:00')
                  ->withoutOverlapping();
 
-        // 🎬 Check video processing status every minute
-        $schedule->command('queue:work --queue=video-processing --once')
+        // 🎬 Process video processing queue every minute
+        $schedule->command('video:process-queue --once')
                  ->everyMinute()
                  ->withoutOverlapping();
     })

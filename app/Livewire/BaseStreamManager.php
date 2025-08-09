@@ -393,8 +393,13 @@ abstract class BaseStreamManager extends Component
     public function openQuickStreamModal()
     {
         Log::info('🚀 Opening Quick Stream Modal');
-        
+
         $user = Auth::user();
+        if (!$user) {
+            Log::error('❌ User not authenticated in openQuickStreamModal');
+            session()->flash('error', 'Bạn cần đăng nhập để sử dụng tính năng này.');
+            return;
+        }
         
         // Check subscription requirement
         if ($this->requiresSubscription() && !$user->isAdmin()) {
@@ -425,7 +430,7 @@ abstract class BaseStreamManager extends Component
         $this->quickAutoDelete = true; // Default to auto-delete enabled
 
         $this->showQuickStreamModal = true;
-        
+
         Log::info('✅ Quick Stream Modal opened successfully');
     }
 

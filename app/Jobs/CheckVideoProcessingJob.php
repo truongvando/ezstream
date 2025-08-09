@@ -168,18 +168,43 @@ class CheckVideoProcessingJob implements ShouldQueue
 
     private function updateWaitingStreams(UserFile $userFile, $status = 'INACTIVE')
     {
-        $streams = StreamConfiguration::where('user_file_id', $userFile->id)
+        // Find streams waiting for this file (both direct and JSON references)
+        $directStreams = StreamConfiguration::where('user_file_id', $userFile->id)
             ->where('status', 'waiting_for_processing')
             ->get();
 
-        foreach ($streams as $stream) {
-            $stream->update(['status' => $status]);
-            
-            Log::info("🔄 [VideoProcessing] Updated stream status", [
-                'stream_id' => $stream->id,
-                'user_file_id' => $userFile->id,
-                'new_status' => $status
-            ]);
+        $jsonStreams = StreamConfiguration::where('status', 'waiting_for_processing')
+            ->whereJsonContains('video_source_path', [['file_id' => $userFile->id]])
+            ->get();
+
+        $allStreams = $directStreams->merge($jsonStreams)->unique('id');
+
+        foreach ($allStreams as $stream) {
+            if ($status === 'INACTIVE') {
+                // Video is ready - restart the stream!
+                Log::info("🚀 [VideoProcessing] Video ready, restarting stream", [
+                    'stream_id' => $stream->id,
+                    'user_file_id' => $userFile->id,
+                    'file_name' => $userFile->original_name
+                ]);
+
+                // Dispatch StartMultistreamJob to restart the stream
+                \App\Jobs\StartMultistreamJob::dispatch($stream);
+
+                $stream->update([
+                    'status' => 'STARTING',
+                    'status_message' => 'Video processing completed, starting stream'
+                ]);
+            } else {
+                // Error case
+                $stream->update(['status' => $status]);
+
+                Log::info("🔄 [VideoProcessing] Updated stream status", [
+                    'stream_id' => $stream->id,
+                    'user_file_id' => $userFile->id,
+                    'new_status' => $status
+                ]);
+            }
         }
     }
 
