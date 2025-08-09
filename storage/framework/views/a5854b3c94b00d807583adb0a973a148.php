@@ -347,6 +347,8 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                 </div>
             </div>
 
+
+
             <!-- Footer -->
             <div class="bg-gray-50 dark:bg-gray-900 flex justify-end space-x-3 border-t pt-4 p-6 flex-shrink-0">
                 <button type="button" @click="$wire.showQuickStreamModal = false" class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">Hủy</button>
@@ -357,9 +359,8 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                         wire:target="<?php echo e($editingStream ? 'updateQuickStream' : 'createQuickStream'); ?>"
                         type="button"
                         class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                        x-data="{ clicked: false }"
-                        x-on:click="if (clicked) return false; clicked = true; setTimeout(() => clicked = false, 3000)"
-                        :disabled="clicked">
+                        :disabled="(!$wire.video_source_id && !$wire.quickSelectedFiles.length) || !$wire.quickTitle.trim() || !$wire.quickStreamKey.trim()"
+                    >
                     <span wire:loading.remove wire:target="<?php echo e($editingStream ? 'updateQuickStream' : 'createQuickStream'); ?>" class="flex items-center">
                         <!--[if BLOCK]><![endif]--><?php if($editingStream): ?>
                             <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
