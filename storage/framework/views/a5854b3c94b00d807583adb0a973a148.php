@@ -359,7 +359,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                         wire:target="<?php echo e($editingStream ? 'updateQuickStream' : 'createQuickStream'); ?>"
                         type="button"
                         class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                        :disabled="(!$wire.video_source_id && !$wire.quickSelectedFiles.length) || !$wire.quickTitle.trim() || !$wire.quickStreamKey.trim()"
+                        :disabled="!$wire.quickTitle || !$wire.quickStreamKey || (!$wire.video_source_id && (!$wire.quickSelectedFiles || $wire.quickSelectedFiles.length === 0))"
                     >
                     <span wire:loading.remove wire:target="<?php echo e($editingStream ? 'updateQuickStream' : 'createQuickStream'); ?>" class="flex items-center">
                         <!--[if BLOCK]><![endif]--><?php if($editingStream): ?>
