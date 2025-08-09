@@ -556,6 +556,16 @@ echo -e "${YELLOW}🎨 Clearing compiled views for UI fixes...${NC}"
 rm -rf $PROJECT_DIR/storage/framework/views/*
 php artisan view:clear
 
+# Clear Livewire component cache for UI updates
+echo -e "${YELLOW}🔄 Clearing Livewire component cache...${NC}"
+rm -rf $PROJECT_DIR/storage/framework/cache/livewire-components.php
+php artisan livewire:discover 2>/dev/null || echo "Livewire discover command not available"
+
+# Clear application cache to ensure fresh data
+echo -e "${YELLOW}💾 Clearing application cache for fresh data...${NC}"
+php artisan cache:forget users_files_* 2>/dev/null || true
+php artisan cache:forget stream_* 2>/dev/null || true
+
 # Run database migrations (skip existing tables)
 echo -e "${YELLOW}🗄️ Running database migrations...${NC}"
 echo -e "${BLUE}   Checking migration status...${NC}"
