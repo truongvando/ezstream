@@ -18,7 +18,7 @@ class CheckVideoProcessingJob implements ShouldQueue
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
     protected $userFileId;
-    protected $maxRetries = 60; // 60 retries = 5 minutes (5s interval)
+    protected $maxRetries = 240; // 240 retries = 20 minutes (5s interval)
     protected $currentRetry;
 
     public function __construct($userFileId, $currentRetry = 0)
@@ -93,7 +93,23 @@ class CheckVideoProcessingJob implements ShouldQueue
 
                 case 'error':
                 case 'failed':
-                    // Processing failed
+                    // Check if this is a temporary error during encoding
+                    if ($this->currentRetry < ($this->maxRetries * 0.75)) { // Give 75% of retries before giving up
+                        Log::warning("⚠️ [VideoProcessing] Video shows error status but still retrying (may be temporary)", [
+                            'user_file_id' => $this->userFileId,
+                            'video_id' => $userFile->stream_video_id,
+                            'status' => $videoStatus,
+                            'retry' => $this->currentRetry,
+                            'max_retries' => $this->maxRetries,
+                            'will_retry_until' => round($this->maxRetries * 0.75)
+                        ]);
+
+                        $userFile->update(['stream_metadata' => $metadata]);
+                        $this->scheduleRetry();
+                        break;
+                    }
+
+                    // Persistent error - give up
                     $metadata['processing_failed_at'] = now()->toISOString();
                     $userFile->update([
                         'stream_metadata' => $metadata,
@@ -103,10 +119,11 @@ class CheckVideoProcessingJob implements ShouldQueue
                     // Update streams to ERROR status
                     $this->updateWaitingStreams($userFile, 'ERROR');
 
-                    Log::error("❌ [VideoProcessing] Video processing failed", [
+                    Log::error("❌ [VideoProcessing] Video processing failed persistently", [
                         'user_file_id' => $this->userFileId,
                         'video_id' => $userFile->stream_video_id,
-                        'final_status' => $videoStatus
+                        'final_status' => $videoStatus,
+                        'total_retries' => $this->currentRetry
                     ]);
                     break;
 
@@ -114,8 +131,19 @@ class CheckVideoProcessingJob implements ShouldQueue
                 case 'uploading':
                 case 'queued':
                 case 'created':
+                case 'unknown':
                 default:
                     // Still processing, schedule retry
+                    Log::info("⏳ [VideoProcessing] Video still processing, will retry", [
+                        'user_file_id' => $this->userFileId,
+                        'video_id' => $userFile->stream_video_id,
+                        'status' => $videoStatus,
+                        'progress' => $encodingProgress,
+                        'retry' => $this->currentRetry,
+                        'max_retries' => $this->maxRetries,
+                        'time_remaining' => ($this->maxRetries - $this->currentRetry) * 5 . ' seconds'
+                    ]);
+
                     $userFile->update(['stream_metadata' => $metadata]);
                     $this->scheduleRetry();
                     break;
@@ -135,9 +163,12 @@ class CheckVideoProcessingJob implements ShouldQueue
     private function scheduleRetry()
     {
         if ($this->currentRetry >= $this->maxRetries) {
-            Log::error("⏰ [VideoProcessing] Max retries reached, giving up", [
+            $totalWaitTime = $this->maxRetries * 5; // seconds
+            Log::error("⏰ [VideoProcessing] Max retries reached after {$totalWaitTime} seconds, giving up", [
                 'user_file_id' => $this->userFileId,
-                'max_retries' => $this->maxRetries
+                'max_retries' => $this->maxRetries,
+                'total_wait_time' => $totalWaitTime . ' seconds (' . round($totalWaitTime/60, 1) . ' minutes)',
+                'retry_interval' => '5 seconds'
             ]);
 
             // Mark as timeout

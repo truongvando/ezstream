@@ -54,7 +54,7 @@
                                 @php
                                     $isStreamLibrary = $file->disk === 'bunny_stream';
                                     $processingStatus = $isStreamLibrary ? ($file->stream_metadata['processing_status'] ?? 'processing') : 'ready';
-                                    $canSelect = !$isStreamLibrary || $processingStatus === 'completed';
+                                    $canSelect = !$isStreamLibrary || in_array($processingStatus, ['finished', 'completed', 'ready']);
                                 @endphp
                                 <label class="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700
                                        {{ $canSelect ? 'cursor-pointer' : 'cursor-not-allowed opacity-50' }}

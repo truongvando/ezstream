@@ -382,7 +382,19 @@ abstract class BaseStreamManager extends Component
         $userId = $this->canManageAllStreams() && isset($this->user_id) ? $this->user_id : Auth::id();
 
         return UserFile::where('user_id', $userId)
-            ->where('status', 'ready')
+            ->where(function($query) {
+                $query->where('status', 'ready')
+                      ->orWhere(function($q) {
+                          // Include Bunny Stream files that are finished processing
+                          $q->where('disk', 'bunny_stream')
+                            ->whereJsonContains('stream_metadata->processing_status', 'finished');
+                      })
+                      ->orWhere(function($q) {
+                          // Include Bunny Stream files that are completed
+                          $q->where('disk', 'bunny_stream')
+                            ->whereJsonContains('stream_metadata->processing_status', 'completed');
+                      });
+            })
             ->latest()
             ->get();
     }

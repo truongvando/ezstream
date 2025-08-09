@@ -203,7 +203,7 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                                                     <?php
                                                         $isStreamLibrary = $file->disk === 'bunny_stream';
                                                         $processingStatus = $isStreamLibrary ? ($file->stream_metadata['processing_status'] ?? 'processing') : 'ready';
-                                                        $canSelect = !$isStreamLibrary || $processingStatus === 'completed';
+                                                        $canSelect = !$isStreamLibrary || in_array($processingStatus, ['finished', 'completed', 'ready']);
                                                     ?>
                                                     <label wire:key="file-<?php echo e($file->id); ?>" class="quick-stream-file-label flex items-center p-3 hover:bg-gray-50 dark:hover:bg-gray-700
                                                            <?php echo e($canSelect ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'); ?> border-b border-gray-200 dark:border-gray-600 last:border-b-0 transition-colors">
@@ -216,14 +216,23 @@ unset($__errorArgs, $__bag); ?><!--[if ENDBLOCK]><![endif]-->
                                                         <div class="ml-3 flex-1">
                                                             <div class="flex items-center justify-between">
                                                                 <p class="text-sm font-medium text-gray-900 dark:text-gray-100"><?php echo e($file->original_name); ?></p>
-                                                                <!--[if BLOCK]><![endif]--><?php if($isStreamLibrary && $processingStatus !== 'completed'): ?>
-                                                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                                                                        <svg class="animate-spin w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                                                                        </svg>
-                                                                        Đang xử lý
-                                                                    </span>
+                                                                <!--[if BLOCK]><![endif]--><?php if($isStreamLibrary): ?>
+                                                                    <!--[if BLOCK]><![endif]--><?php if(in_array($processingStatus, ['finished', 'completed', 'ready'])): ?>
+                                                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                                                                            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                                                                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+                                                                            </svg>
+                                                                            Sẵn sàng
+                                                                        </span>
+                                                                    <?php else: ?>
+                                                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                                                                            <svg class="animate-spin w-3 h-3 mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                                                            </svg>
+                                                                            Đang xử lý
+                                                                        </span>
+                                                                    <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                                                 <?php endif; ?><!--[if ENDBLOCK]><![endif]-->
                                                             </div>
                                                             <p class="text-xs text-gray-500">

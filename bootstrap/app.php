@@ -54,7 +54,7 @@ return Application::configure(basePath: dirname(__DIR__))
                  ->withoutOverlapping();
 
         // 🔧 Monitor stream health and auto-fix issues
-        $schedule->command('streams:monitor-health --auto-fix')
+        $schedule->command('stream:enhanced-monitor --fix')
                  ->everyTenMinutes()
                  ->withoutOverlapping();
 
